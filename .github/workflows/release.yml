@@ -1,0 +1,45 @@
+# Nobody picks a version by hand for hand-written-code changes:
+# release-please reads Conventional Commits on main and keeps a release pull
+# request open with the next version and changelog entry. For a
+# regeneration pull request specifically, the commit message's bump marker
+# is set by regenerate.yml from the oasdiff classification, not written by
+# a person -- rules/sdk-generation.md's "Versioning tracks the contract,
+# not the commits". Either way, release-please is what turns the landed
+# commit message into a tag and a GitHub release; there's nothing to build
+# onto it afterward -- this is a library, not a binary, so consumers `go
+# get` the tagged source directly. No publish step: pkg.go.dev indexes a
+# tagged public module on its own, the first time anyone requests it.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # A GITHUB_TOKEN-authored PR needs a human approval GitHub itself
+      # injects (rules/releases.md's "RELEASE_TOKEN PAT is not automatically
+      # droppable"), and even with that approved, its squash-merge commit is
+      # GITHUB_TOKEN-authored too -- no workflow fires on it, so this job
+      # never re-runs to cut the actual tag. RELEASE_TOKEN (a real-identity
+      # PAT) sidesteps both. See release-auto-merge.yml for the other half.
+      #
+      # Known-pending: RELEASE_TOKEN isn't set on this repo yet -- same
+      # shape as CODECOV_TOKEN above. This job stays red (a GITHUB_TOKEN
+      # fallback would just hit the same auto-merge wall) until it's added.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ secrets.RELEASE_TOKEN }}
