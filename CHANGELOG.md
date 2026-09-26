@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/alrayyes/forge-dashboard-sdk-go/compare/v1.0.0...v1.0.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **deps:** use bun ecosystem for dependabot, not npm ([#10](https://github.com/alrayyes/forge-dashboard-sdk-go/issues/10)) ([97e9371](https://github.com/alrayyes/forge-dashboard-sdk-go/commit/97e93711b58077d8a6aa2602f89aba55a805e77c)), closes [#9](https://github.com/alrayyes/forge-dashboard-sdk-go/issues/9)
+
 ## 1.0.0 (2026-09-20)
 
 
