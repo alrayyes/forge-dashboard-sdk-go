@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/alrayyes/forge-dashboard-sdk-go/compare/v1.0.1...v1.0.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* **ci:** dedent the oapi-codegen command's folded-scalar continuation lines ([#15](https://github.com/alrayyes/forge-dashboard-sdk-go/issues/15)) ([72fcb7f](https://github.com/alrayyes/forge-dashboard-sdk-go/commit/72fcb7f6eae06c98ae8059f6a6fdf8a80f2db809)), closes [#14](https://github.com/alrayyes/forge-dashboard-sdk-go/issues/14)
+
 ## [1.0.1](https://github.com/alrayyes/forge-dashboard-sdk-go/compare/v1.0.0...v1.0.1) (2026-09-26)
 
 
