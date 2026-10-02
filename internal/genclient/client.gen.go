@@ -363,6 +363,13 @@ type CIStatus string
 type Check struct {
 	Name string `json:"name"`
 
+	// Required Whether the base branch's protection makes this check block the
+	// merge (GitHub required status checks and rulesets, Forgejo
+	// `status_check_contexts`). Absent when the forge can't tell — a
+	// token that can't read protection, or a check that can't be
+	// mapped to a protection entry. Absent is not the same as false.
+	Required *bool `json:"required,omitempty"`
+
 	// State One job/check's own status — the per-job detail CIStatus
 	// deliberately doesn't carry, since CIStatus is the combined result
 	// across every one of them.
