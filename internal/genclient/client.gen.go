@@ -21,6 +21,8 @@ import (
 const (
 	ActionErrorCodeAlreadyClosed       ActionErrorCode = "already_closed"
 	ActionErrorCodeAlreadyMerged       ActionErrorCode = "already_merged"
+	ActionErrorCodeAlreadyUpToDate     ActionErrorCode = "already_up_to_date"
+	ActionErrorCodeAutoMergeNotAllowed ActionErrorCode = "auto_merge_not_allowed"
 	ActionErrorCodeBehind              ActionErrorCode = "behind"
 	ActionErrorCodeBlockedByProtection ActionErrorCode = "blocked_by_protection"
 	ActionErrorCodeChecksFailing       ActionErrorCode = "checks_failing"
@@ -29,6 +31,7 @@ const (
 	ActionErrorCodeNotMergeable        ActionErrorCode = "not_mergeable"
 	ActionErrorCodePermission          ActionErrorCode = "permission"
 	ActionErrorCodeRateLimited         ActionErrorCode = "rate_limited"
+	ActionErrorCodeReadyToMerge        ActionErrorCode = "ready_to_merge"
 	ActionErrorCodeUnknown             ActionErrorCode = "unknown"
 )
 
@@ -38,6 +41,10 @@ func (e ActionErrorCode) Valid() bool {
 	case ActionErrorCodeAlreadyClosed:
 		return true
 	case ActionErrorCodeAlreadyMerged:
+		return true
+	case ActionErrorCodeAlreadyUpToDate:
+		return true
+	case ActionErrorCodeAutoMergeNotAllowed:
 		return true
 	case ActionErrorCodeBehind:
 		return true
@@ -54,6 +61,8 @@ func (e ActionErrorCode) Valid() bool {
 	case ActionErrorCodePermission:
 		return true
 	case ActionErrorCodeRateLimited:
+		return true
+	case ActionErrorCodeReadyToMerge:
 		return true
 	case ActionErrorCodeUnknown:
 		return true
@@ -356,12 +365,18 @@ type APITokenCreateResponse struct {
 	Token string `json:"token"`
 }
 
-// ActionError The structured result of a refused pull request action (Merge today; the other actions adopt it next, so it isn't merge-specific). `error` is the same string every Error carries (the forge's own text, for logs); `code` and `message` are what a client should act on and show.
+// ActionError The structured result of a refused pull request action (Merge, Close, Update branch, Enable auto-merge, Dependabot and Renovate rebase). `error` is the same string every Error carries (the forge's own text, for logs); `code` and `message` are what a client should act on and show.
 type ActionError struct {
 	// Code Why the action was refused, from a re-read of the pull
 	// request's real state. `already_merged` and `already_closed`
 	// mean the dashboard's row was stale: the pull request has
 	// nothing left to merge.
+	//
+	// Three codes belong to one action each: `already_up_to_date`
+	// (Update branch: nothing to bring in), `auto_merge_not_allowed`
+	// (Enable auto-merge: the repo or pull request doesn't allow it)
+	// and `ready_to_merge` (Enable auto-merge: already clean, use
+	// Merge).
 	Code ActionErrorCode `json:"code"`
 
 	// Error The underlying error text, unchanged.
@@ -378,6 +393,12 @@ type ActionError struct {
 // request's real state. `already_merged` and `already_closed`
 // mean the dashboard's row was stale: the pull request has
 // nothing left to merge.
+//
+// Three codes belong to one action each: `already_up_to_date`
+// (Update branch: nothing to bring in), `auto_merge_not_allowed`
+// (Enable auto-merge: the repo or pull request doesn't allow it)
+// and `ready_to_merge` (Enable auto-merge: already clean, use
+// Merge).
 type ActionErrorCode string
 
 // AdminInvite An outstanding (unconsumed, unexpired) invite's own metadata —
@@ -1563,6 +1584,16 @@ type ClientInterface interface {
 	// here either. The pull request stays open and unmerged until the
 	// forge's own required checks pass on their own.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
+	// (or not for this pull request); `ready_to_merge` means it is
+	// already clean, so there is nothing to wait for and Merge is the
+	// action; `checks_pending` means a non-required check is still
+	// running, so trying again later can work.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
@@ -1579,6 +1610,16 @@ type ClientInterface interface {
 	// rebase precedence Merge already uses; no override is exposed
 	// here either. The pull request stays open and unmerged until the
 	// forge's own required checks pass on their own.
+	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
+	// (or not for this pull request); `ready_to_merge` means it is
+	// already clean, so there is nothing to wait for and Merge is the
+	// action; `checks_pending` means a non-required check is still
+	// running, so trying again later can work.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -1608,6 +1649,12 @@ type ClientInterface interface {
 	// need merging at all (a duplicate, or one whose content already
 	// landed another way), not a substitute for Merge.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// Closing a merged pull request is `already_merged`.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
@@ -1618,6 +1665,12 @@ type ClientInterface interface {
 	// Closes the named pull request — for one that turns out not to
 	// need merging at all (a duplicate, or one whose content already
 	// landed another way), not a substitute for Merge.
+	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// Closing a merged pull request is `already_merged`.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -1633,6 +1686,13 @@ type ClientInterface interface {
 	// values below and nothing else is ever sent. GitHub only —
 	// Dependabot doesn't run on Forgejo.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// A connected App with no personal token saved is `permission`, with
+	// the reason in `message`; nothing is posted.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
@@ -1646,6 +1706,13 @@ type ClientInterface interface {
 	// endpoint; `action` is validated server-side to one of the two
 	// values below and nothing else is ever sent. GitHub only —
 	// Dependabot doesn't run on Forgejo.
+	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// A connected App with no personal token saved is `permission`, with
+	// the reason in `message`; nothing is posted.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -1706,6 +1773,11 @@ type ClientInterface interface {
 	// and Forgejo, unlike the Dependabot actions, since Renovate runs
 	// on both.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
@@ -1721,6 +1793,11 @@ type ClientInterface interface {
 	// and Forgejo, unlike the Dependabot actions, since Renovate runs
 	// on both.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
@@ -1735,6 +1812,13 @@ type ClientInterface interface {
 	// Forgejo's equivalent is always synchronous, so it only ever
 	// answers 204.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// `conflict` means the branches can't be merged cleanly;
+	// `already_up_to_date` means there was nothing to bring in.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
@@ -1748,6 +1832,13 @@ type ClientInterface interface {
 	// failure; a follow-up refresh a moment later reflects the result.
 	// Forgejo's equivalent is always synchronous, so it only ever
 	// answers 204.
+	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// `conflict` means the branches can't be merged cleanly;
+	// `already_up_to_date` means there was nothing to bring in.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -2746,6 +2837,16 @@ func (c *Client) StreamDashboard(ctx context.Context, reqEditors ...RequestEdito
 // here either. The pull request stays open and unmerged until the
 // forge's own required checks pass on their own.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
+// (or not for this pull request); `ready_to_merge` means it is
+// already clean, so there is nothing to wait for and Merge is the
+// action; `checks_pending` means a non-required check is still
+// running, so trying again later can work.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
@@ -2772,6 +2873,16 @@ func (c *Client) EnablePullRequestAutoMergeWithBody(ctx context.Context, content
 // rebase precedence Merge already uses; no override is exposed
 // here either. The pull request stays open and unmerged until the
 // forge's own required checks pass on their own.
+//
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
+// (or not for this pull request); `ready_to_merge` means it is
+// already clean, so there is nothing to wait for and Merge is the
+// action; `checks_pending` means a non-required check is still
+// running, so trying again later can work.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -2821,6 +2932,12 @@ func (c *Client) GetPullRequestChecks(ctx context.Context, params *GetPullReques
 // need merging at all (a duplicate, or one whose content already
 // landed another way), not a substitute for Merge.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// Closing a merged pull request is `already_merged`.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
@@ -2841,6 +2958,12 @@ func (c *Client) ClosePullRequestWithBody(ctx context.Context, contentType strin
 // Closes the named pull request — for one that turns out not to
 // need merging at all (a duplicate, or one whose content already
 // landed another way), not a substitute for Merge.
+//
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// Closing a merged pull request is `already_merged`.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -2866,6 +2989,13 @@ func (c *Client) ClosePullRequest(ctx context.Context, body ClosePullRequestJSON
 // values below and nothing else is ever sent. GitHub only —
 // Dependabot doesn't run on Forgejo.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// A connected App with no personal token saved is `permission`, with
+// the reason in `message`; nothing is posted.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
@@ -2889,6 +3019,13 @@ func (c *Client) PostPullRequestDependabotActionWithBody(ctx context.Context, co
 // endpoint; `action` is validated server-side to one of the two
 // values below and nothing else is ever sent. GitHub only —
 // Dependabot doesn't run on Forgejo.
+//
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// A connected App with no personal token saved is `permission`, with
+// the reason in `message`; nothing is posted.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -2979,6 +3116,11 @@ func (c *Client) MergePullRequest(ctx context.Context, body MergePullRequestJSON
 // and Forgejo, unlike the Dependabot actions, since Renovate runs
 // on both.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
@@ -3004,6 +3146,11 @@ func (c *Client) PostPullRequestRenovateRebaseWithBody(ctx context.Context, cont
 // and Forgejo, unlike the Dependabot actions, since Renovate runs
 // on both.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+//
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
@@ -3028,6 +3175,13 @@ func (c *Client) PostPullRequestRenovateRebase(ctx context.Context, body PostPul
 // Forgejo's equivalent is always synchronous, so it only ever
 // answers 204.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// `conflict` means the branches can't be merged cleanly;
+// `already_up_to_date` means there was nothing to bring in.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
@@ -3051,6 +3205,13 @@ func (c *Client) UpdatePullRequestBranchWithBody(ctx context.Context, contentTyp
 // failure; a follow-up refresh a moment later reflects the result.
 // Forgejo's equivalent is always synchronous, so it only ever
 // answers 204.
+//
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// `conflict` means the branches can't be merged cleanly;
+// `already_up_to_date` means there was nothing to bring in.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -6136,6 +6297,16 @@ type ClientWithResponsesInterface interface {
 	// here either. The pull request stays open and unmerged until the
 	// forge's own required checks pass on their own.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
+	// (or not for this pull request); `ready_to_merge` means it is
+	// already clean, so there is nothing to wait for and Merge is the
+	// action; `checks_pending` means a non-required check is still
+	// running, so trying again later can work.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
@@ -6152,6 +6323,16 @@ type ClientWithResponsesInterface interface {
 	// rebase precedence Merge already uses; no override is exposed
 	// here either. The pull request stays open and unmerged until the
 	// forge's own required checks pass on their own.
+	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
+	// (or not for this pull request); `ready_to_merge` means it is
+	// already clean, so there is nothing to wait for and Merge is the
+	// action; `checks_pending` means a non-required check is still
+	// running, so trying again later can work.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -6183,6 +6364,12 @@ type ClientWithResponsesInterface interface {
 	// need merging at all (a duplicate, or one whose content already
 	// landed another way), not a substitute for Merge.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// Closing a merged pull request is `already_merged`.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
@@ -6193,6 +6380,12 @@ type ClientWithResponsesInterface interface {
 	// Closes the named pull request — for one that turns out not to
 	// need merging at all (a duplicate, or one whose content already
 	// landed another way), not a substitute for Merge.
+	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// Closing a merged pull request is `already_merged`.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -6208,6 +6401,13 @@ type ClientWithResponsesInterface interface {
 	// values below and nothing else is ever sent. GitHub only —
 	// Dependabot doesn't run on Forgejo.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// A connected App with no personal token saved is `permission`, with
+	// the reason in `message`; nothing is posted.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
@@ -6221,6 +6421,13 @@ type ClientWithResponsesInterface interface {
 	// endpoint; `action` is validated server-side to one of the two
 	// values below and nothing else is ever sent. GitHub only —
 	// Dependabot doesn't run on Forgejo.
+	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// A connected App with no personal token saved is `permission`, with
+	// the reason in `message`; nothing is posted.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -6281,6 +6488,11 @@ type ClientWithResponsesInterface interface {
 	// and Forgejo, unlike the Dependabot actions, since Renovate runs
 	// on both.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
@@ -6296,6 +6508,11 @@ type ClientWithResponsesInterface interface {
 	// and Forgejo, unlike the Dependabot actions, since Renovate runs
 	// on both.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
@@ -6310,6 +6527,13 @@ type ClientWithResponsesInterface interface {
 	// Forgejo's equivalent is always synchronous, so it only ever
 	// answers 204.
 	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// `conflict` means the branches can't be merged cleanly;
+	// `already_up_to_date` means there was nothing to bring in.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
@@ -6323,6 +6547,13 @@ type ClientWithResponsesInterface interface {
 	// failure; a follow-up refresh a moment later reflects the result.
 	// Forgejo's equivalent is always synchronous, so it only ever
 	// answers 204.
+	//
+	// When the forge refuses, the server re-reads the pull request and
+	// answers an `ActionError` (see Merge): `already_merged` or
+	// `already_closed` when the row was stale, otherwise a `code` and a
+	// plain-words `message` safe to show a person.
+	// `conflict` means the branches can't be merged cleanly;
+	// `already_up_to_date` means there was nothing to bring in.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -7929,13 +8160,13 @@ type EnablePullRequestAutoMergeResponse struct {
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
 	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
+	JSON403 *ActionError
 	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
+	JSON404 *ActionError
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
+	JSON429 *ActionError
 	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
+	JSON502 *ActionError
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -7949,22 +8180,22 @@ func (r EnablePullRequestAutoMergeResponse) GetJSON401() *Error {
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r EnablePullRequestAutoMergeResponse) GetJSON403() *Error {
+func (r EnablePullRequestAutoMergeResponse) GetJSON403() *ActionError {
 	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r EnablePullRequestAutoMergeResponse) GetJSON404() *Error {
+func (r EnablePullRequestAutoMergeResponse) GetJSON404() *ActionError {
 	return r.JSON404
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r EnablePullRequestAutoMergeResponse) GetJSON429() *Error {
+func (r EnablePullRequestAutoMergeResponse) GetJSON429() *ActionError {
 	return r.JSON429
 }
 
 // GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r EnablePullRequestAutoMergeResponse) GetJSON502() *Error {
+func (r EnablePullRequestAutoMergeResponse) GetJSON502() *ActionError {
 	return r.JSON502
 }
 
@@ -8088,13 +8319,13 @@ type ClosePullRequestResponse struct {
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
 	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
+	JSON403 *ActionError
 	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
+	JSON404 *ActionError
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
+	JSON429 *ActionError
 	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
+	JSON502 *ActionError
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -8108,22 +8339,22 @@ func (r ClosePullRequestResponse) GetJSON401() *Error {
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r ClosePullRequestResponse) GetJSON403() *Error {
+func (r ClosePullRequestResponse) GetJSON403() *ActionError {
 	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r ClosePullRequestResponse) GetJSON404() *Error {
+func (r ClosePullRequestResponse) GetJSON404() *ActionError {
 	return r.JSON404
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r ClosePullRequestResponse) GetJSON429() *Error {
+func (r ClosePullRequestResponse) GetJSON429() *ActionError {
 	return r.JSON429
 }
 
 // GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r ClosePullRequestResponse) GetJSON502() *Error {
+func (r ClosePullRequestResponse) GetJSON502() *ActionError {
 	return r.JSON502
 }
 
@@ -8164,15 +8395,15 @@ type PostPullRequestDependabotActionResponse struct {
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
 	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
+	JSON403 *ActionError
 	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
+	JSON404 *ActionError
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Error
+	JSON409 *ActionError
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
+	JSON429 *ActionError
 	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
+	JSON502 *ActionError
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -8186,27 +8417,27 @@ func (r PostPullRequestDependabotActionResponse) GetJSON401() *Error {
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r PostPullRequestDependabotActionResponse) GetJSON403() *Error {
+func (r PostPullRequestDependabotActionResponse) GetJSON403() *ActionError {
 	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r PostPullRequestDependabotActionResponse) GetJSON404() *Error {
+func (r PostPullRequestDependabotActionResponse) GetJSON404() *ActionError {
 	return r.JSON404
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r PostPullRequestDependabotActionResponse) GetJSON409() *Error {
+func (r PostPullRequestDependabotActionResponse) GetJSON409() *ActionError {
 	return r.JSON409
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r PostPullRequestDependabotActionResponse) GetJSON429() *Error {
+func (r PostPullRequestDependabotActionResponse) GetJSON429() *ActionError {
 	return r.JSON429
 }
 
 // GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r PostPullRequestDependabotActionResponse) GetJSON502() *Error {
+func (r PostPullRequestDependabotActionResponse) GetJSON502() *ActionError {
 	return r.JSON502
 }
 
@@ -8330,13 +8561,13 @@ type PostPullRequestRenovateRebaseResponse struct {
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
 	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
+	JSON403 *ActionError
 	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
+	JSON404 *ActionError
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
+	JSON429 *ActionError
 	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
+	JSON502 *ActionError
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -8350,22 +8581,22 @@ func (r PostPullRequestRenovateRebaseResponse) GetJSON401() *Error {
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r PostPullRequestRenovateRebaseResponse) GetJSON403() *Error {
+func (r PostPullRequestRenovateRebaseResponse) GetJSON403() *ActionError {
 	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r PostPullRequestRenovateRebaseResponse) GetJSON404() *Error {
+func (r PostPullRequestRenovateRebaseResponse) GetJSON404() *ActionError {
 	return r.JSON404
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r PostPullRequestRenovateRebaseResponse) GetJSON429() *Error {
+func (r PostPullRequestRenovateRebaseResponse) GetJSON429() *ActionError {
 	return r.JSON429
 }
 
 // GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r PostPullRequestRenovateRebaseResponse) GetJSON502() *Error {
+func (r PostPullRequestRenovateRebaseResponse) GetJSON502() *ActionError {
 	return r.JSON502
 }
 
@@ -8406,15 +8637,15 @@ type UpdatePullRequestBranchResponse struct {
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
 	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
+	JSON403 *ActionError
 	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
+	JSON404 *ActionError
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Error
+	JSON409 *ActionError
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
+	JSON429 *ActionError
 	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
+	JSON502 *ActionError
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -8428,27 +8659,27 @@ func (r UpdatePullRequestBranchResponse) GetJSON401() *Error {
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r UpdatePullRequestBranchResponse) GetJSON403() *Error {
+func (r UpdatePullRequestBranchResponse) GetJSON403() *ActionError {
 	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r UpdatePullRequestBranchResponse) GetJSON404() *Error {
+func (r UpdatePullRequestBranchResponse) GetJSON404() *ActionError {
 	return r.JSON404
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r UpdatePullRequestBranchResponse) GetJSON409() *Error {
+func (r UpdatePullRequestBranchResponse) GetJSON409() *ActionError {
 	return r.JSON409
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r UpdatePullRequestBranchResponse) GetJSON429() *Error {
+func (r UpdatePullRequestBranchResponse) GetJSON429() *ActionError {
 	return r.JSON429
 }
 
 // GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r UpdatePullRequestBranchResponse) GetJSON502() *Error {
+func (r UpdatePullRequestBranchResponse) GetJSON502() *ActionError {
 	return r.JSON502
 }
 
@@ -10054,6 +10285,16 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, r
 // here either. The pull request stays open and unmerged until the
 // forge's own required checks pass on their own.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
+// (or not for this pull request); `ready_to_merge` means it is
+// already clean, so there is nothing to wait for and Merge is the
+// action; `checks_pending` means a non-required check is still
+// running, so trying again later can work.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
@@ -10076,6 +10317,16 @@ func (c *ClientWithResponses) EnablePullRequestAutoMergeWithBodyWithResponse(ctx
 // rebase precedence Merge already uses; no override is exposed
 // here either. The pull request stays open and unmerged until the
 // forge's own required checks pass on their own.
+//
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
+// (or not for this pull request); `ready_to_merge` means it is
+// already clean, so there is nothing to wait for and Merge is the
+// action; `checks_pending` means a non-required check is still
+// running, so trying again later can work.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -10119,6 +10370,12 @@ func (c *ClientWithResponses) GetPullRequestChecksWithResponse(ctx context.Conte
 // need merging at all (a duplicate, or one whose content already
 // landed another way), not a substitute for Merge.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// Closing a merged pull request is `already_merged`.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
@@ -10135,6 +10392,12 @@ func (c *ClientWithResponses) ClosePullRequestWithBodyWithResponse(ctx context.C
 // Closes the named pull request — for one that turns out not to
 // need merging at all (a duplicate, or one whose content already
 // landed another way), not a substitute for Merge.
+//
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// Closing a merged pull request is `already_merged`.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -10156,6 +10419,13 @@ func (c *ClientWithResponses) ClosePullRequestWithResponse(ctx context.Context, 
 // values below and nothing else is ever sent. GitHub only —
 // Dependabot doesn't run on Forgejo.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// A connected App with no personal token saved is `permission`, with
+// the reason in `message`; nothing is posted.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
@@ -10175,6 +10445,13 @@ func (c *ClientWithResponses) PostPullRequestDependabotActionWithBodyWithRespons
 // endpoint; `action` is validated server-side to one of the two
 // values below and nothing else is ever sent. GitHub only —
 // Dependabot doesn't run on Forgejo.
+//
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// A connected App with no personal token saved is `permission`, with
+// the reason in `message`; nothing is posted.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -10253,6 +10530,11 @@ func (c *ClientWithResponses) MergePullRequestWithResponse(ctx context.Context, 
 // and Forgejo, unlike the Dependabot actions, since Renovate runs
 // on both.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
@@ -10274,6 +10556,11 @@ func (c *ClientWithResponses) PostPullRequestRenovateRebaseWithBodyWithResponse(
 // and Forgejo, unlike the Dependabot actions, since Renovate runs
 // on both.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+//
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
@@ -10294,6 +10581,13 @@ func (c *ClientWithResponses) PostPullRequestRenovateRebaseWithResponse(ctx cont
 // Forgejo's equivalent is always synchronous, so it only ever
 // answers 204.
 //
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// `conflict` means the branches can't be merged cleanly;
+// `already_up_to_date` means there was nothing to bring in.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
@@ -10313,6 +10607,13 @@ func (c *ClientWithResponses) UpdatePullRequestBranchWithBodyWithResponse(ctx co
 // failure; a follow-up refresh a moment later reflects the result.
 // Forgejo's equivalent is always synchronous, so it only ever
 // answers 204.
+//
+// When the forge refuses, the server re-reads the pull request and
+// answers an `ActionError` (see Merge): `already_merged` or
+// `already_closed` when the row was stale, otherwise a `code` and a
+// plain-words `message` safe to show a person.
+// `conflict` means the branches can't be merged cleanly;
+// `already_up_to_date` means there was nothing to bring in.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -11825,28 +12126,28 @@ func ParseEnablePullRequestAutoMergeResponse(rsp *http.Response) (*EnablePullReq
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -11957,28 +12258,28 @@ func ParseClosePullRequestResponse(rsp *http.Response) (*ClosePullRequestRespons
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -12021,35 +12322,35 @@ func ParsePostPullRequestDependabotActionResponse(rsp *http.Response) (*PostPull
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -12163,28 +12464,28 @@ func ParsePostPullRequestRenovateRebaseResponse(rsp *http.Response) (*PostPullRe
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -12230,35 +12531,35 @@ func ParseUpdatePullRequestBranchResponse(rsp *http.Response) (*UpdatePullReques
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
