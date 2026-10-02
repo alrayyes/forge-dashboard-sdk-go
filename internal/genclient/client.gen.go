@@ -179,6 +179,30 @@ func (e PullRequestDependabotActionRequestAction) Valid() bool {
 	}
 }
 
+// Defines values for ReviewStateDecision.
+const (
+	ReviewStateDecisionApproved         ReviewStateDecision = "approved"
+	ReviewStateDecisionChangesRequested ReviewStateDecision = "changes_requested"
+	ReviewStateDecisionNone             ReviewStateDecision = "none"
+	ReviewStateDecisionReviewRequired   ReviewStateDecision = "review_required"
+)
+
+// Valid indicates whether the value is a known member of the ReviewStateDecision enum.
+func (e ReviewStateDecision) Valid() bool {
+	switch e {
+	case ReviewStateDecisionApproved:
+		return true
+	case ReviewStateDecisionChangesRequested:
+		return true
+	case ReviewStateDecisionNone:
+		return true
+	case ReviewStateDecisionReviewRequired:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SettingsResponseTheme.
 const (
 	SettingsResponseThemeDark  SettingsResponseTheme = "dark"
@@ -540,9 +564,23 @@ type PullRequest struct {
 	// Repo Owner-qualified repository name.
 	//
 	// Examples: alrayyes/hush-hush
-	Repo      string    `json:"repo"`
-	Title     string    `json:"title"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Repo string `json:"repo"`
+
+	// Review Where a pull request stands on code review. The whole object is
+	// omitted when the owning forge couldn't report it (a Forgejo
+	// reviews call that failed, a draft Forgejo pull request this
+	// service doesn't spend a call on), so a missing "review" means
+	// "unknown" and never "nobody reviewed it."
+	//
+	// GitHub: read from fields on the existing GraphQL query
+	// (reviewDecision, reviewRequests, latestReviews), so it adds no
+	// per-pull-request requests. Forgejo: requestedReviewers comes free
+	// on the pull request list, but approvals and the decision need one
+	// reviews call per open, non-draft pull request, cached until that
+	// pull request's updatedAt changes.
+	Review    *ReviewState `json:"review,omitempty"`
+	Title     string       `json:"title"`
+	UpdatedAt time.Time    `json:"updatedAt"`
 
 	// Url The real pull request URL on its own forge.
 	Url string `json:"url"`
@@ -730,6 +768,43 @@ type RequestLogEntry struct {
 	// StatusCode Omitted when the request never got a response at all.
 	StatusCode *int `json:"statusCode,omitempty"`
 }
+
+// ReviewState Where a pull request stands on code review. The whole object is
+// omitted when the owning forge couldn't report it (a Forgejo
+// reviews call that failed, a draft Forgejo pull request this
+// service doesn't spend a call on), so a missing "review" means
+// "unknown" and never "nobody reviewed it."
+//
+// GitHub: read from fields on the existing GraphQL query
+// (reviewDecision, reviewRequests, latestReviews), so it adds no
+// per-pull-request requests. Forgejo: requestedReviewers comes free
+// on the pull request list, but approvals and the decision need one
+// reviews call per open, non-draft pull request, cached until that
+// pull request's updatedAt changes.
+type ReviewState struct {
+	// Approvals Reviewers whose latest review is an approval. GitHub counts
+	// at most the 10 most recent reviewers.
+	Approvals int `json:"approvals"`
+
+	// Decision "approved" and "changes_requested" mean what they say.
+	// "review_required" means a review is still outstanding: GitHub
+	// says so itself when branch protection requires one, and on
+	// Forgejo it means reviewers are requested and nobody has
+	// approved. "none" means no review activity and nothing
+	// required or requested.
+	Decision ReviewStateDecision `json:"decision"`
+
+	// RequestedReviewers Users and teams still asked to review.
+	RequestedReviewers int `json:"requestedReviewers"`
+}
+
+// ReviewStateDecision "approved" and "changes_requested" mean what they say.
+// "review_required" means a review is still outstanding: GitHub
+// says so itself when branch protection requires one, and on
+// Forgejo it means reviewers are requested and nobody has
+// approved. "none" means no review activity and nothing
+// required or requested.
+type ReviewStateDecision string
 
 // SessionUser defines model for SessionUser.
 type SessionUser struct {
