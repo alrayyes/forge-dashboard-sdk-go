@@ -408,6 +408,9 @@ type ForgeErrorKind string
 
 // ForgeHealth defines model for ForgeHealth.
 type ForgeHealth struct {
+	// DependabotCommandsBlocked Why a "@dependabot" comment sent through this forge's credential would be refused. Dependabot only honours commands from a user with push access and ignores GitHub App accounts whatever permissions the App holds. Set only for GitHub when the connected credential is an App with no personal access token saved to send commands as. The Dependabot buttons lock with this text, auto-update-branch skips Dependabot pull requests, and the dependabot-action endpoint answers 409 with it. Omitted when commands work.
+	DependabotCommandsBlocked *string `json:"dependabotCommandsBlocked,omitempty"`
+
 	// Error A human-readable explanation of the last failure, if reachable is false. Mapped from errorKind, not the raw underlying error text. Omitted when reachable.
 	Error *string `json:"error,omitempty"`
 
