@@ -695,9 +695,10 @@ type RepoStatus struct {
 	// Dependabot pull request gets its own rebase comment instead,
 	// and a Renovate one its own rebase label, mirroring their
 	// manual action buttons. A release-please pull request is
-	// always skipped: it regenerates its own branch and changelog
-	// on every push to the base branch, and has no dedicated
-	// rebase/label action the way Dependabot and Renovate do.
+	// always skipped by this background pass, so no unattended write
+	// lands on a release branch. The dashboard's manual "Update
+	// branch" button is still offered on it, since release-please
+	// has no rebase action of its own.
 	AutoUpdateBranch bool `json:"autoUpdateBranch"`
 
 	// CanManageWebhooks Whether the signed-in user's own permission on this repo is
@@ -1682,9 +1683,9 @@ type ClientInterface interface {
 	//
 	// Any of this repo's pull requests the background refresh finds
 	// behind its base branch gets updated automatically from then on, the same as clicking
-	// "Update branch" would — suppressed
-	// for a bot-managed pull request unless bot-PR updates are
-	// separately allowed. Idempotent: enabling an already-enabled repo
+	// "Update branch" would, except that a Dependabot pull request gets
+	// its rebase comment and a Renovate one its rebase label instead, and
+	// a release-please pull request is skipped. Idempotent: enabling an already-enabled repo
 	// is a no-op, not an error.
 	//
 	// Takes any type of body and a specified content type.
@@ -1696,9 +1697,9 @@ type ClientInterface interface {
 	//
 	// Any of this repo's pull requests the background refresh finds
 	// behind its base branch gets updated automatically from then on, the same as clicking
-	// "Update branch" would — suppressed
-	// for a bot-managed pull request unless bot-PR updates are
-	// separately allowed. Idempotent: enabling an already-enabled repo
+	// "Update branch" would, except that a Dependabot pull request gets
+	// its rebase comment and a Renovate one its rebase label instead, and
+	// a release-please pull request is skipped. Idempotent: enabling an already-enabled repo
 	// is a no-op, not an error.
 	//
 	// Takes a body of the `application/json` content type.
@@ -2999,9 +3000,9 @@ func (c *Client) DisableAutoUpdateBranch(ctx context.Context, body DisableAutoUp
 //
 // Any of this repo's pull requests the background refresh finds
 // behind its base branch gets updated automatically from then on, the same as clicking
-// "Update branch" would — suppressed
-// for a bot-managed pull request unless bot-PR updates are
-// separately allowed. Idempotent: enabling an already-enabled repo
+// "Update branch" would, except that a Dependabot pull request gets
+// its rebase comment and a Renovate one its rebase label instead, and
+// a release-please pull request is skipped. Idempotent: enabling an already-enabled repo
 // is a no-op, not an error.
 //
 // Takes any type of body and a specified content type.
@@ -3023,9 +3024,9 @@ func (c *Client) EnableAutoUpdateBranchWithBody(ctx context.Context, contentType
 //
 // Any of this repo's pull requests the background refresh finds
 // behind its base branch gets updated automatically from then on, the same as clicking
-// "Update branch" would — suppressed
-// for a bot-managed pull request unless bot-PR updates are
-// separately allowed. Idempotent: enabling an already-enabled repo
+// "Update branch" would, except that a Dependabot pull request gets
+// its rebase comment and a Renovate one its rebase label instead, and
+// a release-please pull request is skipped. Idempotent: enabling an already-enabled repo
 // is a no-op, not an error.
 //
 // Takes a body of the `application/json` content type.
@@ -6225,9 +6226,9 @@ type ClientWithResponsesInterface interface {
 	//
 	// Any of this repo's pull requests the background refresh finds
 	// behind its base branch gets updated automatically from then on, the same as clicking
-	// "Update branch" would — suppressed
-	// for a bot-managed pull request unless bot-PR updates are
-	// separately allowed. Idempotent: enabling an already-enabled repo
+	// "Update branch" would, except that a Dependabot pull request gets
+	// its rebase comment and a Renovate one its rebase label instead, and
+	// a release-please pull request is skipped. Idempotent: enabling an already-enabled repo
 	// is a no-op, not an error.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -6239,9 +6240,9 @@ type ClientWithResponsesInterface interface {
 	//
 	// Any of this repo's pull requests the background refresh finds
 	// behind its base branch gets updated automatically from then on, the same as clicking
-	// "Update branch" would — suppressed
-	// for a bot-managed pull request unless bot-PR updates are
-	// separately allowed. Idempotent: enabling an already-enabled repo
+	// "Update branch" would, except that a Dependabot pull request gets
+	// its rebase comment and a Renovate one its rebase label instead, and
+	// a release-please pull request is skipped. Idempotent: enabling an already-enabled repo
 	// is a no-op, not an error.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
@@ -10217,9 +10218,9 @@ func (c *ClientWithResponses) DisableAutoUpdateBranchWithResponse(ctx context.Co
 //
 // Any of this repo's pull requests the background refresh finds
 // behind its base branch gets updated automatically from then on, the same as clicking
-// "Update branch" would — suppressed
-// for a bot-managed pull request unless bot-PR updates are
-// separately allowed. Idempotent: enabling an already-enabled repo
+// "Update branch" would, except that a Dependabot pull request gets
+// its rebase comment and a Renovate one its rebase label instead, and
+// a release-please pull request is skipped. Idempotent: enabling an already-enabled repo
 // is a no-op, not an error.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -10237,9 +10238,9 @@ func (c *ClientWithResponses) EnableAutoUpdateBranchWithBodyWithResponse(ctx con
 //
 // Any of this repo's pull requests the background refresh finds
 // behind its base branch gets updated automatically from then on, the same as clicking
-// "Update branch" would — suppressed
-// for a bot-managed pull request unless bot-PR updates are
-// separately allowed. Idempotent: enabling an already-enabled repo
+// "Update branch" would, except that a Dependabot pull request gets
+// its rebase comment and a Renovate one its rebase label instead, and
+// a release-please pull request is skipped. Idempotent: enabling an already-enabled repo
 // is a no-op, not an error.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
