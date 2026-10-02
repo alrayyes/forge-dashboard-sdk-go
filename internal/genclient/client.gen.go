@@ -17,6 +17,51 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// Defines values for ActionErrorCode.
+const (
+	ActionErrorCodeAlreadyClosed       ActionErrorCode = "already_closed"
+	ActionErrorCodeAlreadyMerged       ActionErrorCode = "already_merged"
+	ActionErrorCodeBehind              ActionErrorCode = "behind"
+	ActionErrorCodeBlockedByProtection ActionErrorCode = "blocked_by_protection"
+	ActionErrorCodeChecksFailing       ActionErrorCode = "checks_failing"
+	ActionErrorCodeChecksPending       ActionErrorCode = "checks_pending"
+	ActionErrorCodeConflict            ActionErrorCode = "conflict"
+	ActionErrorCodeNotMergeable        ActionErrorCode = "not_mergeable"
+	ActionErrorCodePermission          ActionErrorCode = "permission"
+	ActionErrorCodeRateLimited         ActionErrorCode = "rate_limited"
+	ActionErrorCodeUnknown             ActionErrorCode = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the ActionErrorCode enum.
+func (e ActionErrorCode) Valid() bool {
+	switch e {
+	case ActionErrorCodeAlreadyClosed:
+		return true
+	case ActionErrorCodeAlreadyMerged:
+		return true
+	case ActionErrorCodeBehind:
+		return true
+	case ActionErrorCodeBlockedByProtection:
+		return true
+	case ActionErrorCodeChecksFailing:
+		return true
+	case ActionErrorCodeChecksPending:
+		return true
+	case ActionErrorCodeConflict:
+		return true
+	case ActionErrorCodeNotMergeable:
+		return true
+	case ActionErrorCodePermission:
+		return true
+	case ActionErrorCodeRateLimited:
+		return true
+	case ActionErrorCodeUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CIStatus.
 const (
 	CIStatusFailure CIStatus = "failure"
@@ -310,6 +355,30 @@ type APITokenCreateResponse struct {
 	// Token The raw Bearer credential: `Authorization: Bearer <token>`.
 	Token string `json:"token"`
 }
+
+// ActionError The structured result of a refused pull request action (Merge today; the other actions adopt it next, so it isn't merge-specific). `error` is the same string every Error carries (the forge's own text, for logs); `code` and `message` are what a client should act on and show.
+type ActionError struct {
+	// Code Why the action was refused, from a re-read of the pull
+	// request's real state. `already_merged` and `already_closed`
+	// mean the dashboard's row was stale: the pull request has
+	// nothing left to merge.
+	Code ActionErrorCode `json:"code"`
+
+	// Error The underlying error text, unchanged.
+	Error string `json:"error"`
+
+	// Message A short reason in plain words, safe to show a person.
+	Message string `json:"message"`
+
+	// ResetsAt Only with `rate_limited`, when the forge said so. When the budget comes back.
+	ResetsAt *time.Time `json:"resetsAt,omitempty"`
+}
+
+// ActionErrorCode Why the action was refused, from a re-read of the pull
+// request's real state. `already_merged` and `already_closed`
+// mean the dashboard's row was stale: the pull request has
+// nothing left to merge.
+type ActionErrorCode string
 
 // AdminInvite An outstanding (unconsumed, unexpired) invite's own metadata —
 // never the raw token, which only AdminInviteCreateResponse ever
@@ -1592,6 +1661,14 @@ type ClientInterface interface {
 	// passes that explicitly. Neither takes a method override here;
 	// picking one is out of scope for this endpoint.
 	//
+	// When the forge refuses the merge, the server re-reads the pull
+	// request's real current state and answers an `ActionError`: a `code`
+	// from a fixed set plus a short `message` safe to show a person, so
+	// every client gets the same reason without parsing forge text. A
+	// pull request that is already merged or closed answers
+	// `already_merged` / `already_closed`. If the re-read itself fails,
+	// the original forge error is returned with `code: unknown`.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -1605,6 +1682,14 @@ type ClientInterface interface {
 	// looks up the repo's configured default merge style first and
 	// passes that explicitly. Neither takes a method override here;
 	// picking one is out of scope for this endpoint.
+	//
+	// When the forge refuses the merge, the server re-reads the pull
+	// request's real current state and answers an `ActionError`: a `code`
+	// from a fixed set plus a short `message` safe to show a person, so
+	// every client gets the same reason without parsing forge text. A
+	// pull request that is already merged or closed answers
+	// `already_merged` / `already_closed`. If the re-read itself fails,
+	// the original forge error is returned with `code: unknown`.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -2829,6 +2914,14 @@ func (c *Client) PostPullRequestDependabotAction(ctx context.Context, body PostP
 // passes that explicitly. Neither takes a method override here;
 // picking one is out of scope for this endpoint.
 //
+// When the forge refuses the merge, the server re-reads the pull
+// request's real current state and answers an `ActionError`: a `code`
+// from a fixed set plus a short `message` safe to show a person, so
+// every client gets the same reason without parsing forge text. A
+// pull request that is already merged or closed answers
+// `already_merged` / `already_closed`. If the re-read itself fails,
+// the original forge error is returned with `code: unknown`.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -2852,6 +2945,14 @@ func (c *Client) MergePullRequestWithBody(ctx context.Context, contentType strin
 // looks up the repo's configured default merge style first and
 // passes that explicitly. Neither takes a method override here;
 // picking one is out of scope for this endpoint.
+//
+// When the forge refuses the merge, the server re-reads the pull
+// request's real current state and answers an `ActionError`: a `code`
+// from a fixed set plus a short `message` safe to show a person, so
+// every client gets the same reason without parsing forge text. A
+// pull request that is already merged or closed answers
+// `already_merged` / `already_closed`. If the re-read itself fails,
+// the original forge error is returned with `code: unknown`.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -6135,6 +6236,14 @@ type ClientWithResponsesInterface interface {
 	// passes that explicitly. Neither takes a method override here;
 	// picking one is out of scope for this endpoint.
 	//
+	// When the forge refuses the merge, the server re-reads the pull
+	// request's real current state and answers an `ActionError`: a `code`
+	// from a fixed set plus a short `message` safe to show a person, so
+	// every client gets the same reason without parsing forge text. A
+	// pull request that is already merged or closed answers
+	// `already_merged` / `already_closed`. If the re-read itself fails,
+	// the original forge error is returned with `code: unknown`.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -6148,6 +6257,14 @@ type ClientWithResponsesInterface interface {
 	// looks up the repo's configured default merge style first and
 	// passes that explicitly. Neither takes a method override here;
 	// picking one is out of scope for this endpoint.
+	//
+	// When the forge refuses the merge, the server re-reads the pull
+	// request's real current state and answers an `ActionError`: a `code`
+	// from a fixed set plus a short `message` safe to show a person, so
+	// every client gets the same reason without parsing forge text. A
+	// pull request that is already merged or closed answers
+	// `already_merged` / `already_closed`. If the re-read itself fails,
+	// the original forge error is returned with `code: unknown`.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -8130,15 +8247,15 @@ type MergePullRequestResponse struct {
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
 	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
+	JSON403 *ActionError
 	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
+	JSON404 *ActionError
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Error
+	JSON409 *ActionError
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
+	JSON429 *ActionError
 	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
+	JSON502 *ActionError
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -8152,27 +8269,27 @@ func (r MergePullRequestResponse) GetJSON401() *Error {
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r MergePullRequestResponse) GetJSON403() *Error {
+func (r MergePullRequestResponse) GetJSON403() *ActionError {
 	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r MergePullRequestResponse) GetJSON404() *Error {
+func (r MergePullRequestResponse) GetJSON404() *ActionError {
 	return r.JSON404
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r MergePullRequestResponse) GetJSON409() *Error {
+func (r MergePullRequestResponse) GetJSON409() *ActionError {
 	return r.JSON409
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r MergePullRequestResponse) GetJSON429() *Error {
+func (r MergePullRequestResponse) GetJSON429() *ActionError {
 	return r.JSON429
 }
 
 // GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r MergePullRequestResponse) GetJSON502() *Error {
+func (r MergePullRequestResponse) GetJSON502() *ActionError {
 	return r.JSON502
 }
 
@@ -10079,6 +10196,14 @@ func (c *ClientWithResponses) PostPullRequestDependabotActionWithResponse(ctx co
 // passes that explicitly. Neither takes a method override here;
 // picking one is out of scope for this endpoint.
 //
+// When the forge refuses the merge, the server re-reads the pull
+// request's real current state and answers an `ActionError`: a `code`
+// from a fixed set plus a short `message` safe to show a person, so
+// every client gets the same reason without parsing forge text. A
+// pull request that is already merged or closed answers
+// `already_merged` / `already_closed`. If the re-read itself fails,
+// the original forge error is returned with `code: unknown`.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -10098,6 +10223,14 @@ func (c *ClientWithResponses) MergePullRequestWithBodyWithResponse(ctx context.C
 // looks up the repo's configured default merge style first and
 // passes that explicitly. Neither takes a method override here;
 // picking one is out of scope for this endpoint.
+//
+// When the forge refuses the merge, the server re-reads the pull
+// request's real current state and answers an `ActionError`: a `code`
+// from a fixed set plus a short `message` safe to show a person, so
+// every client gets the same reason without parsing forge text. A
+// pull request that is already merged or closed answers
+// `already_merged` / `already_closed`. If the re-read itself fails,
+// the original forge error is returned with `code: unknown`.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -11959,35 +12092,35 @@ func ParseMergePullRequestResponse(rsp *http.Response) (*MergePullRequestRespons
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
