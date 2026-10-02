@@ -2059,6 +2059,24 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /healthz (the `Health` operationId).
 	Health(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// Ready Readiness
+	//
+	// Answers 200 once the server can actually serve: the database answers
+	// a ping with its schema in place, and the first dashboard refresh has
+	// completed. A refresh that finished with a forge unreachable still
+	// counts, and a forge going unreachable afterwards never turns this
+	// into a 503 — see forges[].reachable on the dashboard response for
+	// that. Before any account has signed in there is no refresh to wait
+	// for, so only the database is checked.
+	//
+	// The container's HEALTHCHECK probes this path (`/healthz` stays the
+	// cheap liveness answer), so Docker's single health state and Compose's
+	// `depends_on: condition: service_healthy` mean "ready", not just
+	// "started".
+	//
+	// Corresponds with GET /readyz (the `Ready` operationId).
+	Ready(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 // ListInvites List outstanding registration invites
@@ -3649,6 +3667,34 @@ func (c *Client) ReceiveGitHubWebhook(ctx context.Context, webhookToken PathWebh
 // Corresponds with GET /healthz (the `Health` operationId).
 func (c *Client) Health(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewHealthRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// Ready Readiness
+//
+// Answers 200 once the server can actually serve: the database answers
+// a ping with its schema in place, and the first dashboard refresh has
+// completed. A refresh that finished with a forge unreachable still
+// counts, and a forge going unreachable afterwards never turns this
+// into a 503 — see forges[].reachable on the dashboard response for
+// that. Before any account has signed in there is no refresh to wait
+// for, so only the database is checked.
+//
+// The container's HEALTHCHECK probes this path (`/healthz` stays the
+// cheap liveness answer), so Docker's single health state and Compose's
+// `depends_on: condition: service_healthy` mean "ready", not just
+// "started".
+//
+// Corresponds with GET /readyz (the `Ready` operationId).
+func (c *Client) Ready(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReadyRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -5584,6 +5630,33 @@ func NewHealthRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewReadyRequest constructs an http.Request for the Ready method
+func NewReadyRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/readyz")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -6549,6 +6622,26 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /healthz (the `Health` operationId).
 	HealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthResponse, error)
+
+	// ReadyWithResponse Readiness
+	//
+	// Answers 200 once the server can actually serve: the database answers
+	// a ping with its schema in place, and the first dashboard refresh has
+	// completed. A refresh that finished with a forge unreachable still
+	// counts, and a forge going unreachable afterwards never turns this
+	// into a 503 — see forges[].reachable on the dashboard response for
+	// that. Before any account has signed in there is no refresh to wait
+	// for, so only the database is checked.
+	//
+	// The container's HEALTHCHECK probes this path (`/healthz` stays the
+	// cheap liveness answer), so Docker's single health state and Compose's
+	// `depends_on: condition: service_healthy` mean "ready", not just
+	// "started".
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /readyz (the `Ready` operationId).
+	ReadyWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadyResponse, error)
 }
 
 type ListInvitesResponse struct {
@@ -9294,6 +9387,54 @@ func (r HealthResponse) ContentType() string {
 	return ""
 }
 
+type ReadyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Health
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ReadyResponse) GetJSON200() *Health {
+	return r.JSON200
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ReadyResponse) GetJSON503() *Error {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ReadyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReadyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReadyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReadyResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListInvitesWithResponse List outstanding registration invites
 //
 // Every invite that's neither consumed nor expired — never the raw
@@ -10652,6 +10793,32 @@ func (c *ClientWithResponses) HealthWithResponse(ctx context.Context, reqEditors
 		return nil, err
 	}
 	return ParseHealthResponse(rsp)
+}
+
+// ReadyWithResponse Readiness
+//
+// Answers 200 once the server can actually serve: the database answers
+// a ping with its schema in place, and the first dashboard refresh has
+// completed. A refresh that finished with a forge unreachable still
+// counts, and a forge going unreachable afterwards never turns this
+// into a 503 — see forges[].reachable on the dashboard response for
+// that. Before any account has signed in there is no refresh to wait
+// for, so only the database is checked.
+//
+// The container's HEALTHCHECK probes this path (`/healthz` stays the
+// cheap liveness answer), so Docker's single health state and Compose's
+// `depends_on: condition: service_healthy` mean "ready", not just
+// "started".
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /readyz (the `Ready` operationId).
+func (c *ClientWithResponses) ReadyWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadyResponse, error) {
+	rsp, err := c.Ready(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReadyResponse(rsp)
 }
 
 // ParseListInvitesResponse parses an HTTP response from a ListInvitesWithResponse call
@@ -12704,6 +12871,39 @@ func ParseHealthResponse(rsp *http.Response) (*HealthResponse, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReadyResponse parses an HTTP response from a ReadyWithResponse call
+func ParseReadyResponse(rsp *http.Response) (*ReadyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReadyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Health
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
