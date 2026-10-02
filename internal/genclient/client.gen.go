@@ -248,7 +248,7 @@ func (e ThemeResponseTheme) Valid() bool {
 type APIToken struct {
 	CreatedAt time.Time `json:"createdAt"`
 
-	// ExpiresAt When this token stops authenticating requests (#356) —
+	// ExpiresAt When this token stops authenticating requests —
 	// always set, mandatory at creation, no "never expires"
 	// option. A token whose expiration has passed is rejected the
 	// same way an invalid one is.
@@ -264,8 +264,8 @@ type APIToken struct {
 
 // APITokenCreateRequest defines model for APITokenCreateRequest.
 type APITokenCreateRequest struct {
-	// ExpiresAt Must be in the future and no more than 366 days out (#356,
-	// matching GitHub's own fine-grained-token maximum) — the
+	// ExpiresAt Must be in the future and no more than 366 days out (matching
+	// GitHub's own fine-grained-token maximum) — the
 	// Settings UI offers 7/30/60/90-day presets (30 pre-selected)
 	// or a custom date within that same cap, never an option for
 	// no expiration at all.
@@ -287,17 +287,47 @@ type APITokenCreateResponse struct {
 	Token string `json:"token"`
 }
 
+// AdminInvite An outstanding (unconsumed, unexpired) invite's own metadata —
+// never the raw token, which only AdminInviteCreateResponse ever
+// carries, once, at creation time.
+type AdminInvite struct {
+	DisplayName string    `json:"displayName"`
+	ExpiresAt   time.Time `json:"expiresAt"`
+
+	// Id The invite's own stable identifier — pass this back to POST
+	// /api/admin/invites/{token}/revoke, not the raw token an
+	// invitee registers with.
+	Id       string `json:"id"`
+	Username string `json:"username"`
+}
+
+// AdminInviteCreateRequest defines model for AdminInviteCreateRequest.
+type AdminInviteCreateRequest struct {
+	// DisplayName Examples: Alex
+	DisplayName string `json:"displayName"`
+
+	// Username Examples: alex
+	Username string `json:"username"`
+}
+
+// AdminInviteCreateResponse The one and only response that ever carries the raw invite token
+// — shown to the admin once, at creation time, for them to copy
+// into a `/login?invite=<token>` link and hand to the invitee out
+// of band. Only its hash is stored, so it can't be recovered from
+// here again.
+type AdminInviteCreateResponse struct {
+	DisplayName string    `json:"displayName"`
+	ExpiresAt   time.Time `json:"expiresAt"`
+	Token       string    `json:"token"`
+	Username    string    `json:"username"`
+}
+
 // AdminUser defines model for AdminUser.
 type AdminUser struct {
 	CreatedAt   time.Time `json:"createdAt"`
 	DisplayName string    `json:"displayName"`
 	IsAdmin     bool      `json:"isAdmin"`
 	Username    string    `json:"username"`
-}
-
-// BotPrUpdatesResponse See GET /api/settings/bot-pr-updates's own description.
-type BotPrUpdatesResponse struct {
-	AllowBotPrUpdates bool `json:"allowBotPrUpdates"`
 }
 
 // CIStatus The combined result across every check reported against the pull
@@ -323,7 +353,7 @@ type Check struct {
 // across every one of them.
 type CheckState string
 
-// Credential A registered passkey's own metadata (#355) — never the
+// Credential A registered passkey's own metadata — never the
 // credential itself, which never leaves the authenticator that
 // created it; WebAuthn's whole design is that the server only ever
 // sees a public key and signed assertions, not a secret to lose.
@@ -353,7 +383,7 @@ type Error struct {
 	Error string `json:"error"`
 }
 
-// FilterState The dashboard/Insights filter bar's own saved shape (#353) —
+// FilterState The dashboard/Insights filter bar's own saved shape —
 // whatever `filters.js`'s `loadState`/`saveState` already produce
 // client-side (shared forge/repo/label/author/title/created/
 // updated/groupBy, plus the two board-owned extras with no
@@ -378,6 +408,9 @@ type ForgeErrorKind string
 
 // ForgeHealth defines model for ForgeHealth.
 type ForgeHealth struct {
+	// DependabotCommandsBlocked Why a "@dependabot" comment sent through this forge's credential would be refused. Dependabot only honours commands from a user with push access and ignores GitHub App accounts whatever permissions the App holds. Set only for GitHub when the connected credential is an App with no personal access token saved to send commands as. The Dependabot buttons lock with this text, auto-update-branch skips Dependabot pull requests, and the dependabot-action endpoint answers 409 with it. Omitted when commands work.
+	DependabotCommandsBlocked *string `json:"dependabotCommandsBlocked,omitempty"`
+
 	// Error A human-readable explanation of the last failure, if reachable is false. Mapped from errorKind, not the raw underlying error text. Omitted when reachable.
 	Error *string `json:"error,omitempty"`
 
@@ -391,7 +424,7 @@ type ForgeHealth struct {
 	ErrorKind *ForgeErrorKind `json:"errorKind,omitempty"`
 	Forge     Forge           `json:"forge"`
 
-	// RateLimitGraphQL GitHub's GraphQL budget (#361) — a completely separate 5000/hour allowance from rateLimitREST, populated from the rateLimit block GitHub embeds in every GraphQL response. Never set for a forge with no GraphQL API (Forgejo).
+	// RateLimitGraphQL GitHub's GraphQL budget — a completely separate 5000/hour allowance from rateLimitREST, populated from the rateLimit block GitHub embeds in every GraphQL response. Never set for a forge with no GraphQL API (Forgejo).
 	RateLimitGraphQL *RateLimit `json:"rateLimitGraphQL,omitempty"`
 
 	// RateLimitREST The forge's REST budget, from real X-RateLimit-* response headers. For GitHub, this is checkWebhooks and every write action (merge, update branch, comment, label) — a different 5000/hour allowance from rateLimitGraphQL, not a duplicate of it. Omitted on a poll that made no REST call at all (no webhook path configured). For Forgejo, or any forge reached through GenericSource, this is the only budget there is to report — GenericSource makes exclusively REST-style calls.
@@ -482,8 +515,17 @@ type PullRequest struct {
 	Ci        CIStatus  `json:"ci"`
 	CreatedAt time.Time `json:"createdAt"`
 	Draft     bool      `json:"draft"`
-	Forge     Forge     `json:"forge"`
-	Labels    []Label   `json:"labels"`
+
+	// Empty Whether merging this pull request would produce an empty
+	// commit — its content already landed on the base branch some
+	// other way. False whenever this service can't tell (the
+	// unauthenticated GitHub REST fallback, or a Forgejo instance
+	// old enough not to report additions/deletions/changed_files on
+	// its list endpoint), never a false positive: a pull request
+	// this never confirms empty just renders as it always has.
+	Empty  bool    `json:"empty"`
+	Forge  Forge   `json:"forge"`
+	Labels []Label `json:"labels"`
 
 	// MergeStatus A pull request's mergeable/blocked state, as coarse as every forge
 	// this service talks to can agree on. "blocked" covers anything
@@ -540,7 +582,7 @@ type PullRequestDependabotActionRequestAction string
 
 // RateLimit One of a forge API's own request budgets for the credential the last refresh used — see ForgeHealth.rateLimitGraphQL/rateLimitREST for which budget this is and when each is (or isn't) reported.
 type RateLimit struct {
-	// Cost The point price the most recent call was actually charged (#440) — GraphQL-specific, since a REST request has no separate cost concept beyond the flat one-request-one-point REST's own budget already counts. Omitted for a REST-sourced RateLimit.
+	// Cost The point price the most recent call was actually charged — GraphQL-specific, since a REST request has no separate cost concept beyond the flat one-request-one-point REST's own budget already counts. Omitted for a REST-sourced RateLimit.
 	Cost *int `json:"cost,omitempty"`
 
 	// Limit Requests allowed per window.
@@ -555,11 +597,46 @@ type RateLimit struct {
 
 // RegisterBeginRequest defines model for RegisterBeginRequest.
 type RegisterBeginRequest struct {
-	// DisplayName Examples: Ryan
+	// DisplayName Ignored once an invite is required (any account already
+	// exists) — the invite's own displayName (set by the admin who
+	// issued it) is what's actually used. Only the very first,
+	// bootstrap registration on a fresh instance takes this value.
+	//
+	//
+	// Examples: Ryan
 	DisplayName string `json:"displayName"`
+
+	// InviteToken Required once any account already exists (see GET
+	// /api/auth/registration-status) — a single-use token from POST
+	// /api/admin/invites, issued for exactly this username. Omitted
+	// or ignored for the very first, bootstrap registration.
+	InviteToken *string `json:"inviteToken,omitempty"`
 
 	// Username Examples: ryan
 	Username string `json:"username"`
+}
+
+// RegistrationStatus defines model for RegistrationStatus.
+type RegistrationStatus struct {
+	// Open True only when the instance has zero registered users.
+	Open bool `json:"open"`
+}
+
+// RepoIgnoreRequest Which repo to ignore, and in which scope(s). At least one
+// of prs/issues must be true — a request with both false is
+// rejected with 400 rather than silently doing nothing; use POST
+// /api/repos/unignore to clear both at once instead.
+type RepoIgnoreRequest struct {
+	Forge Forge `json:"forge"`
+
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	FullName string `json:"fullName"`
+
+	// Issues Whether to ignore this repo's issues.
+	Issues bool `json:"issues"`
+
+	// Prs Whether to ignore this repo's pull requests.
+	Prs bool `json:"prs"`
 }
 
 // RepoStatus One tracked repository, whether or not it currently has anything
@@ -567,13 +644,15 @@ type RegisterBeginRequest struct {
 // appear anywhere pullRequests/issues don't already mention it.
 type RepoStatus struct {
 	// AutoUpdateBranch Whether the signed-in user has turned on automatic branch
-	// updates for this repo (#365) — any of its pull requests the
+	// updates for this repo — any of its pull requests the
 	// background refresh finds behind its base branch gets updated
-	// the same way a manual "Update branch" click would, without
-	// one. Suppressed for a bot-managed pull request (release-please,
-	// Dependabot, Renovate) unless bot-PR updates are separately
-	// allowed (POST /api/settings/bot-pr-updates), the same
-	// restraint the manual button already applies.
+	// the same way a manual "Update branch" click would. A
+	// Dependabot pull request gets its own rebase comment instead,
+	// and a Renovate one its own rebase label, mirroring their
+	// manual action buttons. A release-please pull request is
+	// always skipped: it regenerates its own branch and changelog
+	// on every push to the base branch, and has no dedicated
+	// rebase/label action the way Dependabot and Renovate do.
 	AutoUpdateBranch bool `json:"autoUpdateBranch"`
 
 	// CanManageWebhooks Whether the signed-in user's own permission on this repo is
@@ -599,16 +678,57 @@ type RepoStatus struct {
 	// misconfigured one would.
 	HasWebhook bool `json:"hasWebhook"`
 
-	// Ignored Whether the signed-in user has ignored this repo (#363) — its
-	// pullRequests/issues entries are excluded from this same
-	// response and from Insights, but the repo itself still
-	// appears here with accurate hasWebhook/canManageWebhooks.
+	// Ignored Whether the signed-in user has ignored this repo in either
+	// scope below — true whenever ignoredPRs or
+	// ignoredIssues is true. The repo itself still appears here
+	// with accurate hasWebhook/canManageWebhooks regardless.
 	Ignored bool `json:"ignored"`
+
+	// IgnoredIssues Whether the signed-in user has ignored this repo's issues
+	// specifically — its issues entries are excluded from
+	// this same response and from Insights.
+	IgnoredIssues bool `json:"ignoredIssues"`
+
+	// IgnoredPRs Whether the signed-in user has ignored this repo's pull
+	// requests specifically — its pullRequests entries are
+	// excluded from this same response and from Insights.
+	IgnoredPRs bool `json:"ignoredPRs"`
 
 	// Url The repo's own page on its forge, for linking out.
 	//
 	// Examples: https://github.com/alrayyes/forge-dashboard
 	Url string `json:"url"`
+}
+
+// RequestLogEntry One outbound request `internal/github` or `internal/forgejo`
+// made, as persisted by the request_log table.
+type RequestLogEntry struct {
+	// Account The display username of the account whose credential made
+	// this request, or omitted when the request was made with no
+	// per-account credential, or when that account has since been
+	// deleted.
+	Account *string `json:"account,omitempty"`
+
+	// Endpoint The request's own path — GraphQL requests all report "/graphql".
+	//
+	// Examples: /repos/alrayyes/forge-dashboard/pulls, /graphql
+	Endpoint string    `json:"endpoint"`
+	Forge    Forge     `json:"forge"`
+	LoggedAt time.Time `json:"loggedAt"`
+
+	// Method Examples: GET, POST
+	Method string `json:"method"`
+
+	// Outcome "success", or the `ForgeErrorKind` the failure was classified as.
+	//
+	// Examples: success, rate_limited
+	Outcome string `json:"outcome"`
+
+	// RateLimit Omitted when the response carried no rate-limit fields.
+	RateLimit *RateLimit `json:"rateLimit,omitempty"`
+
+	// StatusCode Omitted when the request never got a response at all.
+	StatusCode *int `json:"statusCode,omitempty"`
 }
 
 // SessionUser defines model for SessionUser.
@@ -622,16 +742,20 @@ type SessionUser struct {
 // A blank `githubToken` or `forgejoToken` keeps whatever token is
 // already saved for that forge rather than clearing it — this is
 // the only way to update the username fields without having to
-// resubmit a token you don't want to re-paste. Theme isn't
-// settable here at all — see PUT /api/settings/theme.
+// resubmit a token you don't want to re-paste. githubAppInstallationId
+// is different: a plain replace like githubUsername, not coalesced —
+// 0 or omitted really does disconnect the App. Rejected (400) if
+// the server has no GitHub App configured (see
+// SettingsResponse.githubAppConfigured). Theme isn't settable
+// here at all — see PUT /api/settings/theme.
 type SettingsRequest struct {
-	AllowBotPrUpdates   *bool   `json:"allowBotPrUpdates,omitempty"`
-	ForgejoToken        *string `json:"forgejoToken,omitempty"`
-	ForgejoUrl          *string `json:"forgejoUrl,omitempty"`
-	ForgejoUsername     *string `json:"forgejoUsername,omitempty"`
-	GithubToken         *string `json:"githubToken,omitempty"`
-	GithubUsername      *string `json:"githubUsername,omitempty"`
-	RenovateRebaseLabel *string `json:"renovateRebaseLabel,omitempty"`
+	ForgejoToken            *string `json:"forgejoToken,omitempty"`
+	ForgejoUrl              *string `json:"forgejoUrl,omitempty"`
+	ForgejoUsername         *string `json:"forgejoUsername,omitempty"`
+	GithubAppInstallationId *int64  `json:"githubAppInstallationId,omitempty"`
+	GithubToken             *string `json:"githubToken,omitempty"`
+	GithubUsername          *string `json:"githubUsername,omitempty"`
+	RenovateRebaseLabel     *string `json:"renovateRebaseLabel,omitempty"`
 }
 
 // SettingsResponse The signed-in user's own GitHub/Forgejo configuration. Never
@@ -641,20 +765,29 @@ type SettingsRequest struct {
 // exception: they're ours to hand back in the clear, since the user
 // has to paste them into the forge's own webhook setup.
 type SettingsResponse struct {
-	// AllowBotPrUpdates Overrides the default restraint the Update branch/Dependabot/
-	// Renovate action buttons apply to a pull request opened by
-	// release-please, Dependabot, or Renovate — those tools already
-	// keep their own PRs current on their own schedule. False (the
-	// default) leaves bot-managed PRs alone; true treats them the
-	// same as any other PR.
-	AllowBotPrUpdates bool `json:"allowBotPrUpdates"`
-
 	// ForgejoTokenSet Whether a Forgejo token is currently saved.
 	ForgejoTokenSet bool   `json:"forgejoTokenSet"`
 	ForgejoUrl      string `json:"forgejoUrl"`
 
 	// ForgejoUsername Used as a token-free public-repos fallback when no Forgejo token is set.
 	ForgejoUsername string `json:"forgejoUsername"`
+
+	// GithubAppConfigured Whether this server has a GitHub App configured at all
+	// (server-wide GITHUB_APP_ID/GITHUB_APP_PRIVATE_KEY_BASE64 —
+	// not a per-user setting). The Settings page uses this to
+	// explain why githubAppInstallationId can't be saved when
+	// it's false.
+	GithubAppConfigured bool `json:"githubAppConfigured"`
+
+	// GithubAppInstallationId The installation ID of the alrayyes-automation GitHub App
+	// this user has connected, or 0 if none. Not a
+	// secret — it's an opaque integer GitHub already shows the
+	// user on its own installation settings page — so, unlike
+	// githubTokenSet, this round-trips as a plain value. Takes
+	// precedence over a saved githubToken whenever both are set
+	// and the server has an App configured (see
+	// githubAppConfigured).
+	GithubAppInstallationId int64 `json:"githubAppInstallationId"`
 
 	// GithubTokenSet Whether a GitHub token is currently saved.
 	GithubTokenSet bool `json:"githubTokenSet"`
@@ -669,7 +802,7 @@ type SettingsResponse struct {
 	// documented default, `rebase`.
 	RenovateRebaseLabel string `json:"renovateRebaseLabel"`
 
-	// Theme The signed-in user's own theme preference (#352). Empty
+	// Theme The signed-in user's own theme preference. Empty
 	// means "system" — follow the browser's prefers-color-scheme
 	// rather than a saved choice. Set only from Settings; every
 	// other page reads it via the lightweight
@@ -688,7 +821,7 @@ type SettingsResponse struct {
 	WebhookToken string `json:"webhookToken"`
 }
 
-// SettingsResponseTheme The signed-in user's own theme preference (#352). Empty
+// SettingsResponseTheme The signed-in user's own theme preference. Empty
 // means "system" — follow the browser's prefers-color-scheme
 // rather than a saved choice. Set only from Settings; every
 // other page reads it via the lightweight
@@ -761,10 +894,42 @@ type PathUsername = string
 // PathWebhookToken defines model for PathWebhookToken.
 type PathWebhookToken = string
 
+// QueryRequestLogAccount defines model for QueryRequestLogAccount.
+type QueryRequestLogAccount = string
+
+// QueryRequestLogForge defines model for QueryRequestLogForge.
+type QueryRequestLogForge = Forge
+
+// ListRequestsParams defines parameters for ListRequests.
+type ListRequestsParams struct {
+	// Forge Narrow to entries against this forge only. Omitted matches every forge.
+	Forge *QueryRequestLogForge `form:"forge,omitempty" json:"forge,omitempty"`
+
+	// Account Narrow to entries made under this account's own credential only —
+	// the account's `username` (matching RequestLogEntry.account), not
+	// its internal id. An unrecognized username matches nothing rather
+	// than erroring, the same as any other filter with no matches.
+	// Omitted matches every account.
+	Account *QueryRequestLogAccount `form:"account,omitempty" json:"account,omitempty"`
+}
+
+// ExportRequestsParams defines parameters for ExportRequests.
+type ExportRequestsParams struct {
+	// Forge Narrow to entries against this forge only. Omitted matches every forge.
+	Forge *QueryRequestLogForge `form:"forge,omitempty" json:"forge,omitempty"`
+
+	// Account Narrow to entries made under this account's own credential only —
+	// the account's `username` (matching RequestLogEntry.account), not
+	// its internal id. An unrecognized username matches nothing rather
+	// than erroring, the same as any other filter with no matches.
+	// Omitted matches every account.
+	Account *QueryRequestLogAccount `form:"account,omitempty" json:"account,omitempty"`
+}
+
 // FinishAddCredentialParams defines parameters for FinishAddCredential.
 type FinishAddCredentialParams struct {
-	// Label A name the user recognizes, e.g. "MacBook" or "YubiKey"
-	// (#355) — prompted for at registration time, never derived
+	// Label A name the user recognizes, e.g. "MacBook" or "YubiKey",
+	// prompted for at registration time, never derived
 	// from the authenticator itself.
 	Label string `form:"label" json:"label"`
 }
@@ -802,6 +967,9 @@ type ReceiveForgejoWebhookJSONBody = map[string]interface{}
 // ReceiveGitHubWebhookJSONBody defines parameters for ReceiveGitHubWebhook.
 type ReceiveGitHubWebhookJSONBody = map[string]interface{}
 
+// CreateInviteJSONRequestBody defines body for CreateInvite for application/json ContentType.
+type CreateInviteJSONRequestBody = AdminInviteCreateRequest
+
 // FinishAddCredentialJSONRequestBody defines body for FinishAddCredential for application/json ContentType.
 type FinishAddCredentialJSONRequestBody = WebAuthnCeremonyOptions
 
@@ -816,6 +984,12 @@ type BeginRegistrationJSONRequestBody = RegisterBeginRequest
 
 // FinishRegistrationJSONRequestBody defines body for FinishRegistration for application/json ContentType.
 type FinishRegistrationJSONRequestBody = WebAuthnCeremonyOptions
+
+// EnablePullRequestAutoMergeJSONRequestBody defines body for EnablePullRequestAutoMerge for application/json ContentType.
+type EnablePullRequestAutoMergeJSONRequestBody = PullRequestActionRequest
+
+// ClosePullRequestJSONRequestBody defines body for ClosePullRequest for application/json ContentType.
+type ClosePullRequestJSONRequestBody = PullRequestActionRequest
 
 // PostPullRequestDependabotActionJSONRequestBody defines body for PostPullRequestDependabotAction for application/json ContentType.
 type PostPullRequestDependabotActionJSONRequestBody = PullRequestDependabotActionRequest
@@ -836,7 +1010,7 @@ type DisableAutoUpdateBranchJSONRequestBody = WebhookEnsureRequest
 type EnableAutoUpdateBranchJSONRequestBody = WebhookEnsureRequest
 
 // IgnoreRepoJSONRequestBody defines body for IgnoreRepo for application/json ContentType.
-type IgnoreRepoJSONRequestBody = WebhookEnsureRequest
+type IgnoreRepoJSONRequestBody = RepoIgnoreRequest
 
 // UnignoreRepoJSONRequestBody defines body for UnignoreRepo for application/json ContentType.
 type UnignoreRepoJSONRequestBody = WebhookEnsureRequest
@@ -936,6 +1110,69 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
+	// ListInvites List outstanding registration invites
+	//
+	// Every invite that's neither consumed nor expired — never the raw
+	// token, only its own stable id (see AdminInvite).
+	//
+	// Corresponds with GET /api/admin/invites (the `ListInvites` operationId).
+	ListInvites(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateInviteWithBody Generate a new single-use registration invite
+	//
+	// The admin picks the username and display name up front — the
+	// invitee only completes the WebAuthn ceremony at the link this
+	// returns (`/login?invite=<token>`, built client-side). Valid for
+	// one hour, fixed.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
+	CreateInviteWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateInvite Generate a new single-use registration invite
+	//
+	// The admin picks the username and display name up front — the
+	// invitee only completes the WebAuthn ceremony at the link this
+	// returns (`/login?invite=<token>`, built client-side). Valid for
+	// one hour, fixed.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
+	CreateInvite(ctx context.Context, body CreateInviteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RevokeInvite Revoke an outstanding invite
+	//
+	// Stops the invite's token from ever completing a registration.
+	// `token` here is an invite's own `id` (from AdminInvite's own
+	// listing), never the raw secret an invitee would use to register —
+	// that's AdminInviteCreateResponse's own `token` field, and it's
+	// never listed again after creation.
+	//
+	// Corresponds with POST /api/admin/invites/{token}/revoke (the `RevokeInvite` operationId).
+	RevokeInvite(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListRequests List every outbound GitHub/Forgejo request this instance has made
+	//
+	// Every outbound request `internal/github` or `internal/forgejo` has
+	// made, newest first, across every account — an admin's own
+	// credential included, since correlating a shared-credential
+	// problem (like the rate-limit incident that motivated this
+	// endpoint) needs a cross-account view no single account's own
+	// session could give.
+	//
+	// Corresponds with GET /api/admin/requests (the `ListRequests` operationId).
+	ListRequests(ctx context.Context, params *ListRequestsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ExportRequests Export the (filtered) outbound-request log as CSV
+	//
+	// The same rows GET /api/admin/requests would return for the same
+	// filter, as a downloadable CSV file with one header row.
+	//
+	// Corresponds with GET /api/admin/requests/export (the `ExportRequests` operationId).
+	ExportRequests(ctx context.Context, params *ExportRequestsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListUsers List every registered user
 	//
 	// Never includes a passkey or a forge credential — a username,
@@ -966,7 +1203,7 @@ type ClientInterface interface {
 
 	// ListCredentials List the signed-in user's own passkeys
 	//
-	// Every passkey on the account (#355), oldest first — not just the
+	// Every passkey on the account, oldest first — not just the
 	// one used to establish the current session.
 	//
 	// Corresponds with GET /api/auth/credentials (the `ListCredentials` operationId).
@@ -977,7 +1214,7 @@ type ClientInterface interface {
 	// The authenticated counterpart to POST /api/auth/register/begin —
 	// that one only ever works for a brand-new, credential-less
 	// account; this is how an already-registered user adds a second
-	// (or third...) passkey, e.g. a laptop and a security key (#355).
+	// (or third...) passkey, e.g. a laptop and a security key.
 	//
 	// Corresponds with POST /api/auth/credentials/begin (the `BeginAddCredential` operationId).
 	BeginAddCredential(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -998,7 +1235,7 @@ type ClientInterface interface {
 
 	// DeleteCredential Remove one of the signed-in user's own passkeys
 	//
-	// Refused on the account's last remaining passkey (#355) — this
+	// Refused on the account's last remaining passkey — this
 	// app is WebAuthn-only with no password fallback, so deleting it
 	// would lock the account out entirely.
 	//
@@ -1040,12 +1277,28 @@ type ClientInterface interface {
 
 	// BeginRegistrationWithBody Start a passkey registration ceremony
 	//
+	// The very first registration on a fresh instance (zero registered
+	// users — see GET /api/auth/registration-status) needs no
+	// `inviteToken` and bootstraps that account as admin. Every
+	// registration after that requires a valid, unexpired, unconsumed
+	// `inviteToken` issued by an admin (POST /api/admin/invites) for
+	// exactly this `username` — the invite's own `displayName` is what's
+	// actually used, not this request's.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
 	BeginRegistrationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// BeginRegistration Start a passkey registration ceremony
+	//
+	// The very first registration on a fresh instance (zero registered
+	// users — see GET /api/auth/registration-status) needs no
+	// `inviteToken` and bootstraps that account as admin. Every
+	// registration after that requires a valid, unexpired, unconsumed
+	// `inviteToken` issued by an admin (POST /api/admin/invites) for
+	// exactly this `username` — the invite's own `displayName` is what's
+	// actually used, not this request's.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -1065,6 +1318,18 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
 	FinishRegistration(ctx context.Context, params *FinishRegistrationParams, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetRegistrationStatus Whether self-registration is open
+	//
+	// Unauthenticated — a visitor deciding whether to show the login
+	// page's own "Register a new passkey instead" button has no session
+	// yet by definition. `open` is true only on a fresh instance with
+	// zero registered users; once any account exists, self-registration
+	// is closed and every registration after that requires a valid
+	// `inviteToken` (see POST /api/auth/register/begin).
+	//
+	// Corresponds with GET /api/auth/registration-status (the `GetRegistrationStatus` operationId).
+	GetRegistrationStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSession Who, if anyone, the current session cookie belongs to
 	//
@@ -1122,6 +1387,40 @@ type ClientInterface interface {
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboard(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// EnablePullRequestAutoMergeWithBody Arm a pull request's own native auto-merge, on the signed-in user's behalf
+	//
+	// GitHub only, today. Enables the named pull request's own
+	// auto-merge via GitHub's `enablePullRequestAutoMerge` GraphQL
+	// mutation — REST has no equivalent endpoint. Unlike Merge, that
+	// mutation asks for an explicit merge method rather than picking
+	// the repo's own default itself, so this looks the repo's allowed
+	// methods up first and picks one with the same merge > squash >
+	// rebase precedence Merge already uses; no override is exposed
+	// here either. The pull request stays open and unmerged until the
+	// forge's own required checks pass on their own.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+	EnablePullRequestAutoMergeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EnablePullRequestAutoMerge Arm a pull request's own native auto-merge, on the signed-in user's behalf
+	//
+	// GitHub only, today. Enables the named pull request's own
+	// auto-merge via GitHub's `enablePullRequestAutoMerge` GraphQL
+	// mutation — REST has no equivalent endpoint. Unlike Merge, that
+	// mutation asks for an explicit merge method rather than picking
+	// the repo's own default itself, so this looks the repo's allowed
+	// methods up first and picks one with the same merge > squash >
+	// rebase precedence Merge already uses; no override is exposed
+	// here either. The pull request stays open and unmerged until the
+	// forge's own required checks pass on their own.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+	EnablePullRequestAutoMerge(ctx context.Context, body EnablePullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetPullRequestChecks List every job/check run against a pull request's head commit, on demand
 	//
 	// Fetched live on every call, never as part of GET /api/dashboard's
@@ -1138,6 +1437,28 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/pull-requests/checks (the `GetPullRequestChecks` operationId).
 	GetPullRequestChecks(ctx context.Context, params *GetPullRequestChecksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ClosePullRequestWithBody Close one pull request without merging it, on the signed-in user's behalf
+	//
+	// Closes the named pull request — for one that turns out not to
+	// need merging at all (a duplicate, or one whose content already
+	// landed another way), not a substitute for Merge.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+	ClosePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ClosePullRequest Close one pull request without merging it, on the signed-in user's behalf
+	//
+	// Closes the named pull request — for one that turns out not to
+	// need merging at all (a duplicate, or one whose content already
+	// landed another way), not a substitute for Merge.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+	ClosePullRequest(ctx context.Context, body ClosePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostPullRequestDependabotActionWithBody Post one of Dependabot's own documented PR-comment commands on a pull request, on the signed-in user's behalf
 	//
@@ -1278,8 +1599,8 @@ type ClientInterface interface {
 	// EnableAutoUpdateBranchWithBody Turn on automatic branch updates for one tracked repo
 	//
 	// Any of this repo's pull requests the background refresh finds
-	// behind its base branch gets updated automatically from then on
-	// (#365), the same as clicking "Update branch" would — suppressed
+	// behind its base branch gets updated automatically from then on, the same as clicking
+	// "Update branch" would — suppressed
 	// for a bot-managed pull request unless bot-PR updates are
 	// separately allowed. Idempotent: enabling an already-enabled repo
 	// is a no-op, not an error.
@@ -1292,8 +1613,8 @@ type ClientInterface interface {
 	// EnableAutoUpdateBranch Turn on automatic branch updates for one tracked repo
 	//
 	// Any of this repo's pull requests the background refresh finds
-	// behind its base branch gets updated automatically from then on
-	// (#365), the same as clicking "Update branch" would — suppressed
+	// behind its base branch gets updated automatically from then on, the same as clicking
+	// "Update branch" would — suppressed
 	// for a bot-managed pull request unless bot-PR updates are
 	// separately allowed. Idempotent: enabling an already-enabled repo
 	// is a no-op, not an error.
@@ -1303,28 +1624,34 @@ type ClientInterface interface {
 	// Corresponds with POST /api/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
 	EnableAutoUpdateBranch(ctx context.Context, body EnableAutoUpdateBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// IgnoreRepoWithBody Hide one tracked repo's pull requests and issues from the dashboard and Insights
+	// IgnoreRepoWithBody Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 	//
-	// Reversible, not destructive (#363): the repo itself keeps
+	// Reversible, not destructive: the repo itself keeps
 	// appearing in GET /api/dashboard's `repos` array with accurate
 	// webhook-coverage status, and keeps being fetched and counted —
-	// only its pullRequests/issues entries stop appearing there and on
-	// Insights. Idempotent: ignoring an already-ignored repo is a
-	// no-op, not an error.
+	// only the pullRequests and/or issues entries the request scopes
+	// stop appearing there and on Insights. A repeat call
+	// replaces the previously saved scope rather than merging with it
+	// (ignoring PRs only, then issues only, ends with only issues
+	// ignored) — idempotent for an identical repeat, not additive
+	// across different scopes.
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
 	IgnoreRepoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// IgnoreRepo Hide one tracked repo's pull requests and issues from the dashboard and Insights
+	// IgnoreRepo Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 	//
-	// Reversible, not destructive (#363): the repo itself keeps
+	// Reversible, not destructive: the repo itself keeps
 	// appearing in GET /api/dashboard's `repos` array with accurate
 	// webhook-coverage status, and keeps being fetched and counted —
-	// only its pullRequests/issues entries stop appearing there and on
-	// Insights. Idempotent: ignoring an already-ignored repo is a
-	// no-op, not an error.
+	// only the pullRequests and/or issues entries the request scopes
+	// stop appearing there and on Insights. A repeat call
+	// replaces the previously saved scope rather than merging with it
+	// (ignoring PRs only, then issues only, ends with only issues
+	// ignored) — idempotent for an identical repeat, not additive
+	// across different scopes.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -1386,25 +1713,11 @@ type ClientInterface interface {
 	// Corresponds with PUT /api/settings (the `PutSettings` operationId).
 	PutSettings(ctx context.Context, body PutSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetBotPrUpdatesSetting Whether bot-managed pull request branches can be updated
-	//
-	// A lightweight, side-effect-free read of one field —
-	// allowBotPrUpdates — for the dashboard page to check on every
-	// load. Deliberately not GET /api/settings itself: that handler
-	// also provisions webhook credentials on first call
-	// (EnsureWebhookCredentials), which the dashboard visiting on a
-	// user's behalf shouldn't trigger for someone who's never opened
-	// Settings at all.
-	//
-	// Corresponds with GET /api/settings/bot-pr-updates (the `GetBotPrUpdatesSetting` operationId).
-	GetBotPrUpdatesSetting(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetFilterState The signed-in user's own saved dashboard/Insights filter state
 	//
-	// A lightweight read of one opaque blob (#353), the same
-	// "deliberately not GET /api/settings itself" restraint
-	// GET /api/settings/bot-pr-updates already uses, for the same
-	// reason: this loads on every dashboard/Insights visit and
+	// A lightweight read of one opaque blob, deliberately not
+	// GET /api/settings itself for the same reason GET /api/settings/theme
+	// isn't either: this loads on every dashboard/Insights visit and
 	// shouldn't provision webhook credentials as a side effect.
 	// `{}` for a user who's never saved any filters yet, not a 404.
 	//
@@ -1416,7 +1729,7 @@ type ClientInterface interface {
 	// A dedicated, lightweight save separate from the main
 	// PUT /api/settings — filters change on nearly every click, a
 	// mismatch for that endpoint's "always a full form submit"
-	// convention (#353). The body replaces the saved state entirely,
+	// convention. The body replaces the saved state entirely,
 	// the same "always a full submit, just of a much smaller and
 	// much more frequent thing" shape as the main settings PUT, not a
 	// partial patch. Filters.js's own client-side code decides when
@@ -1433,7 +1746,7 @@ type ClientInterface interface {
 	// A dedicated, lightweight save separate from the main
 	// PUT /api/settings — filters change on nearly every click, a
 	// mismatch for that endpoint's "always a full form submit"
-	// convention (#353). The body replaces the saved state entirely,
+	// convention. The body replaces the saved state entirely,
 	// the same "always a full submit, just of a much smaller and
 	// much more frequent thing" shape as the main settings PUT, not a
 	// partial patch. Filters.js's own client-side code decides when
@@ -1448,17 +1761,18 @@ type ClientInterface interface {
 	// GetTheme The signed-in user's own saved theme preference
 	//
 	// A lightweight, side-effect-free read of one field — theme — for
-	// every page to check on load (#352). The same "deliberately not
-	// GET /api/settings itself" restraint GET /api/settings/bot-pr-updates
-	// already uses, for the same reason: this loads on every page visit
-	// and shouldn't provision webhook credentials as a side effect.
+	// every page to check on load. Deliberately not
+	// GET /api/settings itself: that handler also provisions webhook
+	// credentials on first call (EnsureWebhookCredentials), which
+	// every page loading shouldn't trigger for a user who's never
+	// opened Settings at all.
 	//
 	// Corresponds with GET /api/settings/theme (the `GetTheme` operationId).
 	GetTheme(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetThemeWithBody Save the signed-in user's own theme preference
 	//
-	// A dedicated, instant save (#352) — deliberately not routed
+	// A dedicated, instant save — deliberately not routed
 	// through the main PUT /api/settings, whose every other field is
 	// a plain replace rather than a per-field merge: a request
 	// carrying only theme through that handler would blank every
@@ -1474,7 +1788,7 @@ type ClientInterface interface {
 
 	// SetTheme Save the signed-in user's own theme preference
 	//
-	// A dedicated, instant save (#352) — deliberately not routed
+	// A dedicated, instant save — deliberately not routed
 	// through the main PUT /api/settings, whose every other field is
 	// a plain replace rather than a per-field merge: a request
 	// carrying only theme through that handler would blank every
@@ -1665,6 +1979,129 @@ type ClientInterface interface {
 	Health(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
+// ListInvites List outstanding registration invites
+//
+// Every invite that's neither consumed nor expired — never the raw
+// token, only its own stable id (see AdminInvite).
+//
+// Corresponds with GET /api/admin/invites (the `ListInvites` operationId).
+func (c *Client) ListInvites(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListInvitesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateInviteWithBody Generate a new single-use registration invite
+//
+// The admin picks the username and display name up front — the
+// invitee only completes the WebAuthn ceremony at the link this
+// returns (`/login?invite=<token>`, built client-side). Valid for
+// one hour, fixed.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
+func (c *Client) CreateInviteWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInviteRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateInvite Generate a new single-use registration invite
+//
+// The admin picks the username and display name up front — the
+// invitee only completes the WebAuthn ceremony at the link this
+// returns (`/login?invite=<token>`, built client-side). Valid for
+// one hour, fixed.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
+func (c *Client) CreateInvite(ctx context.Context, body CreateInviteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateInviteRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RevokeInvite Revoke an outstanding invite
+//
+// Stops the invite's token from ever completing a registration.
+// `token` here is an invite's own `id` (from AdminInvite's own
+// listing), never the raw secret an invitee would use to register —
+// that's AdminInviteCreateResponse's own `token` field, and it's
+// never listed again after creation.
+//
+// Corresponds with POST /api/admin/invites/{token}/revoke (the `RevokeInvite` operationId).
+func (c *Client) RevokeInvite(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevokeInviteRequest(c.Server, token)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListRequests List every outbound GitHub/Forgejo request this instance has made
+//
+// Every outbound request `internal/github` or `internal/forgejo` has
+// made, newest first, across every account — an admin's own
+// credential included, since correlating a shared-credential
+// problem (like the rate-limit incident that motivated this
+// endpoint) needs a cross-account view no single account's own
+// session could give.
+//
+// Corresponds with GET /api/admin/requests (the `ListRequests` operationId).
+func (c *Client) ListRequests(ctx context.Context, params *ListRequestsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListRequestsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ExportRequests Export the (filtered) outbound-request log as CSV
+//
+// The same rows GET /api/admin/requests would return for the same
+// filter, as a downloadable CSV file with one header row.
+//
+// Corresponds with GET /api/admin/requests/export (the `ExportRequests` operationId).
+func (c *Client) ExportRequests(ctx context.Context, params *ExportRequestsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportRequestsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ListUsers List every registered user
 //
 // Never includes a passkey or a forge credential — a username,
@@ -1725,7 +2162,7 @@ func (c *Client) RevokeUser(ctx context.Context, username PathUsername, reqEdito
 
 // ListCredentials List the signed-in user's own passkeys
 //
-// Every passkey on the account (#355), oldest first — not just the
+// Every passkey on the account, oldest first — not just the
 // one used to establish the current session.
 //
 // Corresponds with GET /api/auth/credentials (the `ListCredentials` operationId).
@@ -1746,7 +2183,7 @@ func (c *Client) ListCredentials(ctx context.Context, reqEditors ...RequestEdito
 // The authenticated counterpart to POST /api/auth/register/begin —
 // that one only ever works for a brand-new, credential-less
 // account; this is how an already-registered user adds a second
-// (or third...) passkey, e.g. a laptop and a security key (#355).
+// (or third...) passkey, e.g. a laptop and a security key.
 //
 // Corresponds with POST /api/auth/credentials/begin (the `BeginAddCredential` operationId).
 func (c *Client) BeginAddCredential(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1797,7 +2234,7 @@ func (c *Client) FinishAddCredential(ctx context.Context, params *FinishAddCrede
 
 // DeleteCredential Remove one of the signed-in user's own passkeys
 //
-// Refused on the account's last remaining passkey (#355) — this
+// Refused on the account's last remaining passkey — this
 // app is WebAuthn-only with no password fallback, so deleting it
 // would lock the account out entirely.
 //
@@ -1899,6 +2336,14 @@ func (c *Client) Logout(ctx context.Context, reqEditors ...RequestEditorFn) (*ht
 
 // BeginRegistrationWithBody Start a passkey registration ceremony
 //
+// The very first registration on a fresh instance (zero registered
+// users — see GET /api/auth/registration-status) needs no
+// `inviteToken` and bootstraps that account as admin. Every
+// registration after that requires a valid, unexpired, unconsumed
+// `inviteToken` issued by an admin (POST /api/admin/invites) for
+// exactly this `username` — the invite's own `displayName` is what's
+// actually used, not this request's.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
@@ -1915,6 +2360,14 @@ func (c *Client) BeginRegistrationWithBody(ctx context.Context, contentType stri
 }
 
 // BeginRegistration Start a passkey registration ceremony
+//
+// The very first registration on a fresh instance (zero registered
+// users — see GET /api/auth/registration-status) needs no
+// `inviteToken` and bootstraps that account as admin. Every
+// registration after that requires a valid, unexpired, unconsumed
+// `inviteToken` issued by an admin (POST /api/admin/invites) for
+// exactly this `username` — the invite's own `displayName` is what's
+// actually used, not this request's.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -1955,6 +2408,28 @@ func (c *Client) FinishRegistrationWithBody(ctx context.Context, params *FinishR
 // Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
 func (c *Client) FinishRegistration(ctx context.Context, params *FinishRegistrationParams, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewFinishRegistrationRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetRegistrationStatus Whether self-registration is open
+//
+// Unauthenticated — a visitor deciding whether to show the login
+// page's own "Register a new passkey instead" button has no session
+// yet by definition. `open` is true only on a fresh instance with
+// zero registered users; once any account exists, self-registration
+// is closed and every registration after that requires a valid
+// `inviteToken` (see POST /api/auth/register/begin).
+//
+// Corresponds with GET /api/auth/registration-status (the `GetRegistrationStatus` operationId).
+func (c *Client) GetRegistrationStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRegistrationStatusRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -2061,6 +2536,60 @@ func (c *Client) StreamDashboard(ctx context.Context, reqEditors ...RequestEdito
 	return c.Client.Do(req)
 }
 
+// EnablePullRequestAutoMergeWithBody Arm a pull request's own native auto-merge, on the signed-in user's behalf
+//
+// GitHub only, today. Enables the named pull request's own
+// auto-merge via GitHub's `enablePullRequestAutoMerge` GraphQL
+// mutation — REST has no equivalent endpoint. Unlike Merge, that
+// mutation asks for an explicit merge method rather than picking
+// the repo's own default itself, so this looks the repo's allowed
+// methods up first and picks one with the same merge > squash >
+// rebase precedence Merge already uses; no override is exposed
+// here either. The pull request stays open and unmerged until the
+// forge's own required checks pass on their own.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+func (c *Client) EnablePullRequestAutoMergeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnablePullRequestAutoMergeRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EnablePullRequestAutoMerge Arm a pull request's own native auto-merge, on the signed-in user's behalf
+//
+// GitHub only, today. Enables the named pull request's own
+// auto-merge via GitHub's `enablePullRequestAutoMerge` GraphQL
+// mutation — REST has no equivalent endpoint. Unlike Merge, that
+// mutation asks for an explicit merge method rather than picking
+// the repo's own default itself, so this looks the repo's allowed
+// methods up first and picks one with the same merge > squash >
+// rebase precedence Merge already uses; no override is exposed
+// here either. The pull request stays open and unmerged until the
+// forge's own required checks pass on their own.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+func (c *Client) EnablePullRequestAutoMerge(ctx context.Context, body EnablePullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnablePullRequestAutoMergeRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // GetPullRequestChecks List every job/check run against a pull request's head commit, on demand
 //
 // Fetched live on every call, never as part of GET /api/dashboard's
@@ -2078,6 +2607,48 @@ func (c *Client) StreamDashboard(ctx context.Context, reqEditors ...RequestEdito
 // Corresponds with GET /api/pull-requests/checks (the `GetPullRequestChecks` operationId).
 func (c *Client) GetPullRequestChecks(ctx context.Context, params *GetPullRequestChecksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetPullRequestChecksRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ClosePullRequestWithBody Close one pull request without merging it, on the signed-in user's behalf
+//
+// Closes the named pull request — for one that turns out not to
+// need merging at all (a duplicate, or one whose content already
+// landed another way), not a substitute for Merge.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+func (c *Client) ClosePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewClosePullRequestRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ClosePullRequest Close one pull request without merging it, on the signed-in user's behalf
+//
+// Closes the named pull request — for one that turns out not to
+// need merging at all (a duplicate, or one whose content already
+// landed another way), not a substitute for Merge.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+func (c *Client) ClosePullRequest(ctx context.Context, body ClosePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewClosePullRequestRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2327,8 +2898,8 @@ func (c *Client) DisableAutoUpdateBranch(ctx context.Context, body DisableAutoUp
 // EnableAutoUpdateBranchWithBody Turn on automatic branch updates for one tracked repo
 //
 // Any of this repo's pull requests the background refresh finds
-// behind its base branch gets updated automatically from then on
-// (#365), the same as clicking "Update branch" would — suppressed
+// behind its base branch gets updated automatically from then on, the same as clicking
+// "Update branch" would — suppressed
 // for a bot-managed pull request unless bot-PR updates are
 // separately allowed. Idempotent: enabling an already-enabled repo
 // is a no-op, not an error.
@@ -2351,8 +2922,8 @@ func (c *Client) EnableAutoUpdateBranchWithBody(ctx context.Context, contentType
 // EnableAutoUpdateBranch Turn on automatic branch updates for one tracked repo
 //
 // Any of this repo's pull requests the background refresh finds
-// behind its base branch gets updated automatically from then on
-// (#365), the same as clicking "Update branch" would — suppressed
+// behind its base branch gets updated automatically from then on, the same as clicking
+// "Update branch" would — suppressed
 // for a bot-managed pull request unless bot-PR updates are
 // separately allowed. Idempotent: enabling an already-enabled repo
 // is a no-op, not an error.
@@ -2372,14 +2943,17 @@ func (c *Client) EnableAutoUpdateBranch(ctx context.Context, body EnableAutoUpda
 	return c.Client.Do(req)
 }
 
-// IgnoreRepoWithBody Hide one tracked repo's pull requests and issues from the dashboard and Insights
+// IgnoreRepoWithBody Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 //
-// Reversible, not destructive (#363): the repo itself keeps
+// Reversible, not destructive: the repo itself keeps
 // appearing in GET /api/dashboard's `repos` array with accurate
 // webhook-coverage status, and keeps being fetched and counted —
-// only its pullRequests/issues entries stop appearing there and on
-// Insights. Idempotent: ignoring an already-ignored repo is a
-// no-op, not an error.
+// only the pullRequests and/or issues entries the request scopes
+// stop appearing there and on Insights. A repeat call
+// replaces the previously saved scope rather than merging with it
+// (ignoring PRs only, then issues only, ends with only issues
+// ignored) — idempotent for an identical repeat, not additive
+// across different scopes.
 //
 // Takes any type of body and a specified content type.
 //
@@ -2396,14 +2970,17 @@ func (c *Client) IgnoreRepoWithBody(ctx context.Context, contentType string, bod
 	return c.Client.Do(req)
 }
 
-// IgnoreRepo Hide one tracked repo's pull requests and issues from the dashboard and Insights
+// IgnoreRepo Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 //
-// Reversible, not destructive (#363): the repo itself keeps
+// Reversible, not destructive: the repo itself keeps
 // appearing in GET /api/dashboard's `repos` array with accurate
 // webhook-coverage status, and keeps being fetched and counted —
-// only its pullRequests/issues entries stop appearing there and on
-// Insights. Idempotent: ignoring an already-ignored repo is a
-// no-op, not an error.
+// only the pullRequests and/or issues entries the request scopes
+// stop appearing there and on Insights. A repeat call
+// replaces the previously saved scope rather than merging with it
+// (ignoring PRs only, then issues only, ends with only issues
+// ignored) — idempotent for an identical repeat, not additive
+// across different scopes.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -2525,35 +3102,11 @@ func (c *Client) PutSettings(ctx context.Context, body PutSettingsJSONRequestBod
 	return c.Client.Do(req)
 }
 
-// GetBotPrUpdatesSetting Whether bot-managed pull request branches can be updated
-//
-// A lightweight, side-effect-free read of one field —
-// allowBotPrUpdates — for the dashboard page to check on every
-// load. Deliberately not GET /api/settings itself: that handler
-// also provisions webhook credentials on first call
-// (EnsureWebhookCredentials), which the dashboard visiting on a
-// user's behalf shouldn't trigger for someone who's never opened
-// Settings at all.
-//
-// Corresponds with GET /api/settings/bot-pr-updates (the `GetBotPrUpdatesSetting` operationId).
-func (c *Client) GetBotPrUpdatesSetting(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetBotPrUpdatesSettingRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // GetFilterState The signed-in user's own saved dashboard/Insights filter state
 //
-// A lightweight read of one opaque blob (#353), the same
-// "deliberately not GET /api/settings itself" restraint
-// GET /api/settings/bot-pr-updates already uses, for the same
-// reason: this loads on every dashboard/Insights visit and
+// A lightweight read of one opaque blob, deliberately not
+// GET /api/settings itself for the same reason GET /api/settings/theme
+// isn't either: this loads on every dashboard/Insights visit and
 // shouldn't provision webhook credentials as a side effect.
 // `{}` for a user who's never saved any filters yet, not a 404.
 //
@@ -2575,7 +3128,7 @@ func (c *Client) GetFilterState(ctx context.Context, reqEditors ...RequestEditor
 // A dedicated, lightweight save separate from the main
 // PUT /api/settings — filters change on nearly every click, a
 // mismatch for that endpoint's "always a full form submit"
-// convention (#353). The body replaces the saved state entirely,
+// convention. The body replaces the saved state entirely,
 // the same "always a full submit, just of a much smaller and
 // much more frequent thing" shape as the main settings PUT, not a
 // partial patch. Filters.js's own client-side code decides when
@@ -2602,7 +3155,7 @@ func (c *Client) SetFilterStateWithBody(ctx context.Context, contentType string,
 // A dedicated, lightweight save separate from the main
 // PUT /api/settings — filters change on nearly every click, a
 // mismatch for that endpoint's "always a full form submit"
-// convention (#353). The body replaces the saved state entirely,
+// convention. The body replaces the saved state entirely,
 // the same "always a full submit, just of a much smaller and
 // much more frequent thing" shape as the main settings PUT, not a
 // partial patch. Filters.js's own client-side code decides when
@@ -2627,10 +3180,11 @@ func (c *Client) SetFilterState(ctx context.Context, body SetFilterStateJSONRequ
 // GetTheme The signed-in user's own saved theme preference
 //
 // A lightweight, side-effect-free read of one field — theme — for
-// every page to check on load (#352). The same "deliberately not
-// GET /api/settings itself" restraint GET /api/settings/bot-pr-updates
-// already uses, for the same reason: this loads on every page visit
-// and shouldn't provision webhook credentials as a side effect.
+// every page to check on load. Deliberately not
+// GET /api/settings itself: that handler also provisions webhook
+// credentials on first call (EnsureWebhookCredentials), which
+// every page loading shouldn't trigger for a user who's never
+// opened Settings at all.
 //
 // Corresponds with GET /api/settings/theme (the `GetTheme` operationId).
 func (c *Client) GetTheme(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -2647,7 +3201,7 @@ func (c *Client) GetTheme(ctx context.Context, reqEditors ...RequestEditorFn) (*
 
 // SetThemeWithBody Save the signed-in user's own theme preference
 //
-// A dedicated, instant save (#352) — deliberately not routed
+// A dedicated, instant save — deliberately not routed
 // through the main PUT /api/settings, whose every other field is
 // a plain replace rather than a per-field merge: a request
 // carrying only theme through that handler would blank every
@@ -2673,7 +3227,7 @@ func (c *Client) SetThemeWithBody(ctx context.Context, contentType string, body 
 
 // SetTheme Save the signed-in user's own theme preference
 //
-// A dedicated, instant save (#352) — deliberately not routed
+// A dedicated, instant save — deliberately not routed
 // through the main PUT /api/settings, whose every other field is
 // a plain replace rather than a per-field merge: a request
 // carrying only theme through that handler would blank every
@@ -3021,6 +3575,239 @@ func (c *Client) Health(ctx context.Context, reqEditors ...RequestEditorFn) (*ht
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewListInvitesRequest constructs an http.Request for the ListInvites method
+func NewListInvitesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/invites")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateInviteRequest calls the generic CreateInvite builder with application/json body
+func NewCreateInviteRequest(server string, body CreateInviteJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateInviteRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateInviteRequestWithBody constructs an http.Request for the CreateInvite method, with any body, and a specified content type
+func NewCreateInviteRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/invites")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRevokeInviteRequest constructs an http.Request for the RevokeInvite method
+func NewRevokeInviteRequest(server string, token string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "token", token, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/invites/%s/revoke", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListRequestsRequest constructs an http.Request for the ListRequests method
+func NewListRequestsRequest(server string, params *ListRequestsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/requests")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Forge != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", *params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Account != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "account", *params.Account, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewExportRequestsRequest constructs an http.Request for the ExportRequests method
+func NewExportRequestsRequest(server string, params *ExportRequestsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/admin/requests/export")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Forge != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", *params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Account != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "account", *params.Account, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewListUsersRequest constructs an http.Request for the ListUsers method
@@ -3502,6 +4289,33 @@ func NewFinishRegistrationRequestWithBody(server string, params *FinishRegistrat
 	return req, nil
 }
 
+// NewGetRegistrationStatusRequest constructs an http.Request for the GetRegistrationStatus method
+func NewGetRegistrationStatusRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/registration-status")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetSessionRequest constructs an http.Request for the GetSession method
 func NewGetSessionRequest(server string) (*http.Request, error) {
 	var err error
@@ -3637,6 +4451,46 @@ func NewStreamDashboardRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewEnablePullRequestAutoMergeRequest calls the generic EnablePullRequestAutoMerge builder with application/json body
+func NewEnablePullRequestAutoMergeRequest(server string, body EnablePullRequestAutoMergeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEnablePullRequestAutoMergeRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewEnablePullRequestAutoMergeRequestWithBody constructs an http.Request for the EnablePullRequestAutoMerge method, with any body, and a specified content type
+func NewEnablePullRequestAutoMergeRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/pull-requests/auto-merge")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetPullRequestChecksRequest constructs an http.Request for the GetPullRequestChecks method
 func NewGetPullRequestChecksRequest(server string, params *GetPullRequestChecksParams) (*http.Request, error) {
 	var err error
@@ -3699,6 +4553,46 @@ func NewGetPullRequestChecksRequest(server string, params *GetPullRequestChecksP
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewClosePullRequestRequest calls the generic ClosePullRequest builder with application/json body
+func NewClosePullRequestRequest(server string, body ClosePullRequestJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewClosePullRequestRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewClosePullRequestRequestWithBody constructs an http.Request for the ClosePullRequest method, with any body, and a specified content type
+func NewClosePullRequestRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/pull-requests/close")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -4086,33 +4980,6 @@ func NewPutSettingsRequestWithBody(server string, contentType string, body io.Re
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewGetBotPrUpdatesSettingRequest constructs an http.Request for the GetBotPrUpdatesSetting method
-func NewGetBotPrUpdatesSettingRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/settings/bot-pr-updates")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -4679,6 +5546,77 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
+	// ListInvitesWithResponse List outstanding registration invites
+	//
+	// Every invite that's neither consumed nor expired — never the raw
+	// token, only its own stable id (see AdminInvite).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/admin/invites (the `ListInvites` operationId).
+	ListInvitesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListInvitesResponse, error)
+
+	// CreateInviteWithBodyWithResponse Generate a new single-use registration invite
+	//
+	// The admin picks the username and display name up front — the
+	// invitee only completes the WebAuthn ceremony at the link this
+	// returns (`/login?invite=<token>`, built client-side). Valid for
+	// one hour, fixed.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
+	CreateInviteWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInviteResponse, error)
+
+	// CreateInviteWithResponse Generate a new single-use registration invite
+	//
+	// The admin picks the username and display name up front — the
+	// invitee only completes the WebAuthn ceremony at the link this
+	// returns (`/login?invite=<token>`, built client-side). Valid for
+	// one hour, fixed.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
+	CreateInviteWithResponse(ctx context.Context, body CreateInviteJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInviteResponse, error)
+
+	// RevokeInviteWithResponse Revoke an outstanding invite
+	//
+	// Stops the invite's token from ever completing a registration.
+	// `token` here is an invite's own `id` (from AdminInvite's own
+	// listing), never the raw secret an invitee would use to register —
+	// that's AdminInviteCreateResponse's own `token` field, and it's
+	// never listed again after creation.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/admin/invites/{token}/revoke (the `RevokeInvite` operationId).
+	RevokeInviteWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*RevokeInviteResponse, error)
+
+	// ListRequestsWithResponse List every outbound GitHub/Forgejo request this instance has made
+	//
+	// Every outbound request `internal/github` or `internal/forgejo` has
+	// made, newest first, across every account — an admin's own
+	// credential included, since correlating a shared-credential
+	// problem (like the rate-limit incident that motivated this
+	// endpoint) needs a cross-account view no single account's own
+	// session could give.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/admin/requests (the `ListRequests` operationId).
+	ListRequestsWithResponse(ctx context.Context, params *ListRequestsParams, reqEditors ...RequestEditorFn) (*ListRequestsResponse, error)
+
+	// ExportRequestsWithResponse Export the (filtered) outbound-request log as CSV
+	//
+	// The same rows GET /api/admin/requests would return for the same
+	// filter, as a downloadable CSV file with one header row.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/admin/requests/export (the `ExportRequests` operationId).
+	ExportRequestsWithResponse(ctx context.Context, params *ExportRequestsParams, reqEditors ...RequestEditorFn) (*ExportRequestsResponse, error)
+
 	// ListUsersWithResponse List every registered user
 	//
 	// Never includes a passkey or a forge credential — a username,
@@ -4715,7 +5653,7 @@ type ClientWithResponsesInterface interface {
 
 	// ListCredentialsWithResponse List the signed-in user's own passkeys
 	//
-	// Every passkey on the account (#355), oldest first — not just the
+	// Every passkey on the account, oldest first — not just the
 	// one used to establish the current session.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -4728,7 +5666,7 @@ type ClientWithResponsesInterface interface {
 	// The authenticated counterpart to POST /api/auth/register/begin —
 	// that one only ever works for a brand-new, credential-less
 	// account; this is how an already-registered user adds a second
-	// (or third...) passkey, e.g. a laptop and a security key (#355).
+	// (or third...) passkey, e.g. a laptop and a security key.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -4751,7 +5689,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeleteCredentialWithResponse Remove one of the signed-in user's own passkeys
 	//
-	// Refused on the account's last remaining passkey (#355) — this
+	// Refused on the account's last remaining passkey — this
 	// app is WebAuthn-only with no password fallback, so deleting it
 	// would lock the account out entirely.
 	//
@@ -4797,12 +5735,28 @@ type ClientWithResponsesInterface interface {
 
 	// BeginRegistrationWithBodyWithResponse Start a passkey registration ceremony
 	//
+	// The very first registration on a fresh instance (zero registered
+	// users — see GET /api/auth/registration-status) needs no
+	// `inviteToken` and bootstraps that account as admin. Every
+	// registration after that requires a valid, unexpired, unconsumed
+	// `inviteToken` issued by an admin (POST /api/admin/invites) for
+	// exactly this `username` — the invite's own `displayName` is what's
+	// actually used, not this request's.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
 	BeginRegistrationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BeginRegistrationResponse, error)
 
 	// BeginRegistrationWithResponse Start a passkey registration ceremony
+	//
+	// The very first registration on a fresh instance (zero registered
+	// users — see GET /api/auth/registration-status) needs no
+	// `inviteToken` and bootstraps that account as admin. Every
+	// registration after that requires a valid, unexpired, unconsumed
+	// `inviteToken` issued by an admin (POST /api/admin/invites) for
+	// exactly this `username` — the invite's own `displayName` is what's
+	// actually used, not this request's.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -4822,6 +5776,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
 	FinishRegistrationWithResponse(ctx context.Context, params *FinishRegistrationParams, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error)
+
+	// GetRegistrationStatusWithResponse Whether self-registration is open
+	//
+	// Unauthenticated — a visitor deciding whether to show the login
+	// page's own "Register a new passkey instead" button has no session
+	// yet by definition. `open` is true only on a fresh instance with
+	// zero registered users; once any account exists, self-registration
+	// is closed and every registration after that requires a valid
+	// `inviteToken` (see POST /api/auth/register/begin).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/auth/registration-status (the `GetRegistrationStatus` operationId).
+	GetRegistrationStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetRegistrationStatusResponse, error)
 
 	// GetSessionWithResponse Who, if anyone, the current session cookie belongs to
 	//
@@ -4887,6 +5855,40 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboardWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamDashboardResponse, error)
 
+	// EnablePullRequestAutoMergeWithBodyWithResponse Arm a pull request's own native auto-merge, on the signed-in user's behalf
+	//
+	// GitHub only, today. Enables the named pull request's own
+	// auto-merge via GitHub's `enablePullRequestAutoMerge` GraphQL
+	// mutation — REST has no equivalent endpoint. Unlike Merge, that
+	// mutation asks for an explicit merge method rather than picking
+	// the repo's own default itself, so this looks the repo's allowed
+	// methods up first and picks one with the same merge > squash >
+	// rebase precedence Merge already uses; no override is exposed
+	// here either. The pull request stays open and unmerged until the
+	// forge's own required checks pass on their own.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+	EnablePullRequestAutoMergeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnablePullRequestAutoMergeResponse, error)
+
+	// EnablePullRequestAutoMergeWithResponse Arm a pull request's own native auto-merge, on the signed-in user's behalf
+	//
+	// GitHub only, today. Enables the named pull request's own
+	// auto-merge via GitHub's `enablePullRequestAutoMerge` GraphQL
+	// mutation — REST has no equivalent endpoint. Unlike Merge, that
+	// mutation asks for an explicit merge method rather than picking
+	// the repo's own default itself, so this looks the repo's allowed
+	// methods up first and picks one with the same merge > squash >
+	// rebase precedence Merge already uses; no override is exposed
+	// here either. The pull request stays open and unmerged until the
+	// forge's own required checks pass on their own.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+	EnablePullRequestAutoMergeWithResponse(ctx context.Context, body EnablePullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*EnablePullRequestAutoMergeResponse, error)
+
 	// GetPullRequestChecksWithResponse List every job/check run against a pull request's head commit, on demand
 	//
 	// Fetched live on every call, never as part of GET /api/dashboard's
@@ -4905,6 +5907,28 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/pull-requests/checks (the `GetPullRequestChecks` operationId).
 	GetPullRequestChecksWithResponse(ctx context.Context, params *GetPullRequestChecksParams, reqEditors ...RequestEditorFn) (*GetPullRequestChecksResponse, error)
+
+	// ClosePullRequestWithBodyWithResponse Close one pull request without merging it, on the signed-in user's behalf
+	//
+	// Closes the named pull request — for one that turns out not to
+	// need merging at all (a duplicate, or one whose content already
+	// landed another way), not a substitute for Merge.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+	ClosePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ClosePullRequestResponse, error)
+
+	// ClosePullRequestWithResponse Close one pull request without merging it, on the signed-in user's behalf
+	//
+	// Closes the named pull request — for one that turns out not to
+	// need merging at all (a duplicate, or one whose content already
+	// landed another way), not a substitute for Merge.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+	ClosePullRequestWithResponse(ctx context.Context, body ClosePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*ClosePullRequestResponse, error)
 
 	// PostPullRequestDependabotActionWithBodyWithResponse Post one of Dependabot's own documented PR-comment commands on a pull request, on the signed-in user's behalf
 	//
@@ -5045,8 +6069,8 @@ type ClientWithResponsesInterface interface {
 	// EnableAutoUpdateBranchWithBodyWithResponse Turn on automatic branch updates for one tracked repo
 	//
 	// Any of this repo's pull requests the background refresh finds
-	// behind its base branch gets updated automatically from then on
-	// (#365), the same as clicking "Update branch" would — suppressed
+	// behind its base branch gets updated automatically from then on, the same as clicking
+	// "Update branch" would — suppressed
 	// for a bot-managed pull request unless bot-PR updates are
 	// separately allowed. Idempotent: enabling an already-enabled repo
 	// is a no-op, not an error.
@@ -5059,8 +6083,8 @@ type ClientWithResponsesInterface interface {
 	// EnableAutoUpdateBranchWithResponse Turn on automatic branch updates for one tracked repo
 	//
 	// Any of this repo's pull requests the background refresh finds
-	// behind its base branch gets updated automatically from then on
-	// (#365), the same as clicking "Update branch" would — suppressed
+	// behind its base branch gets updated automatically from then on, the same as clicking
+	// "Update branch" would — suppressed
 	// for a bot-managed pull request unless bot-PR updates are
 	// separately allowed. Idempotent: enabling an already-enabled repo
 	// is a no-op, not an error.
@@ -5070,28 +6094,34 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
 	EnableAutoUpdateBranchWithResponse(ctx context.Context, body EnableAutoUpdateBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*EnableAutoUpdateBranchResponse, error)
 
-	// IgnoreRepoWithBodyWithResponse Hide one tracked repo's pull requests and issues from the dashboard and Insights
+	// IgnoreRepoWithBodyWithResponse Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 	//
-	// Reversible, not destructive (#363): the repo itself keeps
+	// Reversible, not destructive: the repo itself keeps
 	// appearing in GET /api/dashboard's `repos` array with accurate
 	// webhook-coverage status, and keeps being fetched and counted —
-	// only its pullRequests/issues entries stop appearing there and on
-	// Insights. Idempotent: ignoring an already-ignored repo is a
-	// no-op, not an error.
+	// only the pullRequests and/or issues entries the request scopes
+	// stop appearing there and on Insights. A repeat call
+	// replaces the previously saved scope rather than merging with it
+	// (ignoring PRs only, then issues only, ends with only issues
+	// ignored) — idempotent for an identical repeat, not additive
+	// across different scopes.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
 	IgnoreRepoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*IgnoreRepoResponse, error)
 
-	// IgnoreRepoWithResponse Hide one tracked repo's pull requests and issues from the dashboard and Insights
+	// IgnoreRepoWithResponse Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 	//
-	// Reversible, not destructive (#363): the repo itself keeps
+	// Reversible, not destructive: the repo itself keeps
 	// appearing in GET /api/dashboard's `repos` array with accurate
 	// webhook-coverage status, and keeps being fetched and counted —
-	// only its pullRequests/issues entries stop appearing there and on
-	// Insights. Idempotent: ignoring an already-ignored repo is a
-	// no-op, not an error.
+	// only the pullRequests and/or issues entries the request scopes
+	// stop appearing there and on Insights. A repeat call
+	// replaces the previously saved scope rather than merging with it
+	// (ignoring PRs only, then issues only, ends with only issues
+	// ignored) — idempotent for an identical repeat, not additive
+	// across different scopes.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -5155,27 +6185,11 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /api/settings (the `PutSettings` operationId).
 	PutSettingsWithResponse(ctx context.Context, body PutSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSettingsResponse, error)
 
-	// GetBotPrUpdatesSettingWithResponse Whether bot-managed pull request branches can be updated
-	//
-	// A lightweight, side-effect-free read of one field —
-	// allowBotPrUpdates — for the dashboard page to check on every
-	// load. Deliberately not GET /api/settings itself: that handler
-	// also provisions webhook credentials on first call
-	// (EnsureWebhookCredentials), which the dashboard visiting on a
-	// user's behalf shouldn't trigger for someone who's never opened
-	// Settings at all.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /api/settings/bot-pr-updates (the `GetBotPrUpdatesSetting` operationId).
-	GetBotPrUpdatesSettingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetBotPrUpdatesSettingResponse, error)
-
 	// GetFilterStateWithResponse The signed-in user's own saved dashboard/Insights filter state
 	//
-	// A lightweight read of one opaque blob (#353), the same
-	// "deliberately not GET /api/settings itself" restraint
-	// GET /api/settings/bot-pr-updates already uses, for the same
-	// reason: this loads on every dashboard/Insights visit and
+	// A lightweight read of one opaque blob, deliberately not
+	// GET /api/settings itself for the same reason GET /api/settings/theme
+	// isn't either: this loads on every dashboard/Insights visit and
 	// shouldn't provision webhook credentials as a side effect.
 	// `{}` for a user who's never saved any filters yet, not a 404.
 	//
@@ -5189,7 +6203,7 @@ type ClientWithResponsesInterface interface {
 	// A dedicated, lightweight save separate from the main
 	// PUT /api/settings — filters change on nearly every click, a
 	// mismatch for that endpoint's "always a full form submit"
-	// convention (#353). The body replaces the saved state entirely,
+	// convention. The body replaces the saved state entirely,
 	// the same "always a full submit, just of a much smaller and
 	// much more frequent thing" shape as the main settings PUT, not a
 	// partial patch. Filters.js's own client-side code decides when
@@ -5206,7 +6220,7 @@ type ClientWithResponsesInterface interface {
 	// A dedicated, lightweight save separate from the main
 	// PUT /api/settings — filters change on nearly every click, a
 	// mismatch for that endpoint's "always a full form submit"
-	// convention (#353). The body replaces the saved state entirely,
+	// convention. The body replaces the saved state entirely,
 	// the same "always a full submit, just of a much smaller and
 	// much more frequent thing" shape as the main settings PUT, not a
 	// partial patch. Filters.js's own client-side code decides when
@@ -5221,10 +6235,11 @@ type ClientWithResponsesInterface interface {
 	// GetThemeWithResponse The signed-in user's own saved theme preference
 	//
 	// A lightweight, side-effect-free read of one field — theme — for
-	// every page to check on load (#352). The same "deliberately not
-	// GET /api/settings itself" restraint GET /api/settings/bot-pr-updates
-	// already uses, for the same reason: this loads on every page visit
-	// and shouldn't provision webhook credentials as a side effect.
+	// every page to check on load. Deliberately not
+	// GET /api/settings itself: that handler also provisions webhook
+	// credentials on first call (EnsureWebhookCredentials), which
+	// every page loading shouldn't trigger for a user who's never
+	// opened Settings at all.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -5233,7 +6248,7 @@ type ClientWithResponsesInterface interface {
 
 	// SetThemeWithBodyWithResponse Save the signed-in user's own theme preference
 	//
-	// A dedicated, instant save (#352) — deliberately not routed
+	// A dedicated, instant save — deliberately not routed
 	// through the main PUT /api/settings, whose every other field is
 	// a plain replace rather than a per-field merge: a request
 	// carrying only theme through that handler would blank every
@@ -5249,7 +6264,7 @@ type ClientWithResponsesInterface interface {
 
 	// SetThemeWithResponse Save the signed-in user's own theme preference
 	//
-	// A dedicated, instant save (#352) — deliberately not routed
+	// A dedicated, instant save — deliberately not routed
 	// through the main PUT /api/settings, whose every other field is
 	// a plain replace rather than a per-field merge: a request
 	// carrying only theme through that handler would blank every
@@ -5452,6 +6467,288 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /healthz (the `Health` operationId).
 	HealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthResponse, error)
+}
+
+type ListInvitesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *[]AdminInvite
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListInvitesResponse) GetJSON200() *[]AdminInvite {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListInvitesResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ListInvitesResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r ListInvitesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListInvitesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListInvitesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListInvitesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateInviteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *AdminInviteCreateResponse
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateInviteResponse) GetJSON201() *AdminInviteCreateResponse {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CreateInviteResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateInviteResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateInviteResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CreateInviteResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateInviteResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateInviteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateInviteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateInviteResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RevokeInviteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RevokeInviteResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RevokeInviteResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RevokeInviteResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r RevokeInviteResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RevokeInviteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RevokeInviteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RevokeInviteResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListRequestsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *[]RequestLogEntry
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListRequestsResponse) GetJSON200() *[]RequestLogEntry {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListRequestsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ListRequestsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r ListRequestsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListRequestsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListRequestsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListRequestsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ExportRequestsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ExportRequestsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ExportRequestsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r ExportRequestsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ExportRequestsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ExportRequestsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ExportRequestsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
 }
 
 type ListUsersResponse struct {
@@ -5967,6 +7264,8 @@ type BeginRegistrationResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *WebAuthnCeremonyOptions
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
 	// JSON409 the response for an HTTP 409 `application/json` response
 	JSON409 *Error
 }
@@ -5974,6 +7273,11 @@ type BeginRegistrationResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r BeginRegistrationResponse) GetJSON200() *WebAuthnCeremonyOptions {
 	return r.JSON200
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r BeginRegistrationResponse) GetJSON403() *Error {
+	return r.JSON403
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
@@ -6052,6 +7356,47 @@ func (r FinishRegistrationResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r FinishRegistrationResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetRegistrationStatusResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *RegistrationStatus
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetRegistrationStatusResponse) GetJSON200() *RegistrationStatus {
+	return r.JSON200
+}
+
+// GetBody returns the raw response body bytes
+func (r GetRegistrationStatusResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRegistrationStatusResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRegistrationStatusResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetRegistrationStatusResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -6271,6 +7616,82 @@ func (r StreamDashboardResponse) ContentType() string {
 	return ""
 }
 
+type EnablePullRequestAutoMergeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r EnablePullRequestAutoMergeResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r EnablePullRequestAutoMergeResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r EnablePullRequestAutoMergeResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r EnablePullRequestAutoMergeResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r EnablePullRequestAutoMergeResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r EnablePullRequestAutoMergeResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r EnablePullRequestAutoMergeResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r EnablePullRequestAutoMergeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EnablePullRequestAutoMergeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r EnablePullRequestAutoMergeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetPullRequestChecksResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -6348,6 +7769,82 @@ func (r GetPullRequestChecksResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetPullRequestChecksResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ClosePullRequestResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ClosePullRequestResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ClosePullRequestResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ClosePullRequestResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ClosePullRequestResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r ClosePullRequestResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r ClosePullRequestResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r ClosePullRequestResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ClosePullRequestResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ClosePullRequestResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ClosePullRequestResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -6968,54 +8465,6 @@ func (r PutSettingsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PutSettingsResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type GetBotPrUpdatesSettingResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *BotPrUpdatesResponse
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r GetBotPrUpdatesSettingResponse) GetJSON200() *BotPrUpdatesResponse {
-	return r.JSON200
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r GetBotPrUpdatesSettingResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetBody returns the raw response body bytes
-func (r GetBotPrUpdatesSettingResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r GetBotPrUpdatesSettingResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetBotPrUpdatesSettingResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetBotPrUpdatesSettingResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -7763,6 +9212,113 @@ func (r HealthResponse) ContentType() string {
 	return ""
 }
 
+// ListInvitesWithResponse List outstanding registration invites
+//
+// Every invite that's neither consumed nor expired — never the raw
+// token, only its own stable id (see AdminInvite).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/admin/invites (the `ListInvites` operationId).
+func (c *ClientWithResponses) ListInvitesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListInvitesResponse, error) {
+	rsp, err := c.ListInvites(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListInvitesResponse(rsp)
+}
+
+// CreateInviteWithBodyWithResponse Generate a new single-use registration invite
+//
+// The admin picks the username and display name up front — the
+// invitee only completes the WebAuthn ceremony at the link this
+// returns (`/login?invite=<token>`, built client-side). Valid for
+// one hour, fixed.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
+func (c *ClientWithResponses) CreateInviteWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInviteResponse, error) {
+	rsp, err := c.CreateInviteWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateInviteResponse(rsp)
+}
+
+// CreateInviteWithResponse Generate a new single-use registration invite
+//
+// The admin picks the username and display name up front — the
+// invitee only completes the WebAuthn ceremony at the link this
+// returns (`/login?invite=<token>`, built client-side). Valid for
+// one hour, fixed.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
+func (c *ClientWithResponses) CreateInviteWithResponse(ctx context.Context, body CreateInviteJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInviteResponse, error) {
+	rsp, err := c.CreateInvite(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateInviteResponse(rsp)
+}
+
+// RevokeInviteWithResponse Revoke an outstanding invite
+//
+// Stops the invite's token from ever completing a registration.
+// `token` here is an invite's own `id` (from AdminInvite's own
+// listing), never the raw secret an invitee would use to register —
+// that's AdminInviteCreateResponse's own `token` field, and it's
+// never listed again after creation.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/admin/invites/{token}/revoke (the `RevokeInvite` operationId).
+func (c *ClientWithResponses) RevokeInviteWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*RevokeInviteResponse, error) {
+	rsp, err := c.RevokeInvite(ctx, token, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevokeInviteResponse(rsp)
+}
+
+// ListRequestsWithResponse List every outbound GitHub/Forgejo request this instance has made
+//
+// Every outbound request `internal/github` or `internal/forgejo` has
+// made, newest first, across every account — an admin's own
+// credential included, since correlating a shared-credential
+// problem (like the rate-limit incident that motivated this
+// endpoint) needs a cross-account view no single account's own
+// session could give.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/admin/requests (the `ListRequests` operationId).
+func (c *ClientWithResponses) ListRequestsWithResponse(ctx context.Context, params *ListRequestsParams, reqEditors ...RequestEditorFn) (*ListRequestsResponse, error) {
+	rsp, err := c.ListRequests(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListRequestsResponse(rsp)
+}
+
+// ExportRequestsWithResponse Export the (filtered) outbound-request log as CSV
+//
+// The same rows GET /api/admin/requests would return for the same
+// filter, as a downloadable CSV file with one header row.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/admin/requests/export (the `ExportRequests` operationId).
+func (c *ClientWithResponses) ExportRequestsWithResponse(ctx context.Context, params *ExportRequestsParams, reqEditors ...RequestEditorFn) (*ExportRequestsResponse, error) {
+	rsp, err := c.ExportRequests(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExportRequestsResponse(rsp)
+}
+
 // ListUsersWithResponse List every registered user
 //
 // Never includes a passkey or a forge credential — a username,
@@ -7817,7 +9373,7 @@ func (c *ClientWithResponses) RevokeUserWithResponse(ctx context.Context, userna
 
 // ListCredentialsWithResponse List the signed-in user's own passkeys
 //
-// Every passkey on the account (#355), oldest first — not just the
+// Every passkey on the account, oldest first — not just the
 // one used to establish the current session.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -7836,7 +9392,7 @@ func (c *ClientWithResponses) ListCredentialsWithResponse(ctx context.Context, r
 // The authenticated counterpart to POST /api/auth/register/begin —
 // that one only ever works for a brand-new, credential-less
 // account; this is how an already-registered user adds a second
-// (or third...) passkey, e.g. a laptop and a security key (#355).
+// (or third...) passkey, e.g. a laptop and a security key.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -7877,7 +9433,7 @@ func (c *ClientWithResponses) FinishAddCredentialWithResponse(ctx context.Contex
 
 // DeleteCredentialWithResponse Remove one of the signed-in user's own passkeys
 //
-// Refused on the account's last remaining passkey (#355) — this
+// Refused on the account's last remaining passkey — this
 // app is WebAuthn-only with no password fallback, so deleting it
 // would lock the account out entirely.
 //
@@ -7959,6 +9515,14 @@ func (c *ClientWithResponses) LogoutWithResponse(ctx context.Context, reqEditors
 
 // BeginRegistrationWithBodyWithResponse Start a passkey registration ceremony
 //
+// The very first registration on a fresh instance (zero registered
+// users — see GET /api/auth/registration-status) needs no
+// `inviteToken` and bootstraps that account as admin. Every
+// registration after that requires a valid, unexpired, unconsumed
+// `inviteToken` issued by an admin (POST /api/admin/invites) for
+// exactly this `username` — the invite's own `displayName` is what's
+// actually used, not this request's.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
@@ -7971,6 +9535,14 @@ func (c *ClientWithResponses) BeginRegistrationWithBodyWithResponse(ctx context.
 }
 
 // BeginRegistrationWithResponse Start a passkey registration ceremony
+//
+// The very first registration on a fresh instance (zero registered
+// users — see GET /api/auth/registration-status) needs no
+// `inviteToken` and bootstraps that account as admin. Every
+// registration after that requires a valid, unexpired, unconsumed
+// `inviteToken` issued by an admin (POST /api/admin/invites) for
+// exactly this `username` — the invite's own `displayName` is what's
+// actually used, not this request's.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -8007,6 +9579,26 @@ func (c *ClientWithResponses) FinishRegistrationWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseFinishRegistrationResponse(rsp)
+}
+
+// GetRegistrationStatusWithResponse Whether self-registration is open
+//
+// Unauthenticated — a visitor deciding whether to show the login
+// page's own "Register a new passkey instead" button has no session
+// yet by definition. `open` is true only on a fresh instance with
+// zero registered users; once any account exists, self-registration
+// is closed and every registration after that requires a valid
+// `inviteToken` (see POST /api/auth/register/begin).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/auth/registration-status (the `GetRegistrationStatus` operationId).
+func (c *ClientWithResponses) GetRegistrationStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetRegistrationStatusResponse, error) {
+	rsp, err := c.GetRegistrationStatus(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRegistrationStatusResponse(rsp)
 }
 
 // GetSessionWithResponse Who, if anyone, the current session cookie belongs to
@@ -8097,6 +9689,52 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, r
 	return ParseStreamDashboardResponse(rsp)
 }
 
+// EnablePullRequestAutoMergeWithBodyWithResponse Arm a pull request's own native auto-merge, on the signed-in user's behalf
+//
+// GitHub only, today. Enables the named pull request's own
+// auto-merge via GitHub's `enablePullRequestAutoMerge` GraphQL
+// mutation — REST has no equivalent endpoint. Unlike Merge, that
+// mutation asks for an explicit merge method rather than picking
+// the repo's own default itself, so this looks the repo's allowed
+// methods up first and picks one with the same merge > squash >
+// rebase precedence Merge already uses; no override is exposed
+// here either. The pull request stays open and unmerged until the
+// forge's own required checks pass on their own.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+func (c *ClientWithResponses) EnablePullRequestAutoMergeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnablePullRequestAutoMergeResponse, error) {
+	rsp, err := c.EnablePullRequestAutoMergeWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnablePullRequestAutoMergeResponse(rsp)
+}
+
+// EnablePullRequestAutoMergeWithResponse Arm a pull request's own native auto-merge, on the signed-in user's behalf
+//
+// GitHub only, today. Enables the named pull request's own
+// auto-merge via GitHub's `enablePullRequestAutoMerge` GraphQL
+// mutation — REST has no equivalent endpoint. Unlike Merge, that
+// mutation asks for an explicit merge method rather than picking
+// the repo's own default itself, so this looks the repo's allowed
+// methods up first and picks one with the same merge > squash >
+// rebase precedence Merge already uses; no override is exposed
+// here either. The pull request stays open and unmerged until the
+// forge's own required checks pass on their own.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+func (c *ClientWithResponses) EnablePullRequestAutoMergeWithResponse(ctx context.Context, body EnablePullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*EnablePullRequestAutoMergeResponse, error) {
+	rsp, err := c.EnablePullRequestAutoMerge(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnablePullRequestAutoMergeResponse(rsp)
+}
+
 // GetPullRequestChecksWithResponse List every job/check run against a pull request's head commit, on demand
 //
 // Fetched live on every call, never as part of GET /api/dashboard's
@@ -8120,6 +9758,40 @@ func (c *ClientWithResponses) GetPullRequestChecksWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseGetPullRequestChecksResponse(rsp)
+}
+
+// ClosePullRequestWithBodyWithResponse Close one pull request without merging it, on the signed-in user's behalf
+//
+// Closes the named pull request — for one that turns out not to
+// need merging at all (a duplicate, or one whose content already
+// landed another way), not a substitute for Merge.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+func (c *ClientWithResponses) ClosePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ClosePullRequestResponse, error) {
+	rsp, err := c.ClosePullRequestWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseClosePullRequestResponse(rsp)
+}
+
+// ClosePullRequestWithResponse Close one pull request without merging it, on the signed-in user's behalf
+//
+// Closes the named pull request — for one that turns out not to
+// need merging at all (a duplicate, or one whose content already
+// landed another way), not a substitute for Merge.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+func (c *ClientWithResponses) ClosePullRequestWithResponse(ctx context.Context, body ClosePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*ClosePullRequestResponse, error) {
+	rsp, err := c.ClosePullRequest(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseClosePullRequestResponse(rsp)
 }
 
 // PostPullRequestDependabotActionWithBodyWithResponse Post one of Dependabot's own documented PR-comment commands on a pull request, on the signed-in user's behalf
@@ -8321,8 +9993,8 @@ func (c *ClientWithResponses) DisableAutoUpdateBranchWithResponse(ctx context.Co
 // EnableAutoUpdateBranchWithBodyWithResponse Turn on automatic branch updates for one tracked repo
 //
 // Any of this repo's pull requests the background refresh finds
-// behind its base branch gets updated automatically from then on
-// (#365), the same as clicking "Update branch" would — suppressed
+// behind its base branch gets updated automatically from then on, the same as clicking
+// "Update branch" would — suppressed
 // for a bot-managed pull request unless bot-PR updates are
 // separately allowed. Idempotent: enabling an already-enabled repo
 // is a no-op, not an error.
@@ -8341,8 +10013,8 @@ func (c *ClientWithResponses) EnableAutoUpdateBranchWithBodyWithResponse(ctx con
 // EnableAutoUpdateBranchWithResponse Turn on automatic branch updates for one tracked repo
 //
 // Any of this repo's pull requests the background refresh finds
-// behind its base branch gets updated automatically from then on
-// (#365), the same as clicking "Update branch" would — suppressed
+// behind its base branch gets updated automatically from then on, the same as clicking
+// "Update branch" would — suppressed
 // for a bot-managed pull request unless bot-PR updates are
 // separately allowed. Idempotent: enabling an already-enabled repo
 // is a no-op, not an error.
@@ -8358,14 +10030,17 @@ func (c *ClientWithResponses) EnableAutoUpdateBranchWithResponse(ctx context.Con
 	return ParseEnableAutoUpdateBranchResponse(rsp)
 }
 
-// IgnoreRepoWithBodyWithResponse Hide one tracked repo's pull requests and issues from the dashboard and Insights
+// IgnoreRepoWithBodyWithResponse Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 //
-// Reversible, not destructive (#363): the repo itself keeps
+// Reversible, not destructive: the repo itself keeps
 // appearing in GET /api/dashboard's `repos` array with accurate
 // webhook-coverage status, and keeps being fetched and counted —
-// only its pullRequests/issues entries stop appearing there and on
-// Insights. Idempotent: ignoring an already-ignored repo is a
-// no-op, not an error.
+// only the pullRequests and/or issues entries the request scopes
+// stop appearing there and on Insights. A repeat call
+// replaces the previously saved scope rather than merging with it
+// (ignoring PRs only, then issues only, ends with only issues
+// ignored) — idempotent for an identical repeat, not additive
+// across different scopes.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -8378,14 +10053,17 @@ func (c *ClientWithResponses) IgnoreRepoWithBodyWithResponse(ctx context.Context
 	return ParseIgnoreRepoResponse(rsp)
 }
 
-// IgnoreRepoWithResponse Hide one tracked repo's pull requests and issues from the dashboard and Insights
+// IgnoreRepoWithResponse Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 //
-// Reversible, not destructive (#363): the repo itself keeps
+// Reversible, not destructive: the repo itself keeps
 // appearing in GET /api/dashboard's `repos` array with accurate
 // webhook-coverage status, and keeps being fetched and counted —
-// only its pullRequests/issues entries stop appearing there and on
-// Insights. Idempotent: ignoring an already-ignored repo is a
-// no-op, not an error.
+// only the pullRequests and/or issues entries the request scopes
+// stop appearing there and on Insights. A repeat call
+// replaces the previously saved scope rather than merging with it
+// (ignoring PRs only, then issues only, ends with only issues
+// ignored) — idempotent for an identical repeat, not additive
+// across different scopes.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -8485,33 +10163,11 @@ func (c *ClientWithResponses) PutSettingsWithResponse(ctx context.Context, body 
 	return ParsePutSettingsResponse(rsp)
 }
 
-// GetBotPrUpdatesSettingWithResponse Whether bot-managed pull request branches can be updated
-//
-// A lightweight, side-effect-free read of one field —
-// allowBotPrUpdates — for the dashboard page to check on every
-// load. Deliberately not GET /api/settings itself: that handler
-// also provisions webhook credentials on first call
-// (EnsureWebhookCredentials), which the dashboard visiting on a
-// user's behalf shouldn't trigger for someone who's never opened
-// Settings at all.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /api/settings/bot-pr-updates (the `GetBotPrUpdatesSetting` operationId).
-func (c *ClientWithResponses) GetBotPrUpdatesSettingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetBotPrUpdatesSettingResponse, error) {
-	rsp, err := c.GetBotPrUpdatesSetting(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetBotPrUpdatesSettingResponse(rsp)
-}
-
 // GetFilterStateWithResponse The signed-in user's own saved dashboard/Insights filter state
 //
-// A lightweight read of one opaque blob (#353), the same
-// "deliberately not GET /api/settings itself" restraint
-// GET /api/settings/bot-pr-updates already uses, for the same
-// reason: this loads on every dashboard/Insights visit and
+// A lightweight read of one opaque blob, deliberately not
+// GET /api/settings itself for the same reason GET /api/settings/theme
+// isn't either: this loads on every dashboard/Insights visit and
 // shouldn't provision webhook credentials as a side effect.
 // `{}` for a user who's never saved any filters yet, not a 404.
 //
@@ -8531,7 +10187,7 @@ func (c *ClientWithResponses) GetFilterStateWithResponse(ctx context.Context, re
 // A dedicated, lightweight save separate from the main
 // PUT /api/settings — filters change on nearly every click, a
 // mismatch for that endpoint's "always a full form submit"
-// convention (#353). The body replaces the saved state entirely,
+// convention. The body replaces the saved state entirely,
 // the same "always a full submit, just of a much smaller and
 // much more frequent thing" shape as the main settings PUT, not a
 // partial patch. Filters.js's own client-side code decides when
@@ -8554,7 +10210,7 @@ func (c *ClientWithResponses) SetFilterStateWithBodyWithResponse(ctx context.Con
 // A dedicated, lightweight save separate from the main
 // PUT /api/settings — filters change on nearly every click, a
 // mismatch for that endpoint's "always a full form submit"
-// convention (#353). The body replaces the saved state entirely,
+// convention. The body replaces the saved state entirely,
 // the same "always a full submit, just of a much smaller and
 // much more frequent thing" shape as the main settings PUT, not a
 // partial patch. Filters.js's own client-side code decides when
@@ -8575,10 +10231,11 @@ func (c *ClientWithResponses) SetFilterStateWithResponse(ctx context.Context, bo
 // GetThemeWithResponse The signed-in user's own saved theme preference
 //
 // A lightweight, side-effect-free read of one field — theme — for
-// every page to check on load (#352). The same "deliberately not
-// GET /api/settings itself" restraint GET /api/settings/bot-pr-updates
-// already uses, for the same reason: this loads on every page visit
-// and shouldn't provision webhook credentials as a side effect.
+// every page to check on load. Deliberately not
+// GET /api/settings itself: that handler also provisions webhook
+// credentials on first call (EnsureWebhookCredentials), which
+// every page loading shouldn't trigger for a user who's never
+// opened Settings at all.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -8593,7 +10250,7 @@ func (c *ClientWithResponses) GetThemeWithResponse(ctx context.Context, reqEdito
 
 // SetThemeWithBodyWithResponse Save the signed-in user's own theme preference
 //
-// A dedicated, instant save (#352) — deliberately not routed
+// A dedicated, instant save — deliberately not routed
 // through the main PUT /api/settings, whose every other field is
 // a plain replace rather than a per-field merge: a request
 // carrying only theme through that handler would blank every
@@ -8615,7 +10272,7 @@ func (c *ClientWithResponses) SetThemeWithBodyWithResponse(ctx context.Context, 
 
 // SetThemeWithResponse Save the signed-in user's own theme preference
 //
-// A dedicated, instant save (#352) — deliberately not routed
+// A dedicated, instant save — deliberately not routed
 // through the main PUT /api/settings, whose every other field is
 // a plain replace rather than a per-field merge: a request
 // carrying only theme through that handler would blank every
@@ -8913,6 +10570,216 @@ func (c *ClientWithResponses) HealthWithResponse(ctx context.Context, reqEditors
 		return nil, err
 	}
 	return ParseHealthResponse(rsp)
+}
+
+// ParseListInvitesResponse parses an HTTP response from a ListInvitesWithResponse call
+func ParseListInvitesResponse(rsp *http.Response) (*ListInvitesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListInvitesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []AdminInvite
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateInviteResponse parses an HTTP response from a CreateInviteWithResponse call
+func ParseCreateInviteResponse(rsp *http.Response) (*CreateInviteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateInviteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest AdminInviteCreateResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRevokeInviteResponse parses an HTTP response from a RevokeInviteWithResponse call
+func ParseRevokeInviteResponse(rsp *http.Response) (*RevokeInviteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RevokeInviteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListRequestsResponse parses an HTTP response from a ListRequestsWithResponse call
+func ParseListRequestsResponse(rsp *http.Response) (*ListRequestsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListRequestsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []RequestLogEntry
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseExportRequestsResponse parses an HTTP response from a ExportRequestsWithResponse call
+func ParseExportRequestsResponse(rsp *http.Response) (*ExportRequestsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ExportRequestsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseListUsersResponse parses an HTTP response from a ListUsersWithResponse call
@@ -9300,6 +11167,13 @@ func ParseBeginRegistrationResponse(rsp *http.Response) (*BeginRegistrationRespo
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -9339,6 +11213,32 @@ func ParseFinishRegistrationResponse(rsp *http.Response) (*FinishRegistrationRes
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetRegistrationStatusResponse parses an HTTP response from a GetRegistrationStatusWithResponse call
+func ParseGetRegistrationStatusResponse(rsp *http.Response) (*GetRegistrationStatusResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRegistrationStatusResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RegistrationStatus
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	}
 
@@ -9498,6 +11398,70 @@ func ParseStreamDashboardResponse(rsp *http.Response) (*StreamDashboardResponse,
 	return response, nil
 }
 
+// ParseEnablePullRequestAutoMergeResponse parses an HTTP response from a EnablePullRequestAutoMergeWithResponse call
+func ParseEnablePullRequestAutoMergeResponse(rsp *http.Response) (*EnablePullRequestAutoMergeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EnablePullRequestAutoMergeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetPullRequestChecksResponse parses an HTTP response from a GetPullRequestChecksWithResponse call
 func ParseGetPullRequestChecksResponse(rsp *http.Response) (*GetPullRequestChecksResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -9518,6 +11482,70 @@ func ParseGetPullRequestChecksResponse(rsp *http.Response) (*GetPullRequestCheck
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseClosePullRequestResponse parses an HTTP response from a ClosePullRequestWithResponse call
+func ParseClosePullRequestResponse(rsp *http.Response) (*ClosePullRequestResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ClosePullRequestResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
@@ -10050,39 +12078,6 @@ func ParsePutSettingsResponse(rsp *http.Response) (*PutSettingsResponse, error) 
 			return nil, err
 		}
 		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetBotPrUpdatesSettingResponse parses an HTTP response from a GetBotPrUpdatesSettingWithResponse call
-func ParseGetBotPrUpdatesSettingResponse(rsp *http.Response) (*GetBotPrUpdatesSettingResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetBotPrUpdatesSettingResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BotPrUpdatesResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error
