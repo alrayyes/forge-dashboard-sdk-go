@@ -809,7 +809,19 @@ type PullRequest struct {
 	// "unknown" covers both a forge that hasn't determined this yet and
 	// this service being unable to determine it.
 	MergeStatus MergeStatus `json:"mergeStatus"`
-	Number      int         `json:"number"`
+
+	// NeedsReview True when a review is outstanding: the forge requires one, or a
+	// reviewer was asked and hasn't answered, and the pull request
+	// isn't a draft. Unreviewed with nobody asked, approved, changes
+	// requested and an unknown review state are all false. Always
+	// present.
+	NeedsReview bool `json:"needsReview"`
+	Number      int  `json:"number"`
+
+	// ReadyToMerge True when the pull request is mergeable, its CI is green and it
+	// isn't a draft: what the Ready quick filter lists. Always
+	// present. A pull request with no checks isn't ready.
+	ReadyToMerge bool `json:"readyToMerge"`
 
 	// Repo Owner-qualified repository name.
 	//
