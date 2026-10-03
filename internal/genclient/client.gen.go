@@ -828,6 +828,13 @@ type PullRequest struct {
 	// Examples: alrayyes/hush-hush
 	Repo string `json:"repo"`
 
+	// RequestedReviewerLogins The logins of the users asked to review this pull request, on
+	// both forges. A team request has no login and is left out.
+	// Always present, and empty when nobody was asked. Costs no
+	// extra request: GitHub returns it with the reviewRequests count
+	// already queried, Forgejo with the pull request itself.
+	RequestedReviewerLogins []string `json:"requestedReviewerLogins"`
+
 	// Review Where a pull request stands on code review. The whole object is
 	// omitted when the owning forge couldn't report it (a Forgejo
 	// reviews call that failed, a draft Forgejo pull request this
@@ -840,9 +847,15 @@ type PullRequest struct {
 	// on the pull request list, but approvals and the decision need one
 	// reviews call per open, non-draft pull request, cached until that
 	// pull request's updatedAt changes.
-	Review    *ReviewState `json:"review,omitempty"`
-	Title     string       `json:"title"`
-	UpdatedAt time.Time    `json:"updatedAt"`
+	Review *ReviewState `json:"review,omitempty"`
+
+	// ReviewRequestedFromMe True when this open, non-draft pull request asks the signed-in
+	// user to review it, matched without regard to case against the
+	// username saved in Settings for its forge. False when no
+	// username is saved for that forge. Always present.
+	ReviewRequestedFromMe bool      `json:"reviewRequestedFromMe"`
+	Title                 string    `json:"title"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 
 	// Url The real pull request URL on its own forge.
 	Url string `json:"url"`
