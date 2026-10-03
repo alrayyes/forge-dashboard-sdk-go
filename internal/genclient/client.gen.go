@@ -2211,6 +2211,15 @@ type ClientInterface interface {
 	// forge rather than just reading from it — see also the
 	// pull-requests tag.
 	//
+	// A refusal from the forge (403, 404, 429 and 502) answers with the
+	// same `ActionError` a refused pull request action does, so a client
+	// reads one shape: `code` is `permission` or `rate_limited` where
+	// the forge said so (with `resetsAt` for a rate limit), and
+	// `unknown` otherwise, with a plain `message` either way. No new
+	// code is needed: a repo the forge can't find is `unknown` with its
+	// own message. 400 and 401 stay a plain `Error`, since they are
+	// about the request, not a refusal by the forge.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
@@ -2229,6 +2238,15 @@ type ClientInterface interface {
 	// One of a small number of endpoints in this API that write to a
 	// forge rather than just reading from it — see also the
 	// pull-requests tag.
+	//
+	// A refusal from the forge (403, 404, 429 and 502) answers with the
+	// same `ActionError` a refused pull request action does, so a client
+	// reads one shape: `code` is `permission` or `rate_limited` where
+	// the forge said so (with `resetsAt` for a rate limit), and
+	// `unknown` otherwise, with a plain `message` either way. No new
+	// code is needed: a repo the forge can't find is `unknown` with its
+	// own message. 400 and 401 stay a plain `Error`, since they are
+	// about the request, not a refusal by the forge.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -3853,6 +3871,15 @@ func (c *Client) GetVersion(ctx context.Context, reqEditors ...RequestEditorFn) 
 // forge rather than just reading from it — see also the
 // pull-requests tag.
 //
+// A refusal from the forge (403, 404, 429 and 502) answers with the
+// same `ActionError` a refused pull request action does, so a client
+// reads one shape: `code` is `permission` or `rate_limited` where
+// the forge said so (with `resetsAt` for a rate limit), and
+// `unknown` otherwise, with a plain `message` either way. No new
+// code is needed: a repo the forge can't find is `unknown` with its
+// own message. 400 and 401 stay a plain `Error`, since they are
+// about the request, not a refusal by the forge.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
@@ -3881,6 +3908,15 @@ func (c *Client) EnsureWebhookWithBody(ctx context.Context, contentType string, 
 // One of a small number of endpoints in this API that write to a
 // forge rather than just reading from it — see also the
 // pull-requests tag.
+//
+// A refusal from the forge (403, 404, 429 and 502) answers with the
+// same `ActionError` a refused pull request action does, so a client
+// reads one shape: `code` is `permission` or `rate_limited` where
+// the forge said so (with `resetsAt` for a rate limit), and
+// `unknown` otherwise, with a plain `message` either way. No new
+// code is needed: a repo the forge can't find is `unknown` with its
+// own message. 400 and 401 stay a plain `Error`, since they are
+// about the request, not a refusal by the forge.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -7028,6 +7064,15 @@ type ClientWithResponsesInterface interface {
 	// forge rather than just reading from it — see also the
 	// pull-requests tag.
 	//
+	// A refusal from the forge (403, 404, 429 and 502) answers with the
+	// same `ActionError` a refused pull request action does, so a client
+	// reads one shape: `code` is `permission` or `rate_limited` where
+	// the forge said so (with `resetsAt` for a rate limit), and
+	// `unknown` otherwise, with a plain `message` either way. No new
+	// code is needed: a repo the forge can't find is `unknown` with its
+	// own message. 400 and 401 stay a plain `Error`, since they are
+	// about the request, not a refusal by the forge.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
@@ -7046,6 +7091,15 @@ type ClientWithResponsesInterface interface {
 	// One of a small number of endpoints in this API that write to a
 	// forge rather than just reading from it — see also the
 	// pull-requests tag.
+	//
+	// A refusal from the forge (403, 404, 429 and 502) answers with the
+	// same `ActionError` a refused pull request action does, so a client
+	// reads one shape: `code` is `permission` or `rate_limited` where
+	// the forge said so (with `resetsAt` for a rate limit), and
+	// `unknown` otherwise, with a plain `message` either way. No new
+	// code is needed: a repo the forge can't find is `unknown` with its
+	// own message. 400 and 401 stay a plain `Error`, since they are
+	// about the request, not a refusal by the forge.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -9682,13 +9736,13 @@ type EnsureWebhookResponse struct {
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
 	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
+	JSON403 *ActionError
 	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
+	JSON404 *ActionError
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
+	JSON429 *ActionError
 	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
+	JSON502 *ActionError
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -9702,22 +9756,22 @@ func (r EnsureWebhookResponse) GetJSON401() *Error {
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r EnsureWebhookResponse) GetJSON403() *Error {
+func (r EnsureWebhookResponse) GetJSON403() *ActionError {
 	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r EnsureWebhookResponse) GetJSON404() *Error {
+func (r EnsureWebhookResponse) GetJSON404() *ActionError {
 	return r.JSON404
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r EnsureWebhookResponse) GetJSON429() *Error {
+func (r EnsureWebhookResponse) GetJSON429() *ActionError {
 	return r.JSON429
 }
 
 // GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r EnsureWebhookResponse) GetJSON502() *Error {
+func (r EnsureWebhookResponse) GetJSON502() *ActionError {
 	return r.JSON502
 }
 
@@ -11253,6 +11307,15 @@ func (c *ClientWithResponses) GetVersionWithResponse(ctx context.Context, reqEdi
 // forge rather than just reading from it — see also the
 // pull-requests tag.
 //
+// A refusal from the forge (403, 404, 429 and 502) answers with the
+// same `ActionError` a refused pull request action does, so a client
+// reads one shape: `code` is `permission` or `rate_limited` where
+// the forge said so (with `resetsAt` for a rate limit), and
+// `unknown` otherwise, with a plain `message` either way. No new
+// code is needed: a repo the forge can't find is `unknown` with its
+// own message. 400 and 401 stay a plain `Error`, since they are
+// about the request, not a refusal by the forge.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
@@ -11277,6 +11340,15 @@ func (c *ClientWithResponses) EnsureWebhookWithBodyWithResponse(ctx context.Cont
 // One of a small number of endpoints in this API that write to a
 // forge rather than just reading from it — see also the
 // pull-requests tag.
+//
+// A refusal from the forge (403, 404, 429 and 502) answers with the
+// same `ActionError` a refused pull request action does, so a client
+// reads one shape: `code` is `permission` or `rate_limited` where
+// the forge said so (with `resetsAt` for a rate limit), and
+// `unknown` otherwise, with a plain `message` either way. No new
+// code is needed: a repo the forge can't find is `unknown` with its
+// own message. 400 and 401 stay a plain `Error`, since they are
+// about the request, not a refusal by the forge.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -13342,28 +13414,28 @@ func ParseEnsureWebhookResponse(rsp *http.Response) (*EnsureWebhookResponse, err
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
