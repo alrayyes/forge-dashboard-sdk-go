@@ -629,6 +629,11 @@ type Dashboard struct {
 // Error defines model for Error.
 type Error struct {
 	Error string `json:"error"`
+
+	// Field Present when the rejection is about one field of the request
+	// body (a settings save, for instance), named as it appears there,
+	// so a client can mark that input without parsing `error`.
+	Field *string `json:"field,omitempty"`
 }
 
 // FilterState The dashboard/Insights filter bar's own saved shape —
@@ -1086,9 +1091,18 @@ type SessionUser struct {
 // SettingsResponse.githubAppConfigured). Theme isn't settable
 // here at all — see PUT /api/settings/theme.
 type SettingsRequest struct {
-	ForgejoToken            *string `json:"forgejoToken,omitempty"`
-	ForgejoUrl              *string `json:"forgejoUrl,omitempty"`
-	ForgejoUsername         *string `json:"forgejoUsername,omitempty"`
+	ForgejoToken *string `json:"forgejoToken,omitempty"`
+
+	// ForgejoUrl Required, once the save is merged with what is already stored,
+	// whenever a Forgejo token or username is set. That depends on
+	// stored state, so a schema alone can't express it: a save that
+	// breaks it is a 400 naming `forgejoUrl`.
+	ForgejoUrl      *string `json:"forgejoUrl,omitempty"`
+	ForgejoUsername *string `json:"forgejoUsername,omitempty"`
+
+	// GithubAppInstallationId 0 means none. A negative or non-integer value is a 400 naming
+	// this field, as is any value on a server with no GitHub App
+	// configured.
 	GithubAppInstallationId *int64  `json:"githubAppInstallationId,omitempty"`
 	GithubToken             *string `json:"githubToken,omitempty"`
 	GithubUsername          *string `json:"githubUsername,omitempty"`
