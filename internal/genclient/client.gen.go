@@ -113,6 +113,7 @@ const (
 	AllowedActionBlockedCodeChecksPending       AllowedActionBlockedCode = "checks_pending"
 	AllowedActionBlockedCodeConflict            AllowedActionBlockedCode = "conflict"
 	AllowedActionBlockedCodeNotMergeable        AllowedActionBlockedCode = "not_mergeable"
+	AllowedActionBlockedCodeStacked             AllowedActionBlockedCode = "stacked"
 )
 
 // Valid indicates whether the value is a known member of the AllowedActionBlockedCode enum.
@@ -131,6 +132,8 @@ func (e AllowedActionBlockedCode) Valid() bool {
 	case AllowedActionBlockedCodeConflict:
 		return true
 	case AllowedActionBlockedCodeNotMergeable:
+		return true
+	case AllowedActionBlockedCodeStacked:
 		return true
 	default:
 		return false
@@ -774,6 +777,10 @@ type PullRequest struct {
 	// genuinely doesn't know.
 	AutoMergeEnabled *bool `json:"autoMergeEnabled,omitempty"`
 
+	// BaseBranch The branch the pull request targets. Empty when the forge didn't
+	// say.
+	BaseBranch string `json:"baseBranch"`
+
 	// Behind Whether this pull request's base branch has moved since its
 	// merge-base was computed. Deliberately its own field rather
 	// than a mergeStatus value: on Forgejo a pull request can be
@@ -788,7 +795,11 @@ type PullRequest struct {
 	// check at all, not that one failed.
 	Ci        CIStatus  `json:"ci"`
 	CreatedAt time.Time `json:"createdAt"`
-	Draft     bool      `json:"draft"`
+
+	// CrossRepository True when the head branch lives in another repository (a fork).
+	// A fork pull request is never part of a stack.
+	CrossRepository bool `json:"crossRepository"`
+	Draft           bool `json:"draft"`
 
 	// Empty Whether merging this pull request would produce an empty
 	// commit — its content already landed on the base branch some
@@ -797,9 +808,13 @@ type PullRequest struct {
 	// old enough not to report additions/deletions/changed_files on
 	// its list endpoint), never a false positive: a pull request
 	// this never confirms empty just renders as it always has.
-	Empty  bool    `json:"empty"`
-	Forge  Forge   `json:"forge"`
-	Labels []Label `json:"labels"`
+	Empty bool  `json:"empty"`
+	Forge Forge `json:"forge"`
+
+	// HeadBranch The branch the pull request comes from. Empty when the forge
+	// didn't say.
+	HeadBranch string  `json:"headBranch"`
+	Labels     []Label `json:"labels"`
 
 	// MergeStatus A pull request's mergeable/blocked state, as coarse as every forge
 	// this service talks to can agree on. "blocked" covers anything
@@ -853,9 +868,28 @@ type PullRequest struct {
 	// user to review it, matched without regard to case against the
 	// username saved in Settings for its forge. False when no
 	// username is saved for that forge. Always present.
-	ReviewRequestedFromMe bool      `json:"reviewRequestedFromMe"`
-	Title                 string    `json:"title"`
-	UpdatedAt             time.Time `json:"updatedAt"`
+	ReviewRequestedFromMe bool `json:"reviewRequestedFromMe"`
+
+	// Stack Where this pull request sits in a stack of pull requests, or
+	// null when it is in none. A stack is worked out on the server:
+	// pull request B is stacked on A when B's base branch is A's head
+	// branch, in the same repository on the same forge, and neither is
+	// a fork. A branch with several open pull requests takes the one
+	// with the lowest number as parent, and a loop of branches is
+	// treated as no stack. The snapshot holds open pull requests
+	// only, so a base branch that no open pull request owns (a parent
+	// that already merged and was not retargeted) is not flagged.
+	Stack *StackPosition `json:"stack"`
+
+	// StackChildren The numbers of the open pull requests stacked directly on this
+	// one. Always a list, empty when none.
+	StackChildren []int `json:"stackChildren"`
+
+	// StackedOn The open pull request this one is stacked on, or null when its
+	// base is not another open pull request's head.
+	StackedOn *StackRef `json:"stackedOn"`
+	Title     string    `json:"title"`
+	UpdatedAt time.Time `json:"updatedAt"`
 
 	// Url The real pull request URL on its own forge.
 	Url string `json:"url"`
@@ -1217,6 +1251,23 @@ type SharingResponse struct {
 
 	// SharedWithMe Users who have shared their dashboard with the signed-in user.
 	SharedWithMe []SharedUser `json:"sharedWithMe"`
+}
+
+// StackPosition defines model for StackPosition.
+type StackPosition struct {
+	// Position 1 for the pull request at the bottom of the stack (the one
+	// targeting a branch no open pull request owns), 2 for one
+	// stacked directly on it, and so on.
+	Position int `json:"position"`
+
+	// Size How many open pull requests the stack holds.
+	Size int `json:"size"`
+}
+
+// StackRef defines model for StackRef.
+type StackRef struct {
+	Number int    `json:"number"`
+	Url    string `json:"url"`
 }
 
 // ThemeRequest See PUT /api/settings/theme's own description.
