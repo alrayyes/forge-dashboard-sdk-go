@@ -2558,11 +2558,14 @@ type ClientInterface interface {
 	//
 	// Answers 200 once the server can actually serve: the database answers
 	// a ping with its schema in place, and the first dashboard refresh has
-	// completed. A refresh that finished with a forge unreachable still
-	// counts, and a forge going unreachable afterwards never turns this
-	// into a 503 — see forges[].reachable on the dashboard response for
-	// that. Before any account has signed in there is no refresh to wait
-	// for, so only the database is checked.
+	// completed, or 30 seconds have passed since it started. The wait is
+	// bounded because how fast a forge answers is how fresh the data is,
+	// not whether the server can serve: a slow or unreachable forge must not
+	// keep the container unready. A refresh that finished with a forge
+	// unreachable counts, and a forge going unreachable afterwards never
+	// turns this into a 503. See forges[].reachable on the dashboard
+	// response for that. Before any account has signed in there is no
+	// refresh to wait for, so only the database is checked.
 	//
 	// The container's HEALTHCHECK probes this path (`/healthz` stays the
 	// cheap liveness answer), so Docker's single health state and Compose's
@@ -4288,11 +4291,14 @@ func (c *Client) Health(ctx context.Context, reqEditors ...RequestEditorFn) (*ht
 //
 // Answers 200 once the server can actually serve: the database answers
 // a ping with its schema in place, and the first dashboard refresh has
-// completed. A refresh that finished with a forge unreachable still
-// counts, and a forge going unreachable afterwards never turns this
-// into a 503 — see forges[].reachable on the dashboard response for
-// that. Before any account has signed in there is no refresh to wait
-// for, so only the database is checked.
+// completed, or 30 seconds have passed since it started. The wait is
+// bounded because how fast a forge answers is how fresh the data is,
+// not whether the server can serve: a slow or unreachable forge must not
+// keep the container unready. A refresh that finished with a forge
+// unreachable counts, and a forge going unreachable afterwards never
+// turns this into a 503. See forges[].reachable on the dashboard
+// response for that. Before any account has signed in there is no
+// refresh to wait for, so only the database is checked.
 //
 // The container's HEALTHCHECK probes this path (`/healthz` stays the
 // cheap liveness answer), so Docker's single health state and Compose's
@@ -7413,11 +7419,14 @@ type ClientWithResponsesInterface interface {
 	//
 	// Answers 200 once the server can actually serve: the database answers
 	// a ping with its schema in place, and the first dashboard refresh has
-	// completed. A refresh that finished with a forge unreachable still
-	// counts, and a forge going unreachable afterwards never turns this
-	// into a 503 — see forges[].reachable on the dashboard response for
-	// that. Before any account has signed in there is no refresh to wait
-	// for, so only the database is checked.
+	// completed, or 30 seconds have passed since it started. The wait is
+	// bounded because how fast a forge answers is how fresh the data is,
+	// not whether the server can serve: a slow or unreachable forge must not
+	// keep the container unready. A refresh that finished with a forge
+	// unreachable counts, and a forge going unreachable afterwards never
+	// turns this into a 503. See forges[].reachable on the dashboard
+	// response for that. Before any account has signed in there is no
+	// refresh to wait for, so only the database is checked.
 	//
 	// The container's HEALTHCHECK probes this path (`/healthz` stays the
 	// cheap liveness answer), so Docker's single health state and Compose's
@@ -11698,11 +11707,14 @@ func (c *ClientWithResponses) HealthWithResponse(ctx context.Context, reqEditors
 //
 // Answers 200 once the server can actually serve: the database answers
 // a ping with its schema in place, and the first dashboard refresh has
-// completed. A refresh that finished with a forge unreachable still
-// counts, and a forge going unreachable afterwards never turns this
-// into a 503 — see forges[].reachable on the dashboard response for
-// that. Before any account has signed in there is no refresh to wait
-// for, so only the database is checked.
+// completed, or 30 seconds have passed since it started. The wait is
+// bounded because how fast a forge answers is how fresh the data is,
+// not whether the server can serve: a slow or unreachable forge must not
+// keep the container unready. A refresh that finished with a forge
+// unreachable counts, and a forge going unreachable afterwards never
+// turns this into a 503. See forges[].reachable on the dashboard
+// response for that. Before any account has signed in there is no
+// refresh to wait for, so only the database is checked.
 //
 // The container's HEALTHCHECK probes this path (`/healthz` stays the
 // cheap liveness answer), so Docker's single health state and Compose's
