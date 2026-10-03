@@ -574,7 +574,25 @@ type CIStatus string
 
 // Check One job/check run against a pull request's head commit.
 type Check struct {
-	Name string `json:"name"`
+	// DurationSeconds How long a completed check ran. Absent while it runs, or when
+	// the forge doesn't say. GitHub only: Forgejo's API doesn't give
+	// a job's timing.
+	DurationSeconds *int `json:"durationSeconds,omitempty"`
+
+	// Excerpt The tail of the failed job's log as plain text: the last lines,
+	// with per-line timestamps and colour codes removed, at most 2,000
+	// characters. Never markup, and a client must render it as text.
+	// Whatever the forge already masks stays masked. Absent when the
+	// log can't be read or has expired. GitHub only: Forgejo's API
+	// doesn't serve job logs, so there the link to the run is all a
+	// failed check offers.
+	Excerpt *string `json:"excerpt,omitempty"`
+
+	// FailedStep The name of the step of a failed job that broke. Absent when
+	// the check isn't a job the token can read (a third-party check,
+	// a forge with no step data, a token without access).
+	FailedStep *string `json:"failedStep,omitempty"`
+	Name       string  `json:"name"`
 
 	// Required Whether the base branch's protection makes this check block the
 	// merge (GitHub required status checks and rulesets, Forgejo
