@@ -71,6 +71,72 @@ func (e ActionErrorCode) Valid() bool {
 	}
 }
 
+// Defines values for AllowedActionAction.
+const (
+	AutoMerge          AllowedActionAction = "auto_merge"
+	Close              AllowedActionAction = "close"
+	DependabotRebase   AllowedActionAction = "dependabot_rebase"
+	DependabotRecreate AllowedActionAction = "dependabot_recreate"
+	Merge              AllowedActionAction = "merge"
+	RenovateRebase     AllowedActionAction = "renovate_rebase"
+	UpdateBranch       AllowedActionAction = "update_branch"
+)
+
+// Valid indicates whether the value is a known member of the AllowedActionAction enum.
+func (e AllowedActionAction) Valid() bool {
+	switch e {
+	case AutoMerge:
+		return true
+	case Close:
+		return true
+	case DependabotRebase:
+		return true
+	case DependabotRecreate:
+		return true
+	case Merge:
+		return true
+	case RenovateRebase:
+		return true
+	case UpdateBranch:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AllowedActionBlockedCode.
+const (
+	AllowedActionBlockedCodeAlreadyUpToDate     AllowedActionBlockedCode = "already_up_to_date"
+	AllowedActionBlockedCodeBehind              AllowedActionBlockedCode = "behind"
+	AllowedActionBlockedCodeBlockedByProtection AllowedActionBlockedCode = "blocked_by_protection"
+	AllowedActionBlockedCodeChecksFailing       AllowedActionBlockedCode = "checks_failing"
+	AllowedActionBlockedCodeChecksPending       AllowedActionBlockedCode = "checks_pending"
+	AllowedActionBlockedCodeConflict            AllowedActionBlockedCode = "conflict"
+	AllowedActionBlockedCodeNotMergeable        AllowedActionBlockedCode = "not_mergeable"
+)
+
+// Valid indicates whether the value is a known member of the AllowedActionBlockedCode enum.
+func (e AllowedActionBlockedCode) Valid() bool {
+	switch e {
+	case AllowedActionBlockedCodeAlreadyUpToDate:
+		return true
+	case AllowedActionBlockedCodeBehind:
+		return true
+	case AllowedActionBlockedCodeBlockedByProtection:
+		return true
+	case AllowedActionBlockedCodeChecksFailing:
+		return true
+	case AllowedActionBlockedCodeChecksPending:
+		return true
+	case AllowedActionBlockedCodeConflict:
+		return true
+	case AllowedActionBlockedCodeNotMergeable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CIStatus.
 const (
 	CIStatusFailure CIStatus = "failure"
@@ -453,6 +519,30 @@ type AdminUser struct {
 	Username    string    `json:"username"`
 }
 
+// AllowedAction defines model for AllowedAction.
+type AllowedAction struct {
+	Action AllowedActionAction `json:"action"`
+
+	// Blocked Present when the action is offered but can't be taken yet. Merge
+	// is never hidden for an open pull request, only blocked.
+	Blocked *struct {
+		// Code The same codes as `ActionError.code`.
+		Code AllowedActionBlockedCode `json:"code"`
+
+		// Message Plain words, safe to show a person.
+		Message string `json:"message"`
+
+		// Next What unlocks it, when something does.
+		Next *string `json:"next,omitempty"`
+	} `json:"blocked,omitempty"`
+}
+
+// AllowedActionAction defines model for AllowedAction.Action.
+type AllowedActionAction string
+
+// AllowedActionBlockedCode The same codes as `ActionError.code`.
+type AllowedActionBlockedCode string
+
 // CIStatus The combined result across every check reported against the pull
 // request's head commit. "none" means neither forge reported any
 // check at all, not that one failed.
@@ -629,7 +719,16 @@ type MergeStatus string
 
 // PullRequest defines model for PullRequest.
 type PullRequest struct {
-	Author string `json:"author"`
+	// AllowedActions The actions this pull request offers, worked out on the server
+	// from its own fields, so a client needs no copy of the rules. An
+	// action that doesn't apply (Update branch on a pull request that
+	// isn't behind, a Dependabot command on a Renovate pull request)
+	// is absent, not listed as blocked. Always present; `close` is
+	// always in it. Live state is the client's: a rate-limited or
+	// unreachable forge, a missing token and an action already in
+	// flight can still stop an offered action.
+	AllowedActions []AllowedAction `json:"allowedActions"`
+	Author         string          `json:"author"`
 
 	// AutoMergeAllowed Whether GitHub will accept an "Enable auto-merge" request for
 	// this pull request from the signed-in viewer, read from the
