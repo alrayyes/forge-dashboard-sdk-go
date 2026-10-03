@@ -493,7 +493,14 @@ type Dashboard struct {
 	Forges []ForgeHealth `json:"forges"`
 
 	// GeneratedAt When this snapshot was refreshed, not when it was requested.
-	GeneratedAt  time.Time     `json:"generatedAt"`
+	GeneratedAt time.Time `json:"generatedAt"`
+
+	// HiddenDrafts How many draft pull requests `pullRequests` leaves out. Always
+	// present, and `0` when the request set `includeDrafts=true`, so
+	// a client can render "N hidden" without a special case. Drafts
+	// in a repo the account ignores aren't counted, since none of
+	// that repo's pull requests show.
+	HiddenDrafts int           `json:"hiddenDrafts"`
 	Issues       []Issue       `json:"issues"`
 	PullRequests []PullRequest `json:"pullRequests"`
 	Repos        []RepoStatus  `json:"repos"`
@@ -1079,6 +1086,9 @@ type PathUsername = string
 // PathWebhookToken defines model for PathWebhookToken.
 type PathWebhookToken = string
 
+// QueryIncludeDrafts defines model for QueryIncludeDrafts.
+type QueryIncludeDrafts = bool
+
 // QueryRequestLogAccount defines model for QueryRequestLogAccount.
 type QueryRequestLogAccount = string
 
@@ -1133,6 +1143,33 @@ type FinishRegistrationParams struct {
 type GetDashboardParams struct {
 	// Owner A username that has shared their dashboard with the caller. Defaults to the caller's own.
 	Owner *string `form:"owner,omitempty" json:"owner,omitempty"`
+
+	// IncludeDrafts Whether draft pull requests are in `pullRequests`. Defaults to
+	// `false`: nothing can be merged, auto-merged or updated on a draft,
+	// so a draft is left out and counted in the response's `hiddenDrafts`
+	// instead. The stream and the refresh endpoint take the same
+	// parameter, so every snapshot a client receives follows one rule.
+	IncludeDrafts *QueryIncludeDrafts `form:"includeDrafts,omitempty" json:"includeDrafts,omitempty"`
+}
+
+// RefreshDashboardParams defines parameters for RefreshDashboard.
+type RefreshDashboardParams struct {
+	// IncludeDrafts Whether draft pull requests are in `pullRequests`. Defaults to
+	// `false`: nothing can be merged, auto-merged or updated on a draft,
+	// so a draft is left out and counted in the response's `hiddenDrafts`
+	// instead. The stream and the refresh endpoint take the same
+	// parameter, so every snapshot a client receives follows one rule.
+	IncludeDrafts *QueryIncludeDrafts `form:"includeDrafts,omitempty" json:"includeDrafts,omitempty"`
+}
+
+// StreamDashboardParams defines parameters for StreamDashboard.
+type StreamDashboardParams struct {
+	// IncludeDrafts Whether draft pull requests are in `pullRequests`. Defaults to
+	// `false`: nothing can be merged, auto-merged or updated on a draft,
+	// so a draft is left out and counted in the response's `hiddenDrafts`
+	// instead. The stream and the refresh endpoint take the same
+	// parameter, so every snapshot a client receives follows one rule.
+	IncludeDrafts *QueryIncludeDrafts `form:"includeDrafts,omitempty" json:"includeDrafts,omitempty"`
 }
 
 // GetPullRequestChecksParams defines parameters for GetPullRequestChecks.
@@ -1533,6 +1570,11 @@ type ClientInterface interface {
 	// shared it with the caller (or the caller is viewing their own
 	// username), and refused with a 403 otherwise.
 	//
+	// Draft pull requests are left out unless `includeDrafts=true`. With
+	// `owner`, the same rule applies to that user's dashboard, and
+	// `hiddenDrafts` counts only the drafts in repos that user hasn't
+	// ignored, the same repos whose other pull requests show.
+	//
 	// Corresponds with GET /api/dashboard (the `GetDashboard` operationId).
 	GetDashboard(ctx context.Context, params *GetDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1551,7 +1593,7 @@ type ClientInterface interface {
 	// schedule.
 	//
 	// Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
-	RefreshDashboard(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	RefreshDashboard(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StreamDashboard Server-Sent Events stream of the signed-in user's own dashboard
 	//
@@ -1569,8 +1611,12 @@ type ClientInterface interface {
 	// benefits from this, rather than the dashboard going stale
 	// silently.
 	//
+	// `includeDrafts` is read once, when the connection opens, and
+	// applies to every event on it. A client that changes its mind
+	// reconnects with the new value.
+	//
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
-	StreamDashboard(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EnablePullRequestAutoMergeWithBody Arm a pull request's own native auto-merge, on the signed-in user's behalf
 	//
@@ -2756,6 +2802,11 @@ func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) 
 // shared it with the caller (or the caller is viewing their own
 // username), and refused with a 403 otherwise.
 //
+// Draft pull requests are left out unless `includeDrafts=true`. With
+// `owner`, the same rule applies to that user's dashboard, and
+// `hiddenDrafts` counts only the drafts in repos that user hasn't
+// ignored, the same repos whose other pull requests show.
+//
 // Corresponds with GET /api/dashboard (the `GetDashboard` operationId).
 func (c *Client) GetDashboard(ctx context.Context, params *GetDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetDashboardRequest(c.Server, params)
@@ -2784,8 +2835,8 @@ func (c *Client) GetDashboard(ctx context.Context, params *GetDashboardParams, r
 // schedule.
 //
 // Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
-func (c *Client) RefreshDashboard(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRefreshDashboardRequest(c.Server)
+func (c *Client) RefreshDashboard(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRefreshDashboardRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2812,9 +2863,13 @@ func (c *Client) RefreshDashboard(ctx context.Context, reqEditors ...RequestEdit
 // benefits from this, rather than the dashboard going stale
 // silently.
 //
+// `includeDrafts` is read once, when the connection opens, and
+// applies to every event on it. A client that changes its mind
+// reconnects with the new value.
+//
 // Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
-func (c *Client) StreamDashboard(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewStreamDashboardRequest(c.Server)
+func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStreamDashboardRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4786,6 +4841,18 @@ func NewGetDashboardRequest(server string, params *GetDashboardParams) (*http.Re
 
 		}
 
+		if params.IncludeDrafts != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "includeDrafts", *params.IncludeDrafts, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -4801,7 +4868,7 @@ func NewGetDashboardRequest(server string, params *GetDashboardParams) (*http.Re
 }
 
 // NewRefreshDashboardRequest constructs an http.Request for the RefreshDashboard method
-func NewRefreshDashboardRequest(server string) (*http.Request, error) {
+func NewRefreshDashboardRequest(server string, params *RefreshDashboardParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -4819,6 +4886,33 @@ func NewRefreshDashboardRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.IncludeDrafts != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "includeDrafts", *params.IncludeDrafts, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
@@ -4828,7 +4922,7 @@ func NewRefreshDashboardRequest(server string) (*http.Request, error) {
 }
 
 // NewStreamDashboardRequest constructs an http.Request for the StreamDashboard method
-func NewStreamDashboardRequest(server string) (*http.Request, error) {
+func NewStreamDashboardRequest(server string, params *StreamDashboardParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -4844,6 +4938,33 @@ func NewStreamDashboardRequest(server string) (*http.Request, error) {
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.IncludeDrafts != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "includeDrafts", *params.IncludeDrafts, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -6240,6 +6361,11 @@ type ClientWithResponsesInterface interface {
 	// shared it with the caller (or the caller is viewing their own
 	// username), and refused with a 403 otherwise.
 	//
+	// Draft pull requests are left out unless `includeDrafts=true`. With
+	// `owner`, the same rule applies to that user's dashboard, and
+	// `hiddenDrafts` counts only the drafts in repos that user hasn't
+	// ignored, the same repos whose other pull requests show.
+	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/dashboard (the `GetDashboard` operationId).
@@ -6262,7 +6388,7 @@ type ClientWithResponsesInterface interface {
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
-	RefreshDashboardWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*RefreshDashboardResponse, error)
+	RefreshDashboardWithResponse(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*RefreshDashboardResponse, error)
 
 	// StreamDashboardWithResponse Server-Sent Events stream of the signed-in user's own dashboard
 	//
@@ -6280,10 +6406,14 @@ type ClientWithResponsesInterface interface {
 	// benefits from this, rather than the dashboard going stale
 	// silently.
 	//
+	// `includeDrafts` is read once, when the connection opens, and
+	// applies to every event on it. A client that changes its mind
+	// reconnects with the new value.
+	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
-	StreamDashboardWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamDashboardResponse, error)
+	StreamDashboardWithResponse(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*StreamDashboardResponse, error)
 
 	// EnablePullRequestAutoMergeWithBodyWithResponse Arm a pull request's own native auto-merge, on the signed-in user's behalf
 	//
@@ -10210,6 +10340,11 @@ func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEdi
 // shared it with the caller (or the caller is viewing their own
 // username), and refused with a 403 otherwise.
 //
+// Draft pull requests are left out unless `includeDrafts=true`. With
+// `owner`, the same rule applies to that user's dashboard, and
+// `hiddenDrafts` counts only the drafts in repos that user hasn't
+// ignored, the same repos whose other pull requests show.
+//
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/dashboard (the `GetDashboard` operationId).
@@ -10238,8 +10373,8 @@ func (c *ClientWithResponses) GetDashboardWithResponse(ctx context.Context, para
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
-func (c *ClientWithResponses) RefreshDashboardWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*RefreshDashboardResponse, error) {
-	rsp, err := c.RefreshDashboard(ctx, reqEditors...)
+func (c *ClientWithResponses) RefreshDashboardWithResponse(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*RefreshDashboardResponse, error) {
+	rsp, err := c.RefreshDashboard(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -10262,11 +10397,15 @@ func (c *ClientWithResponses) RefreshDashboardWithResponse(ctx context.Context, 
 // benefits from this, rather than the dashboard going stale
 // silently.
 //
+// `includeDrafts` is read once, when the connection opens, and
+// applies to every event on it. A client that changes its mind
+// reconnects with the new value.
+//
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
-func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamDashboardResponse, error) {
-	rsp, err := c.StreamDashboard(ctx, reqEditors...)
+func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*StreamDashboardResponse, error) {
+	rsp, err := c.StreamDashboard(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
