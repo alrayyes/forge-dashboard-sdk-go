@@ -244,13 +244,13 @@ func (e ForgeErrorKind) Valid() bool {
 
 // Defines values for HealthStatus.
 const (
-	Ok HealthStatus = "ok"
+	HealthStatusOk HealthStatus = "ok"
 )
 
 // Valid indicates whether the value is a known member of the HealthStatus enum.
 func (e HealthStatus) Valid() bool {
 	switch e {
-	case Ok:
+	case HealthStatusOk:
 		return true
 	default:
 		return false
@@ -293,6 +293,27 @@ func (e PullRequestDependabotActionRequestAction) Valid() bool {
 	case Rebase:
 		return true
 	case Recreate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RateLimitSeverity.
+const (
+	RateLimitSeverityExceeded RateLimitSeverity = "exceeded"
+	RateLimitSeverityLow      RateLimitSeverity = "low"
+	RateLimitSeverityOk       RateLimitSeverity = "ok"
+)
+
+// Valid indicates whether the value is a known member of the RateLimitSeverity enum.
+func (e RateLimitSeverity) Valid() bool {
+	switch e {
+	case RateLimitSeverityExceeded:
+		return true
+	case RateLimitSeverityLow:
+		return true
+	case RateLimitSeverityOk:
 		return true
 	default:
 		return false
@@ -855,7 +876,23 @@ type RateLimit struct {
 
 	// ResetsAt When the window resets and remaining goes back to limit.
 	ResetsAt time.Time `json:"resetsAt"`
+
+	// Severity How worried a client should be about this budget, graded by
+	// the server as of the response, so no client needs its own
+	// threshold or clock check. `exceeded`: nothing left and the
+	// reset hasn't been seen to pass. `low`: under 5% left (also a
+	// spent budget whose reset time has passed, until the next
+	// snapshot says otherwise). `ok`: everything else.
+	Severity RateLimitSeverity `json:"severity"`
 }
+
+// RateLimitSeverity How worried a client should be about this budget, graded by
+// the server as of the response, so no client needs its own
+// threshold or clock check. `exceeded`: nothing left and the
+// reset hasn't been seen to pass. `low`: under 5% left (also a
+// spent budget whose reset time has passed, until the next
+// snapshot says otherwise). `ok`: everything else.
+type RateLimitSeverity string
 
 // RegisterBeginRequest defines model for RegisterBeginRequest.
 type RegisterBeginRequest struct {
