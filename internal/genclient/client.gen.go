@@ -813,8 +813,14 @@ type PullRequest struct {
 
 	// HeadBranch The branch the pull request comes from. Empty when the forge
 	// didn't say.
-	HeadBranch string  `json:"headBranch"`
-	Labels     []Label `json:"labels"`
+	HeadBranch string `json:"headBranch"`
+
+	// HeadSha The commit the pull request's head branch points at. A bot's
+	// rebase moves it, which shows the bot acted even when the pull
+	// request is still reported behind, or wasn't behind to begin
+	// with. Empty when the forge didn't say. Always present.
+	HeadSha string  `json:"headSha"`
+	Labels  []Label `json:"labels"`
 
 	// MergeStatus A pull request's mergeable/blocked state, as coarse as every forge
 	// this service talks to can agree on. "blocked" covers anything
