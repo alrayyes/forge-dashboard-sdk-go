@@ -140,6 +140,63 @@ func (e AllowedActionBlockedCode) Valid() bool {
 	}
 }
 
+// Defines values for BotRequestAction.
+const (
+	BotRequestActionRebase   BotRequestAction = "rebase"
+	BotRequestActionRecreate BotRequestAction = "recreate"
+)
+
+// Valid indicates whether the value is a known member of the BotRequestAction enum.
+func (e BotRequestAction) Valid() bool {
+	switch e {
+	case BotRequestActionRebase:
+		return true
+	case BotRequestActionRecreate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BotRequestBot.
+const (
+	Dependabot BotRequestBot = "dependabot"
+	Renovate   BotRequestBot = "renovate"
+)
+
+// Valid indicates whether the value is a known member of the BotRequestBot enum.
+func (e BotRequestBot) Valid() bool {
+	switch e {
+	case Dependabot:
+		return true
+	case Renovate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BotRequestPhase.
+const (
+	BotRequestPhaseExpired  BotRequestPhase = "expired"
+	BotRequestPhaseQueued   BotRequestPhase = "queued"
+	BotRequestPhaseRebasing BotRequestPhase = "rebasing"
+)
+
+// Valid indicates whether the value is a known member of the BotRequestPhase enum.
+func (e BotRequestPhase) Valid() bool {
+	switch e {
+	case BotRequestPhaseExpired:
+		return true
+	case BotRequestPhaseQueued:
+		return true
+	case BotRequestPhaseRebasing:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CIStatus.
 const (
 	CIStatusFailure CIStatus = "failure"
@@ -286,16 +343,16 @@ func (e MergeStatus) Valid() bool {
 
 // Defines values for PullRequestDependabotActionRequestAction.
 const (
-	Rebase   PullRequestDependabotActionRequestAction = "rebase"
-	Recreate PullRequestDependabotActionRequestAction = "recreate"
+	PullRequestDependabotActionRequestActionRebase   PullRequestDependabotActionRequestAction = "rebase"
+	PullRequestDependabotActionRequestActionRecreate PullRequestDependabotActionRequestAction = "recreate"
 )
 
 // Valid indicates whether the value is a known member of the PullRequestDependabotActionRequestAction enum.
 func (e PullRequestDependabotActionRequestAction) Valid() bool {
 	switch e {
-	case Rebase:
+	case PullRequestDependabotActionRequestActionRebase:
 		return true
-	case Recreate:
+	case PullRequestDependabotActionRequestActionRecreate:
 		return true
 	default:
 		return false
@@ -567,6 +624,45 @@ type AllowedActionAction string
 // AllowedActionBlockedCode The same codes as `ActionError.code`.
 type AllowedActionBlockedCode string
 
+// BotRequest defines model for BotRequest.
+type BotRequest struct {
+	// Action `recreate` is Dependabot's only. Renovate's rebase label is
+	// reported as `rebase`.
+	Action BotRequestAction `json:"action"`
+	Bot    BotRequestBot    `json:"bot"`
+
+	// ExpiresAt When the server stops waiting in the current phase: 5 minutes
+	// after the request while `queued`, 2 minutes after the pickup
+	// while `rebasing`.
+	ExpiresAt time.Time `json:"expiresAt"`
+
+	// Phase `queued`: asked, and nothing seen yet. `rebasing`: the bot
+	// pushed (the head changed, or the pull request was behind and
+	// isn't), and CI hasn't restarted yet. `expired`: the bot didn't
+	// act within 5 minutes. An expired request stays until the pull
+	// request is gone, a new request replaces it, or an hour passes.
+	// A request is dropped once CI shows pending after the push, 2
+	// minutes into `rebasing`, or when the pull request is gone.
+	Phase       BotRequestPhase `json:"phase"`
+	RequestedAt time.Time       `json:"requestedAt"`
+}
+
+// BotRequestAction `recreate` is Dependabot's only. Renovate's rebase label is
+// reported as `rebase`.
+type BotRequestAction string
+
+// BotRequestBot defines model for BotRequest.Bot.
+type BotRequestBot string
+
+// BotRequestPhase `queued`: asked, and nothing seen yet. `rebasing`: the bot
+// pushed (the head changed, or the pull request was behind and
+// isn't), and CI hasn't restarted yet. `expired`: the bot didn't
+// act within 5 minutes. An expired request stays until the pull
+// request is gone, a new request replaces it, or an hour passes.
+// A request is dropped once CI shows pending after the push, 2
+// minutes into `rebasing`, or when the pull request is gone.
+type BotRequestPhase string
+
 // CIStatus The combined result across every check reported against the pull
 // request's head commit. "none" means neither forge reported any
 // check at all, not that one failed.
@@ -815,6 +911,13 @@ type PullRequest struct {
 	// into mergeStatus would force picking one and losing the
 	// other.
 	Behind bool `json:"behind"`
+
+	// BotRequest A Dependabot or Renovate rebase asked for through this app and not
+	// settled yet, or null. The server keeps it, so a reload during the
+	// wait still shows it, and moves it along on every snapshot that
+	// came from a fetch started after the request. Held in memory per
+	// account: a server restart forgets it.
+	BotRequest *BotRequest `json:"botRequest,omitempty"`
 
 	// Ci The combined result across every check reported against the pull
 	// request's head commit. "none" means neither forge reported any
