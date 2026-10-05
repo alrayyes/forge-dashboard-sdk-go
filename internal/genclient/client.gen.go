@@ -1421,6 +1421,12 @@ type SettingsResponse struct {
 	// GET /api/settings/theme instead of this endpoint.
 	Theme SettingsResponseTheme `json:"theme"`
 
+	// Timezone The signed-in user's own time zone as an IANA name such as
+	// `Europe/Amsterdam`. Empty means the browser's own zone. Set only
+	// from Settings (PUT /api/settings/timezone); every other page reads
+	// it via GET /api/settings/timezone.
+	Timezone *string `json:"timezone,omitempty"`
+
 	// WebhookSecret Pasted into the forge's own webhook "Secret" field, used to
 	// verify the signature header on incoming webhook deliveries
 	// (`X-Hub-Signature-256` on GitHub, `X-Forgejo-Signature` on
@@ -1487,6 +1493,20 @@ type ThemeResponse struct {
 
 // ThemeResponseTheme defines model for ThemeResponse.Theme.
 type ThemeResponseTheme string
+
+// TimezoneRequest See PUT /api/settings/timezone's own description.
+type TimezoneRequest struct {
+	// Timezone An IANA zone name, or empty for the browser's own. `Local` is refused.
+	Timezone string `json:"timezone"`
+}
+
+// TimezoneResponse See GET /api/settings/timezone's own description.
+type TimezoneResponse struct {
+	// Timezone An IANA zone name such as `Europe/Amsterdam`, or empty for the browser's own.
+	//
+	// Examples: Europe/Amsterdam
+	Timezone string `json:"timezone"`
+}
 
 // UpdateRequest defines model for UpdateRequest.
 type UpdateRequest struct {
@@ -1702,6 +1722,9 @@ type SetFilterStateJSONRequestBody = FilterState
 
 // SetThemeJSONRequestBody defines body for SetTheme for application/json ContentType.
 type SetThemeJSONRequestBody = ThemeRequest
+
+// SetTimezoneJSONRequestBody defines body for SetTimezone for application/json ContentType.
+type SetTimezoneJSONRequestBody = TimezoneRequest
 
 // CreateAPITokenJSONRequestBody defines body for CreateAPIToken for application/json ContentType.
 type CreateAPITokenJSONRequestBody = APITokenCreateRequest
@@ -2601,6 +2624,38 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /api/settings/theme (the `SetTheme` operationId).
 	SetTheme(ctx context.Context, body SetThemeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTimezone The signed-in user's own saved time zone
+	//
+	// A lightweight, side-effect-free read of one field, for every page to
+	// check on load so it can show times in the user's zone. Deliberately
+	// not GET /api/settings, for the reason GET /api/settings/theme isn't.
+	// Empty means "use the browser's own zone".
+	//
+	// Corresponds with GET /api/settings/timezone (the `GetTimezone` operationId).
+	GetTimezone(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetTimezoneWithBody Save the signed-in user's own time zone
+	//
+	// A dedicated, instant save, not routed through PUT /api/settings,
+	// which replaces every other field. Exists for browsers that report
+	// UTC to every page, such as Firefox with fingerprint resistance.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+	SetTimezoneWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetTimezone Save the signed-in user's own time zone
+	//
+	// A dedicated, instant save, not routed through PUT /api/settings,
+	// which replaces every other field. Exists for browsers that report
+	// UTC to every page, such as Firefox with fingerprint resistance.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+	SetTimezone(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSharing The signed-in user's sharing relationships
 	//
@@ -4210,6 +4265,68 @@ func (c *Client) SetThemeWithBody(ctx context.Context, contentType string, body 
 // Corresponds with PUT /api/settings/theme (the `SetTheme` operationId).
 func (c *Client) SetTheme(ctx context.Context, body SetThemeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetThemeRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetTimezone The signed-in user's own saved time zone
+//
+// A lightweight, side-effect-free read of one field, for every page to
+// check on load so it can show times in the user's zone. Deliberately
+// not GET /api/settings, for the reason GET /api/settings/theme isn't.
+// Empty means "use the browser's own zone".
+//
+// Corresponds with GET /api/settings/timezone (the `GetTimezone` operationId).
+func (c *Client) GetTimezone(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTimezoneRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetTimezoneWithBody Save the signed-in user's own time zone
+//
+// A dedicated, instant save, not routed through PUT /api/settings,
+// which replaces every other field. Exists for browsers that report
+// UTC to every page, such as Firefox with fingerprint resistance.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+func (c *Client) SetTimezoneWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetTimezoneRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetTimezone Save the signed-in user's own time zone
+//
+// A dedicated, instant save, not routed through PUT /api/settings,
+// which replaces every other field. Exists for browsers that report
+// UTC to every page, such as Firefox with fingerprint resistance.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+func (c *Client) SetTimezone(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetTimezoneRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6211,6 +6328,73 @@ func NewSetThemeRequestWithBody(server string, contentType string, body io.Reade
 	return req, nil
 }
 
+// NewGetTimezoneRequest constructs an http.Request for the GetTimezone method
+func NewGetTimezoneRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/settings/timezone")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSetTimezoneRequest calls the generic SetTimezone builder with application/json body
+func NewSetTimezoneRequest(server string, body SetTimezoneJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetTimezoneRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSetTimezoneRequestWithBody constructs an http.Request for the SetTimezone method, with any body, and a specified content type
+func NewSetTimezoneRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/settings/timezone")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetSharingRequest constructs an http.Request for the GetSharing method
 func NewGetSharingRequest(server string) (*http.Request, error) {
 	var err error
@@ -7518,6 +7702,40 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /api/settings/theme (the `SetTheme` operationId).
 	SetThemeWithResponse(ctx context.Context, body SetThemeJSONRequestBody, reqEditors ...RequestEditorFn) (*SetThemeResponse, error)
+
+	// GetTimezoneWithResponse The signed-in user's own saved time zone
+	//
+	// A lightweight, side-effect-free read of one field, for every page to
+	// check on load so it can show times in the user's zone. Deliberately
+	// not GET /api/settings, for the reason GET /api/settings/theme isn't.
+	// Empty means "use the browser's own zone".
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/settings/timezone (the `GetTimezone` operationId).
+	GetTimezoneWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTimezoneResponse, error)
+
+	// SetTimezoneWithBodyWithResponse Save the signed-in user's own time zone
+	//
+	// A dedicated, instant save, not routed through PUT /api/settings,
+	// which replaces every other field. Exists for browsers that report
+	// UTC to every page, such as Firefox with fingerprint resistance.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+	SetTimezoneWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetTimezoneResponse, error)
+
+	// SetTimezoneWithResponse Save the signed-in user's own time zone
+	//
+	// A dedicated, instant save, not routed through PUT /api/settings,
+	// which replaces every other field. Exists for browsers that report
+	// UTC to every page, such as Firefox with fingerprint resistance.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+	SetTimezoneWithResponse(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*SetTimezoneResponse, error)
 
 	// GetSharingWithResponse The signed-in user's sharing relationships
 	//
@@ -9982,6 +10200,109 @@ func (r SetThemeResponse) ContentType() string {
 	return ""
 }
 
+type GetTimezoneResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *TimezoneResponse
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetTimezoneResponse) GetJSON200() *TimezoneResponse {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetTimezoneResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetTimezoneResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTimezoneResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTimezoneResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetTimezoneResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SetTimezoneResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *TimezoneResponse
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SetTimezoneResponse) GetJSON200() *TimezoneResponse {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r SetTimezoneResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r SetTimezoneResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r SetTimezoneResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SetTimezoneResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetTimezoneResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SetTimezoneResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetSharingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11771,6 +12092,58 @@ func (c *ClientWithResponses) SetThemeWithResponse(ctx context.Context, body Set
 		return nil, err
 	}
 	return ParseSetThemeResponse(rsp)
+}
+
+// GetTimezoneWithResponse The signed-in user's own saved time zone
+//
+// A lightweight, side-effect-free read of one field, for every page to
+// check on load so it can show times in the user's zone. Deliberately
+// not GET /api/settings, for the reason GET /api/settings/theme isn't.
+// Empty means "use the browser's own zone".
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/settings/timezone (the `GetTimezone` operationId).
+func (c *ClientWithResponses) GetTimezoneWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTimezoneResponse, error) {
+	rsp, err := c.GetTimezone(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTimezoneResponse(rsp)
+}
+
+// SetTimezoneWithBodyWithResponse Save the signed-in user's own time zone
+//
+// A dedicated, instant save, not routed through PUT /api/settings,
+// which replaces every other field. Exists for browsers that report
+// UTC to every page, such as Firefox with fingerprint resistance.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+func (c *ClientWithResponses) SetTimezoneWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetTimezoneResponse, error) {
+	rsp, err := c.SetTimezoneWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetTimezoneResponse(rsp)
+}
+
+// SetTimezoneWithResponse Save the signed-in user's own time zone
+//
+// A dedicated, instant save, not routed through PUT /api/settings,
+// which replaces every other field. Exists for browsers that report
+// UTC to every page, such as Firefox with fingerprint resistance.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+func (c *ClientWithResponses) SetTimezoneWithResponse(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*SetTimezoneResponse, error) {
+	rsp, err := c.SetTimezone(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetTimezoneResponse(rsp)
 }
 
 // GetSharingWithResponse The signed-in user's sharing relationships
@@ -13767,6 +14140,79 @@ func ParseSetThemeResponse(rsp *http.Response) (*SetThemeResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ThemeResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTimezoneResponse parses an HTTP response from a GetTimezoneWithResponse call
+func ParseGetTimezoneResponse(rsp *http.Response) (*GetTimezoneResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTimezoneResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TimezoneResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetTimezoneResponse parses an HTTP response from a SetTimezoneWithResponse call
+func ParseSetTimezoneResponse(rsp *http.Response) (*SetTimezoneResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetTimezoneResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TimezoneResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
