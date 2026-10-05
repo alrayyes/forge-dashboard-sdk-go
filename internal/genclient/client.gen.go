@@ -579,7 +579,12 @@ type AdminInviteCreateRequest struct {
 	// DisplayName Examples: Alex
 	DisplayName string `json:"displayName"`
 
-	// Username Examples: alex
+	// Username Surrounding whitespace is trimmed by the server, and what is
+	// left must not be empty. Clients may check the same pattern for
+	// quick feedback; the server decides.
+	//
+	//
+	// Examples: alex
 	Username string `json:"username"`
 }
 
@@ -858,7 +863,12 @@ type Label struct {
 
 // LoginBeginRequest defines model for LoginBeginRequest.
 type LoginBeginRequest struct {
-	// Username Examples: ryan
+	// Username Surrounding whitespace is trimmed by the server, and what is
+	// left must not be empty. Clients may check the same pattern for
+	// quick feedback; the server decides.
+	//
+	//
+	// Examples: ryan
 	Username string `json:"username"`
 }
 
@@ -1119,7 +1129,12 @@ type RegisterBeginRequest struct {
 	// or ignored for the very first, bootstrap registration.
 	InviteToken *string `json:"inviteToken,omitempty"`
 
-	// Username Examples: ryan
+	// Username Surrounding whitespace is trimmed by the server, and what is
+	// left must not be empty. Clients may check the same pattern for
+	// quick feedback; the server decides.
+	//
+	//
+	// Examples: ryan
 	Username string `json:"username"`
 }
 
