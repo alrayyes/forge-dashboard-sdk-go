@@ -470,6 +470,24 @@ func (e ThemeResponseTheme) Valid() bool {
 	}
 }
 
+// Defines values for UpdateRequestPhase.
+const (
+	UpdateRequestPhaseExpired UpdateRequestPhase = "expired"
+	UpdateRequestPhaseQueued  UpdateRequestPhase = "queued"
+)
+
+// Valid indicates whether the value is a known member of the UpdateRequestPhase enum.
+func (e UpdateRequestPhase) Valid() bool {
+	switch e {
+	case UpdateRequestPhaseExpired:
+		return true
+	case UpdateRequestPhaseQueued:
+		return true
+	default:
+		return false
+	}
+}
+
 // APIToken A personal API token's own metadata — never the token value
 // itself, which only ever appears once, in
 // APITokenCreateResponse's own response body at creation time.
@@ -745,10 +763,14 @@ type Dashboard struct {
 	// a client can render "N hidden" without a special case. Drafts
 	// in a repo the account ignores aren't counted, since none of
 	// that repo's pull requests show.
-	HiddenDrafts int           `json:"hiddenDrafts"`
-	Issues       []Issue       `json:"issues"`
-	PullRequests []PullRequest `json:"pullRequests"`
-	Repos        []RepoStatus  `json:"repos"`
+	HiddenDrafts int     `json:"hiddenDrafts"`
+	Issues       []Issue `json:"issues"`
+
+	// OpenIssueCount How many of `issues` are real work: all of them except the
+	// `housekeeping` ones. What the Issues badge shows.
+	OpenIssueCount int           `json:"openIssueCount"`
+	PullRequests   []PullRequest `json:"pullRequests"`
+	Repos          []RepoStatus  `json:"repos"`
 }
 
 // Error defines model for Error.
@@ -836,8 +858,14 @@ type Issue struct {
 	Author    string    `json:"author"`
 	CreatedAt time.Time `json:"createdAt"`
 	Forge     Forge     `json:"forge"`
-	Labels    []Label   `json:"labels"`
-	Number    int       `json:"number"`
+
+	// Housekeeping True for an issue a bot keeps open and rewrites, Renovate's
+	// "Dependency Dashboard", which is not work for a person. The
+	// server decides, so every client lists and counts the same
+	// issues. It stays in `issues`; `openIssueCount` leaves it out.
+	Housekeeping bool    `json:"housekeeping"`
+	Labels       []Label `json:"labels"`
+	Number       int     `json:"number"`
 
 	// Repo Examples: alrayyes/hush-hush
 	Repo      string    `json:"repo"`
@@ -1043,7 +1071,15 @@ type PullRequest struct {
 	// base is not another open pull request's head.
 	StackedOn *StackRef `json:"stackedOn"`
 	Title     string    `json:"title"`
-	UpdatedAt time.Time `json:"updatedAt"`
+
+	// UpdateRequest An Update branch the forge accepted and that no snapshot has shown
+	// landing yet, or null. The server keeps it, so a reload during the
+	// wait still shows it. It is dropped once a snapshot from a fetch
+	// started after the request shows the pull request no longer
+	// behind, or when the pull request is gone. Held in memory per
+	// account: a server restart forgets it.
+	UpdateRequest *UpdateRequest `json:"updateRequest,omitempty"`
+	UpdatedAt     time.Time      `json:"updatedAt"`
 
 	// Url The real pull request URL on its own forge.
 	Url string `json:"url"`
@@ -1444,6 +1480,26 @@ type ThemeResponse struct {
 
 // ThemeResponseTheme defines model for ThemeResponse.Theme.
 type ThemeResponseTheme string
+
+// UpdateRequest defines model for UpdateRequest.
+type UpdateRequest struct {
+	// ExpiresAt When the server stops waiting in the current phase: 5 minutes
+	// after the request while `queued`.
+	ExpiresAt time.Time `json:"expiresAt"`
+
+	// Phase `queued`: accepted, and the pull request is still behind.
+	// `expired`: still behind after 5 minutes. An expired request stays
+	// until the pull request is gone, a new request replaces it, or an
+	// hour passes.
+	Phase       UpdateRequestPhase `json:"phase"`
+	RequestedAt time.Time          `json:"requestedAt"`
+}
+
+// UpdateRequestPhase `queued`: accepted, and the pull request is still behind.
+// `expired`: still behind after 5 minutes. An expired request stays
+// until the pull request is gone, a new request replaces it, or an
+// hour passes.
+type UpdateRequestPhase string
 
 // Version defines model for Version.
 type Version struct {
