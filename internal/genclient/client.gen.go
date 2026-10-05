@@ -1996,7 +1996,8 @@ type ClientInterface interface {
 	// mutation asks for an explicit merge method rather than picking
 	// the repo's own default itself, so this looks the repo's allowed
 	// methods up first and picks one with the same merge > squash >
-	// rebase precedence Merge already uses; no override is exposed
+	// rebase precedence Merge already uses, skipping merge when the
+	// default branch requires linear history; no override is exposed
 	// here either. The pull request stays open and unmerged until the
 	// forge's own required checks pass on their own.
 	//
@@ -2023,7 +2024,8 @@ type ClientInterface interface {
 	// mutation asks for an explicit merge method rather than picking
 	// the repo's own default itself, so this looks the repo's allowed
 	// methods up first and picks one with the same merge > squash >
-	// rebase precedence Merge already uses; no override is exposed
+	// rebase precedence Merge already uses, skipping merge when the
+	// default branch requires linear history; no override is exposed
 	// here either. The pull request stays open and unmerged until the
 	// forge's own required checks pass on their own.
 	//
@@ -2139,7 +2141,8 @@ type ClientInterface interface {
 	//
 	// Merges the named pull request using its repo's own configured
 	// default merge method — GitHub is asked to pick its own repo
-	// default; Forgejo's API has no such default built in, so this
+	// default, except that a base branch requiring linear history gets
+	// squash or rebase, never a merge commit; Forgejo's API has no such default built in, so this
 	// looks up the repo's configured default merge style first and
 	// passes that explicitly. Neither takes a method override here;
 	// picking one is out of scope for this endpoint.
@@ -2161,7 +2164,8 @@ type ClientInterface interface {
 	//
 	// Merges the named pull request using its repo's own configured
 	// default merge method — GitHub is asked to pick its own repo
-	// default; Forgejo's API has no such default built in, so this
+	// default, except that a base branch requiring linear history gets
+	// squash or rebase, never a merge commit; Forgejo's API has no such default built in, so this
 	// looks up the repo's configured default merge style first and
 	// passes that explicitly. Neither takes a method override here;
 	// picking one is out of scope for this endpoint.
@@ -3288,7 +3292,8 @@ func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardPar
 // mutation asks for an explicit merge method rather than picking
 // the repo's own default itself, so this looks the repo's allowed
 // methods up first and picks one with the same merge > squash >
-// rebase precedence Merge already uses; no override is exposed
+// rebase precedence Merge already uses, skipping merge when the
+// default branch requires linear history; no override is exposed
 // here either. The pull request stays open and unmerged until the
 // forge's own required checks pass on their own.
 //
@@ -3325,7 +3330,8 @@ func (c *Client) EnablePullRequestAutoMergeWithBody(ctx context.Context, content
 // mutation asks for an explicit merge method rather than picking
 // the repo's own default itself, so this looks the repo's allowed
 // methods up first and picks one with the same merge > squash >
-// rebase precedence Merge already uses; no override is exposed
+// rebase precedence Merge already uses, skipping merge when the
+// default branch requires linear history; no override is exposed
 // here either. The pull request stays open and unmerged until the
 // forge's own required checks pass on their own.
 //
@@ -3501,7 +3507,8 @@ func (c *Client) PostPullRequestDependabotAction(ctx context.Context, body PostP
 //
 // Merges the named pull request using its repo's own configured
 // default merge method — GitHub is asked to pick its own repo
-// default; Forgejo's API has no such default built in, so this
+// default, except that a base branch requiring linear history gets
+// squash or rebase, never a merge commit; Forgejo's API has no such default built in, so this
 // looks up the repo's configured default merge style first and
 // passes that explicitly. Neither takes a method override here;
 // picking one is out of scope for this endpoint.
@@ -3533,7 +3540,8 @@ func (c *Client) MergePullRequestWithBody(ctx context.Context, contentType strin
 //
 // Merges the named pull request using its repo's own configured
 // default merge method — GitHub is asked to pick its own repo
-// default; Forgejo's API has no such default built in, so this
+// default, except that a base branch requiring linear history gets
+// squash or rebase, never a merge commit; Forgejo's API has no such default built in, so this
 // looks up the repo's configured default merge style first and
 // passes that explicitly. Neither takes a method override here;
 // picking one is out of scope for this endpoint.
@@ -6853,7 +6861,8 @@ type ClientWithResponsesInterface interface {
 	// mutation asks for an explicit merge method rather than picking
 	// the repo's own default itself, so this looks the repo's allowed
 	// methods up first and picks one with the same merge > squash >
-	// rebase precedence Merge already uses; no override is exposed
+	// rebase precedence Merge already uses, skipping merge when the
+	// default branch requires linear history; no override is exposed
 	// here either. The pull request stays open and unmerged until the
 	// forge's own required checks pass on their own.
 	//
@@ -6880,7 +6889,8 @@ type ClientWithResponsesInterface interface {
 	// mutation asks for an explicit merge method rather than picking
 	// the repo's own default itself, so this looks the repo's allowed
 	// methods up first and picks one with the same merge > squash >
-	// rebase precedence Merge already uses; no override is exposed
+	// rebase precedence Merge already uses, skipping merge when the
+	// default branch requires linear history; no override is exposed
 	// here either. The pull request stays open and unmerged until the
 	// forge's own required checks pass on their own.
 	//
@@ -6998,7 +7008,8 @@ type ClientWithResponsesInterface interface {
 	//
 	// Merges the named pull request using its repo's own configured
 	// default merge method — GitHub is asked to pick its own repo
-	// default; Forgejo's API has no such default built in, so this
+	// default, except that a base branch requiring linear history gets
+	// squash or rebase, never a merge commit; Forgejo's API has no such default built in, so this
 	// looks up the repo's configured default merge style first and
 	// passes that explicitly. Neither takes a method override here;
 	// picking one is out of scope for this endpoint.
@@ -7020,7 +7031,8 @@ type ClientWithResponsesInterface interface {
 	//
 	// Merges the named pull request using its repo's own configured
 	// default merge method — GitHub is asked to pick its own repo
-	// default; Forgejo's API has no such default built in, so this
+	// default, except that a base branch requiring linear history gets
+	// squash or rebase, never a merge commit; Forgejo's API has no such default built in, so this
 	// looks up the repo's configured default merge style first and
 	// passes that explicitly. Neither takes a method override here;
 	// picking one is out of scope for this endpoint.
@@ -10880,7 +10892,8 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 // mutation asks for an explicit merge method rather than picking
 // the repo's own default itself, so this looks the repo's allowed
 // methods up first and picks one with the same merge > squash >
-// rebase precedence Merge already uses; no override is exposed
+// rebase precedence Merge already uses, skipping merge when the
+// default branch requires linear history; no override is exposed
 // here either. The pull request stays open and unmerged until the
 // forge's own required checks pass on their own.
 //
@@ -10913,7 +10926,8 @@ func (c *ClientWithResponses) EnablePullRequestAutoMergeWithBodyWithResponse(ctx
 // mutation asks for an explicit merge method rather than picking
 // the repo's own default itself, so this looks the repo's allowed
 // methods up first and picks one with the same merge > squash >
-// rebase precedence Merge already uses; no override is exposed
+// rebase precedence Merge already uses, skipping merge when the
+// default branch requires linear history; no override is exposed
 // here either. The pull request stays open and unmerged until the
 // forge's own required checks pass on their own.
 //
@@ -11067,7 +11081,8 @@ func (c *ClientWithResponses) PostPullRequestDependabotActionWithResponse(ctx co
 //
 // Merges the named pull request using its repo's own configured
 // default merge method — GitHub is asked to pick its own repo
-// default; Forgejo's API has no such default built in, so this
+// default, except that a base branch requiring linear history gets
+// squash or rebase, never a merge commit; Forgejo's API has no such default built in, so this
 // looks up the repo's configured default merge style first and
 // passes that explicitly. Neither takes a method override here;
 // picking one is out of scope for this endpoint.
@@ -11095,7 +11110,8 @@ func (c *ClientWithResponses) MergePullRequestWithBodyWithResponse(ctx context.C
 //
 // Merges the named pull request using its repo's own configured
 // default merge method — GitHub is asked to pick its own repo
-// default; Forgejo's API has no such default built in, so this
+// default, except that a base branch requiring linear history gets
+// squash or rebase, never a merge commit; Forgejo's API has no such default built in, so this
 // looks up the repo's configured default merge style first and
 // passes that explicitly. Neither takes a method override here;
 // picking one is out of scope for this endpoint.
