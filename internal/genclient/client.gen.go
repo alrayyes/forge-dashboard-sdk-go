@@ -9319,6 +9319,8 @@ type PostPullRequestRenovateRebaseResponse struct {
 	JSON403 *ActionError
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *ActionError
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *ActionError
 	// JSON429 the response for an HTTP 429 `application/json` response
 	JSON429 *ActionError
 	// JSON502 the response for an HTTP 502 `application/json` response
@@ -9343,6 +9345,11 @@ func (r PostPullRequestRenovateRebaseResponse) GetJSON403() *ActionError {
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
 func (r PostPullRequestRenovateRebaseResponse) GetJSON404() *ActionError {
 	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PostPullRequestRenovateRebaseResponse) GetJSON409() *ActionError {
+	return r.JSON409
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
@@ -13310,6 +13317,13 @@ func ParsePostPullRequestRenovateRebaseResponse(rsp *http.Response) (*PostPullRe
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest ActionError
