@@ -79,6 +79,7 @@ const (
 	DependabotRecreate AllowedActionAction = "dependabot_recreate"
 	Merge              AllowedActionAction = "merge"
 	RenovateRebase     AllowedActionAction = "renovate_rebase"
+	RerunChecks        AllowedActionAction = "rerun_checks"
 	UpdateBranch       AllowedActionAction = "update_branch"
 )
 
@@ -96,6 +97,8 @@ func (e AllowedActionAction) Valid() bool {
 	case Merge:
 		return true
 	case RenovateRebase:
+		return true
+	case RerunChecks:
 		return true
 	case UpdateBranch:
 		return true
@@ -1738,6 +1741,9 @@ type MergePullRequestJSONRequestBody = PullRequestActionRequest
 // PostPullRequestRenovateRebaseJSONRequestBody defines body for PostPullRequestRenovateRebase for application/json ContentType.
 type PostPullRequestRenovateRebaseJSONRequestBody = PullRequestActionRequest
 
+// RerunPullRequestChecksJSONRequestBody defines body for RerunPullRequestChecks for application/json ContentType.
+type RerunPullRequestChecksJSONRequestBody = PullRequestActionRequest
+
 // UpdatePullRequestBranchJSONRequestBody defines body for UpdatePullRequestBranch for application/json ContentType.
 type UpdatePullRequestBranchJSONRequestBody = PullRequestActionRequest
 
@@ -2385,6 +2391,54 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 	PostPullRequestRenovateRebase(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RerunPullRequestChecksWithBody Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
+	//
+	// Asks the forge to rerun the failed jobs of the GitHub Actions
+	// workflow runs on the pull request's head commit, and nothing that
+	// passed. It answers once the forge has queued them, not when they
+	// finish, so a client shows a queued state and lets the next refresh
+	// carry the result.
+	//
+	// GitHub only (#698). A pull request offers it as a `rerun_checks`
+	// entry in `allowedActions`, when its CI is failing. Forgejo's commit
+	// statuses don't say which workflow run they came from, so a Forgejo
+	// pull request never lists it. A failed check that isn't an Actions job
+	// (a third-party check, a legacy status) can't be rerun here.
+	//
+	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
+	// means the pull request has no failed check to rerun. Anything the
+	// forge refuses (the token may not write to Actions, the run is too
+	// old or already running) arrives with its own plain-words `message`.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+	RerunPullRequestChecksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RerunPullRequestChecks Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
+	//
+	// Asks the forge to rerun the failed jobs of the GitHub Actions
+	// workflow runs on the pull request's head commit, and nothing that
+	// passed. It answers once the forge has queued them, not when they
+	// finish, so a client shows a queued state and lets the next refresh
+	// carry the result.
+	//
+	// GitHub only (#698). A pull request offers it as a `rerun_checks`
+	// entry in `allowedActions`, when its CI is failing. Forgejo's commit
+	// statuses don't say which workflow run they came from, so a Forgejo
+	// pull request never lists it. A failed check that isn't an Actions job
+	// (a third-party check, a legacy status) can't be rerun here.
+	//
+	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
+	// means the pull request has no failed check to rerun. Anything the
+	// forge refuses (the token may not write to Actions, the run is too
+	// old or already running) arrives with its own plain-words `message`.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+	RerunPullRequestChecks(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdatePullRequestBranchWithBody Bring one pull request's branch up to date with its base, on the signed-in user's behalf
 	//
@@ -3836,6 +3890,74 @@ func (c *Client) PostPullRequestRenovateRebaseWithBody(ctx context.Context, cont
 // Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 func (c *Client) PostPullRequestRenovateRebase(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostPullRequestRenovateRebaseRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RerunPullRequestChecksWithBody Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
+//
+// Asks the forge to rerun the failed jobs of the GitHub Actions
+// workflow runs on the pull request's head commit, and nothing that
+// passed. It answers once the forge has queued them, not when they
+// finish, so a client shows a queued state and lets the next refresh
+// carry the result.
+//
+// GitHub only (#698). A pull request offers it as a `rerun_checks`
+// entry in `allowedActions`, when its CI is failing. Forgejo's commit
+// statuses don't say which workflow run they came from, so a Forgejo
+// pull request never lists it. A failed check that isn't an Actions job
+// (a third-party check, a legacy status) can't be rerun here.
+//
+// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
+// means the pull request has no failed check to rerun. Anything the
+// forge refuses (the token may not write to Actions, the run is too
+// old or already running) arrives with its own plain-words `message`.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRerunPullRequestChecksRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RerunPullRequestChecks Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
+//
+// Asks the forge to rerun the failed jobs of the GitHub Actions
+// workflow runs on the pull request's head commit, and nothing that
+// passed. It answers once the forge has queued them, not when they
+// finish, so a client shows a queued state and lets the next refresh
+// carry the result.
+//
+// GitHub only (#698). A pull request offers it as a `rerun_checks`
+// entry in `allowedActions`, when its CI is failing. Forgejo's commit
+// statuses don't say which workflow run they came from, so a Forgejo
+// pull request never lists it. A failed check that isn't an Actions job
+// (a third-party check, a legacy status) can't be rerun here.
+//
+// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
+// means the pull request has no failed check to rerun. Anything the
+// forge refuses (the token may not write to Actions, the run is too
+// old or already running) arrives with its own plain-words `message`.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+func (c *Client) RerunPullRequestChecks(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRerunPullRequestChecksRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5966,6 +6088,46 @@ func NewPostPullRequestRenovateRebaseRequestWithBody(server string, contentType 
 	return req, nil
 }
 
+// NewRerunPullRequestChecksRequest calls the generic RerunPullRequestChecks builder with application/json body
+func NewRerunPullRequestChecksRequest(server string, body RerunPullRequestChecksJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRerunPullRequestChecksRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewRerunPullRequestChecksRequestWithBody constructs an http.Request for the RerunPullRequestChecks method, with any body, and a specified content type
+func NewRerunPullRequestChecksRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/pull-requests/rerun-checks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewUpdatePullRequestBranchRequest calls the generic UpdatePullRequestBranch builder with application/json body
 func NewUpdatePullRequestBranchRequest(server string, body UpdatePullRequestBranchJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -7457,6 +7619,54 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 	PostPullRequestRenovateRebaseWithResponse(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPullRequestRenovateRebaseResponse, error)
+
+	// RerunPullRequestChecksWithBodyWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
+	//
+	// Asks the forge to rerun the failed jobs of the GitHub Actions
+	// workflow runs on the pull request's head commit, and nothing that
+	// passed. It answers once the forge has queued them, not when they
+	// finish, so a client shows a queued state and lets the next refresh
+	// carry the result.
+	//
+	// GitHub only (#698). A pull request offers it as a `rerun_checks`
+	// entry in `allowedActions`, when its CI is failing. Forgejo's commit
+	// statuses don't say which workflow run they came from, so a Forgejo
+	// pull request never lists it. A failed check that isn't an Actions job
+	// (a third-party check, a legacy status) can't be rerun here.
+	//
+	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
+	// means the pull request has no failed check to rerun. Anything the
+	// forge refuses (the token may not write to Actions, the run is too
+	// old or already running) arrives with its own plain-words `message`.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+	RerunPullRequestChecksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RerunPullRequestChecksResponse, error)
+
+	// RerunPullRequestChecksWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
+	//
+	// Asks the forge to rerun the failed jobs of the GitHub Actions
+	// workflow runs on the pull request's head commit, and nothing that
+	// passed. It answers once the forge has queued them, not when they
+	// finish, so a client shows a queued state and lets the next refresh
+	// carry the result.
+	//
+	// GitHub only (#698). A pull request offers it as a `rerun_checks`
+	// entry in `allowedActions`, when its CI is failing. Forgejo's commit
+	// statuses don't say which workflow run they came from, so a Forgejo
+	// pull request never lists it. A failed check that isn't an Actions job
+	// (a third-party check, a legacy status) can't be rerun here.
+	//
+	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
+	// means the pull request has no failed check to rerun. Anything the
+	// forge refuses (the token may not write to Actions, the run is too
+	// old or already running) arrives with its own plain-words `message`.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+	RerunPullRequestChecksWithResponse(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*RerunPullRequestChecksResponse, error)
 
 	// UpdatePullRequestBranchWithBodyWithResponse Bring one pull request's branch up to date with its base, on the signed-in user's behalf
 	//
@@ -9648,6 +9858,89 @@ func (r PostPullRequestRenovateRebaseResponse) ContentType() string {
 	return ""
 }
 
+type RerunPullRequestChecksResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *ActionError
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *ActionError
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *ActionError
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *ActionError
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *ActionError
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r RerunPullRequestChecksResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RerunPullRequestChecksResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RerunPullRequestChecksResponse) GetJSON403() *ActionError {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RerunPullRequestChecksResponse) GetJSON404() *ActionError {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r RerunPullRequestChecksResponse) GetJSON409() *ActionError {
+	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r RerunPullRequestChecksResponse) GetJSON429() *ActionError {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r RerunPullRequestChecksResponse) GetJSON502() *ActionError {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r RerunPullRequestChecksResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RerunPullRequestChecksResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RerunPullRequestChecksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RerunPullRequestChecksResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type UpdatePullRequestBranchResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11735,6 +12028,66 @@ func (c *ClientWithResponses) PostPullRequestRenovateRebaseWithResponse(ctx cont
 	return ParsePostPullRequestRenovateRebaseResponse(rsp)
 }
 
+// RerunPullRequestChecksWithBodyWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
+//
+// Asks the forge to rerun the failed jobs of the GitHub Actions
+// workflow runs on the pull request's head commit, and nothing that
+// passed. It answers once the forge has queued them, not when they
+// finish, so a client shows a queued state and lets the next refresh
+// carry the result.
+//
+// GitHub only (#698). A pull request offers it as a `rerun_checks`
+// entry in `allowedActions`, when its CI is failing. Forgejo's commit
+// statuses don't say which workflow run they came from, so a Forgejo
+// pull request never lists it. A failed check that isn't an Actions job
+// (a third-party check, a legacy status) can't be rerun here.
+//
+// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
+// means the pull request has no failed check to rerun. Anything the
+// forge refuses (the token may not write to Actions, the run is too
+// old or already running) arrives with its own plain-words `message`.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+func (c *ClientWithResponses) RerunPullRequestChecksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RerunPullRequestChecksResponse, error) {
+	rsp, err := c.RerunPullRequestChecksWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRerunPullRequestChecksResponse(rsp)
+}
+
+// RerunPullRequestChecksWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
+//
+// Asks the forge to rerun the failed jobs of the GitHub Actions
+// workflow runs on the pull request's head commit, and nothing that
+// passed. It answers once the forge has queued them, not when they
+// finish, so a client shows a queued state and lets the next refresh
+// carry the result.
+//
+// GitHub only (#698). A pull request offers it as a `rerun_checks`
+// entry in `allowedActions`, when its CI is failing. Forgejo's commit
+// statuses don't say which workflow run they came from, so a Forgejo
+// pull request never lists it. A failed check that isn't an Actions job
+// (a third-party check, a legacy status) can't be rerun here.
+//
+// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
+// means the pull request has no failed check to rerun. Anything the
+// forge refuses (the token may not write to Actions, the run is too
+// old or already running) arrives with its own plain-words `message`.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+func (c *ClientWithResponses) RerunPullRequestChecksWithResponse(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*RerunPullRequestChecksResponse, error) {
+	rsp, err := c.RerunPullRequestChecks(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRerunPullRequestChecksResponse(rsp)
+}
+
 // UpdatePullRequestBranchWithBodyWithResponse Bring one pull request's branch up to date with its base, on the signed-in user's behalf
 //
 // Merges the named pull request's base branch into its own head
@@ -13694,6 +14047,77 @@ func ParsePostPullRequestRenovateRebaseResponse(rsp *http.Response) (*PostPullRe
 	}
 
 	response := &PostPullRequestRenovateRebaseResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRerunPullRequestChecksResponse parses an HTTP response from a RerunPullRequestChecksWithResponse call
+func ParseRerunPullRequestChecksResponse(rsp *http.Response) (*RerunPullRequestChecksResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RerunPullRequestChecksResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
