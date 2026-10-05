@@ -344,6 +344,27 @@ func (e MergeStatus) Valid() bool {
 	}
 }
 
+// Defines values for PullRequestKind.
+const (
+	Dependency PullRequestKind = "dependency"
+	Regular    PullRequestKind = "regular"
+	Release    PullRequestKind = "release"
+)
+
+// Valid indicates whether the value is a known member of the PullRequestKind enum.
+func (e PullRequestKind) Valid() bool {
+	switch e {
+	case Dependency:
+		return true
+	case Regular:
+		return true
+	case Release:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PullRequestDependabotActionRequestAction.
 const (
 	PullRequestDependabotActionRequestActionRebase   PullRequestDependabotActionRequestAction = "rebase"
@@ -995,8 +1016,17 @@ type PullRequest struct {
 	// rebase moves it, which shows the bot acted even when the pull
 	// request is still reported behind, or wasn't behind to begin
 	// with. Empty when the forge didn't say. Always present.
-	HeadSha string  `json:"headSha"`
-	Labels  []Label `json:"labels"`
+	HeadSha string `json:"headSha"`
+
+	// Kind What sort of pull request this is, decided by the server so no
+	// client keeps its own copy of the rule. `release`: release-please's,
+	// by its `autorelease:` label (a person opens these, so the label is
+	// the only signal, and it wins over any bot author). `dependency`:
+	// opened by Dependabot or Renovate, in either spelling of the login
+	// (the bare slug GraphQL gives, or REST's `[bot]` form), on either
+	// forge. `regular`: everything else. Always present.
+	Kind   PullRequestKind `json:"kind"`
+	Labels []Label         `json:"labels"`
 
 	// MergeStatus A pull request's mergeable/blocked state, as coarse as every forge
 	// this service talks to can agree on. "blocked" covers anything
@@ -1087,6 +1117,15 @@ type PullRequest struct {
 	// Url The real pull request URL on its own forge.
 	Url string `json:"url"`
 }
+
+// PullRequestKind What sort of pull request this is, decided by the server so no
+// client keeps its own copy of the rule. `release`: release-please's,
+// by its `autorelease:` label (a person opens these, so the label is
+// the only signal, and it wins over any bot author). `dependency`:
+// opened by Dependabot or Renovate, in either spelling of the login
+// (the bare slug GraphQL gives, or REST's `[bot]` form), on either
+// forge. `regular`: everything else. Always present.
+type PullRequestKind string
 
 // PullRequestActionRequest Which pull request to act on.
 type PullRequestActionRequest struct {
