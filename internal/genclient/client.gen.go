@@ -323,6 +323,7 @@ const (
 	MergeStatusConflicting MergeStatus = "conflicting"
 	MergeStatusMergeable   MergeStatus = "mergeable"
 	MergeStatusUnknown     MergeStatus = "unknown"
+	MergeStatusUnstable    MergeStatus = "unstable"
 )
 
 // Valid indicates whether the value is a known member of the MergeStatus enum.
@@ -335,6 +336,8 @@ func (e MergeStatus) Valid() bool {
 	case MergeStatusMergeable:
 		return true
 	case MergeStatusUnknown:
+		return true
+	case MergeStatusUnstable:
 		return true
 	default:
 		return false
@@ -864,6 +867,9 @@ type LoginBeginRequest struct {
 // stopping a merge that isn't confirmed to be a real conflict —
 // including Forgejo's own mergeable flag reporting false, since its
 // server computes that asynchronously and can report it stale.
+// "unstable" is GitHub's UNSTABLE: the pull request can be merged, but
+// a check that branch protection doesn't require is failing or still
+// running. Merge stays available.
 // "unknown" covers both a forge that hasn't determined this yet and
 // this service being unable to determine it.
 type MergeStatus string
@@ -956,6 +962,9 @@ type PullRequest struct {
 	// stopping a merge that isn't confirmed to be a real conflict —
 	// including Forgejo's own mergeable flag reporting false, since its
 	// server computes that asynchronously and can report it stale.
+	// "unstable" is GitHub's UNSTABLE: the pull request can be merged, but
+	// a check that branch protection doesn't require is failing or still
+	// running. Merge stays available.
 	// "unknown" covers both a forge that hasn't determined this yet and
 	// this service being unable to determine it.
 	MergeStatus MergeStatus `json:"mergeStatus"`
