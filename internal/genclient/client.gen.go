@@ -367,6 +367,7 @@ const (
 	RateLimitSeverityExceeded RateLimitSeverity = "exceeded"
 	RateLimitSeverityLow      RateLimitSeverity = "low"
 	RateLimitSeverityOk       RateLimitSeverity = "ok"
+	RateLimitSeverityWarning  RateLimitSeverity = "warning"
 )
 
 // Valid indicates whether the value is a known member of the RateLimitSeverity enum.
@@ -377,6 +378,8 @@ func (e RateLimitSeverity) Valid() bool {
 	case RateLimitSeverityLow:
 		return true
 	case RateLimitSeverityOk:
+		return true
+	case RateLimitSeverityWarning:
 		return true
 	default:
 		return false
@@ -1136,7 +1139,9 @@ type RateLimit struct {
 	// threshold or clock check. `exceeded`: nothing left and the
 	// reset hasn't been seen to pass. `low`: under 5% left (also a
 	// spent budget whose reset time has passed, until the next
-	// snapshot says otherwise). `ok`: everything else.
+	// snapshot says otherwise). `warning`: under 20% left but not
+	// yet low, for a gauge's amber stage; a banner or a lock has no
+	// reason to act on it. `ok`: everything else.
 	Severity RateLimitSeverity `json:"severity"`
 }
 
@@ -1145,7 +1150,9 @@ type RateLimit struct {
 // threshold or clock check. `exceeded`: nothing left and the
 // reset hasn't been seen to pass. `low`: under 5% left (also a
 // spent budget whose reset time has passed, until the next
-// snapshot says otherwise). `ok`: everything else.
+// snapshot says otherwise). `warning`: under 20% left but not
+// yet low, for a gauge's amber stage; a banner or a lock has no
+// reason to act on it. `ok`: everything else.
 type RateLimitSeverity string
 
 // RegisterBeginRequest defines model for RegisterBeginRequest.
@@ -2085,6 +2092,13 @@ type ClientInterface interface {
 	// answers an `ActionError` (see Merge): `already_merged` or
 	// `already_closed` when the row was stale, otherwise a `code` and a
 	// plain-words `message` safe to show a person.
+	//
+	// When the pull request is on the signed-in user's board and its
+	// `allowedActions` has no `auto_merge` entry, this server answers 409
+	// itself and never asks the forge: `auto_merge_not_allowed`,
+	// `already_up_to_date`, `conflict`, `stacked` or `ready_to_merge` for
+	// the reasons the board already knows, and `not_mergeable` for
+	// auto-merge already on or a forge that has none.
 	// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
 	// (or not for this pull request); `ready_to_merge` means it is
 	// already clean, so there is nothing to wait for and Merge is the
@@ -2113,6 +2127,13 @@ type ClientInterface interface {
 	// answers an `ActionError` (see Merge): `already_merged` or
 	// `already_closed` when the row was stale, otherwise a `code` and a
 	// plain-words `message` safe to show a person.
+	//
+	// When the pull request is on the signed-in user's board and its
+	// `allowedActions` has no `auto_merge` entry, this server answers 409
+	// itself and never asks the forge: `auto_merge_not_allowed`,
+	// `already_up_to_date`, `conflict`, `stacked` or `ready_to_merge` for
+	// the reasons the board already knows, and `not_mergeable` for
+	// auto-merge already on or a forge that has none.
 	// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
 	// (or not for this pull request); `ready_to_merge` means it is
 	// already clean, so there is nothing to wait for and Merge is the
@@ -2491,6 +2512,8 @@ type ClientInterface interface {
 	// isn't either: this loads on every dashboard/Insights visit and
 	// shouldn't provision webhook credentials as a side effect.
 	// `{}` for a user who's never saved any filters yet, not a 404.
+	// These are the web UI's own state: a signed-in browser session only,
+	// and a personal API token is refused with 403 (#1000).
 	//
 	// Corresponds with GET /api/settings/filter-state (the `GetFilterState` operationId).
 	GetFilterState(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2506,6 +2529,9 @@ type ClientInterface interface {
 	// partial patch. Filters.js's own client-side code decides when
 	// to call this: immediately for a discrete control, debounced
 	// while the user is still typing in the free-text Title filter.
+	// A signed-in browser session only: a personal API token is refused
+	// with 403, so a script or agent can't change the filters the user
+	// sees (#1000). Each save is logged with the user agent.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -2523,6 +2549,9 @@ type ClientInterface interface {
 	// partial patch. Filters.js's own client-side code decides when
 	// to call this: immediately for a discrete control, debounced
 	// while the user is still typing in the free-text Title filter.
+	// A signed-in browser session only: a personal API token is refused
+	// with 403, so a script or agent can't change the filters the user
+	// sees (#1000). Each save is logged with the user agent.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -3381,6 +3410,13 @@ func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardPar
 // answers an `ActionError` (see Merge): `already_merged` or
 // `already_closed` when the row was stale, otherwise a `code` and a
 // plain-words `message` safe to show a person.
+//
+// When the pull request is on the signed-in user's board and its
+// `allowedActions` has no `auto_merge` entry, this server answers 409
+// itself and never asks the forge: `auto_merge_not_allowed`,
+// `already_up_to_date`, `conflict`, `stacked` or `ready_to_merge` for
+// the reasons the board already knows, and `not_mergeable` for
+// auto-merge already on or a forge that has none.
 // `auto_merge_not_allowed` means the repo doesn't allow auto-merge
 // (or not for this pull request); `ready_to_merge` means it is
 // already clean, so there is nothing to wait for and Merge is the
@@ -3419,6 +3455,13 @@ func (c *Client) EnablePullRequestAutoMergeWithBody(ctx context.Context, content
 // answers an `ActionError` (see Merge): `already_merged` or
 // `already_closed` when the row was stale, otherwise a `code` and a
 // plain-words `message` safe to show a person.
+//
+// When the pull request is on the signed-in user's board and its
+// `allowedActions` has no `auto_merge` entry, this server answers 409
+// itself and never asks the forge: `auto_merge_not_allowed`,
+// `already_up_to_date`, `conflict`, `stacked` or `ready_to_merge` for
+// the reasons the board already knows, and `not_mergeable` for
+// auto-merge already on or a forge that has none.
 // `auto_merge_not_allowed` means the repo doesn't allow auto-merge
 // (or not for this pull request); `ready_to_merge` means it is
 // already clean, so there is nothing to wait for and Merge is the
@@ -4027,6 +4070,8 @@ func (c *Client) PutSettings(ctx context.Context, body PutSettingsJSONRequestBod
 // isn't either: this loads on every dashboard/Insights visit and
 // shouldn't provision webhook credentials as a side effect.
 // `{}` for a user who's never saved any filters yet, not a 404.
+// These are the web UI's own state: a signed-in browser session only,
+// and a personal API token is refused with 403 (#1000).
 //
 // Corresponds with GET /api/settings/filter-state (the `GetFilterState` operationId).
 func (c *Client) GetFilterState(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -4052,6 +4097,9 @@ func (c *Client) GetFilterState(ctx context.Context, reqEditors ...RequestEditor
 // partial patch. Filters.js's own client-side code decides when
 // to call this: immediately for a discrete control, debounced
 // while the user is still typing in the free-text Title filter.
+// A signed-in browser session only: a personal API token is refused
+// with 403, so a script or agent can't change the filters the user
+// sees (#1000). Each save is logged with the user agent.
 //
 // Takes any type of body and a specified content type.
 //
@@ -4079,6 +4127,9 @@ func (c *Client) SetFilterStateWithBody(ctx context.Context, contentType string,
 // partial patch. Filters.js's own client-side code decides when
 // to call this: immediately for a discrete control, debounced
 // while the user is still typing in the free-text Title filter.
+// A signed-in browser session only: a personal API token is refused
+// with 403, so a script or agent can't change the filters the user
+// sees (#1000). Each save is logged with the user agent.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -6950,6 +7001,13 @@ type ClientWithResponsesInterface interface {
 	// answers an `ActionError` (see Merge): `already_merged` or
 	// `already_closed` when the row was stale, otherwise a `code` and a
 	// plain-words `message` safe to show a person.
+	//
+	// When the pull request is on the signed-in user's board and its
+	// `allowedActions` has no `auto_merge` entry, this server answers 409
+	// itself and never asks the forge: `auto_merge_not_allowed`,
+	// `already_up_to_date`, `conflict`, `stacked` or `ready_to_merge` for
+	// the reasons the board already knows, and `not_mergeable` for
+	// auto-merge already on or a forge that has none.
 	// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
 	// (or not for this pull request); `ready_to_merge` means it is
 	// already clean, so there is nothing to wait for and Merge is the
@@ -6978,6 +7036,13 @@ type ClientWithResponsesInterface interface {
 	// answers an `ActionError` (see Merge): `already_merged` or
 	// `already_closed` when the row was stale, otherwise a `code` and a
 	// plain-words `message` safe to show a person.
+	//
+	// When the pull request is on the signed-in user's board and its
+	// `allowedActions` has no `auto_merge` entry, this server answers 409
+	// itself and never asks the forge: `auto_merge_not_allowed`,
+	// `already_up_to_date`, `conflict`, `stacked` or `ready_to_merge` for
+	// the reasons the board already knows, and `not_mergeable` for
+	// auto-merge already on or a forge that has none.
 	// `auto_merge_not_allowed` means the repo doesn't allow auto-merge
 	// (or not for this pull request); `ready_to_merge` means it is
 	// already clean, so there is nothing to wait for and Merge is the
@@ -7360,6 +7425,8 @@ type ClientWithResponsesInterface interface {
 	// isn't either: this loads on every dashboard/Insights visit and
 	// shouldn't provision webhook credentials as a side effect.
 	// `{}` for a user who's never saved any filters yet, not a 404.
+	// These are the web UI's own state: a signed-in browser session only,
+	// and a personal API token is refused with 403 (#1000).
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -7377,6 +7444,9 @@ type ClientWithResponsesInterface interface {
 	// partial patch. Filters.js's own client-side code decides when
 	// to call this: immediately for a discrete control, debounced
 	// while the user is still typing in the free-text Title filter.
+	// A signed-in browser session only: a personal API token is refused
+	// with 403, so a script or agent can't change the filters the user
+	// sees (#1000). Each save is logged with the user agent.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -7394,6 +7464,9 @@ type ClientWithResponsesInterface interface {
 	// partial patch. Filters.js's own client-side code decides when
 	// to call this: immediately for a discrete control, debounced
 	// while the user is still typing in the free-text Title filter.
+	// A signed-in browser session only: a personal API token is refused
+	// with 403, so a script or agent can't change the filters the user
+	// sees (#1000). Each save is logged with the user agent.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -9696,6 +9769,8 @@ type GetFilterStateResponse struct {
 	JSON200 *FilterState
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -9706,6 +9781,11 @@ func (r GetFilterStateResponse) GetJSON200() *FilterState {
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r GetFilterStateResponse) GetJSON401() *Error {
 	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetFilterStateResponse) GetJSON403() *Error {
+	return r.JSON403
 }
 
 // GetBody returns the raw response body bytes
@@ -9744,6 +9824,8 @@ type SetFilterStateResponse struct {
 	JSON400 *Error
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -9754,6 +9836,11 @@ func (r SetFilterStateResponse) GetJSON400() *Error {
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r SetFilterStateResponse) GetJSON401() *Error {
 	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r SetFilterStateResponse) GetJSON403() *Error {
+	return r.JSON403
 }
 
 // GetBody returns the raw response body bytes
@@ -10981,6 +11068,13 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 // answers an `ActionError` (see Merge): `already_merged` or
 // `already_closed` when the row was stale, otherwise a `code` and a
 // plain-words `message` safe to show a person.
+//
+// When the pull request is on the signed-in user's board and its
+// `allowedActions` has no `auto_merge` entry, this server answers 409
+// itself and never asks the forge: `auto_merge_not_allowed`,
+// `already_up_to_date`, `conflict`, `stacked` or `ready_to_merge` for
+// the reasons the board already knows, and `not_mergeable` for
+// auto-merge already on or a forge that has none.
 // `auto_merge_not_allowed` means the repo doesn't allow auto-merge
 // (or not for this pull request); `ready_to_merge` means it is
 // already clean, so there is nothing to wait for and Merge is the
@@ -11015,6 +11109,13 @@ func (c *ClientWithResponses) EnablePullRequestAutoMergeWithBodyWithResponse(ctx
 // answers an `ActionError` (see Merge): `already_merged` or
 // `already_closed` when the row was stale, otherwise a `code` and a
 // plain-words `message` safe to show a person.
+//
+// When the pull request is on the signed-in user's board and its
+// `allowedActions` has no `auto_merge` entry, this server answers 409
+// itself and never asks the forge: `auto_merge_not_allowed`,
+// `already_up_to_date`, `conflict`, `stacked` or `ready_to_merge` for
+// the reasons the board already knows, and `not_mergeable` for
+// auto-merge already on or a forge that has none.
 // `auto_merge_not_allowed` means the repo doesn't allow auto-merge
 // (or not for this pull request); `ready_to_merge` means it is
 // already clean, so there is nothing to wait for and Merge is the
@@ -11535,6 +11636,8 @@ func (c *ClientWithResponses) PutSettingsWithResponse(ctx context.Context, body 
 // isn't either: this loads on every dashboard/Insights visit and
 // shouldn't provision webhook credentials as a side effect.
 // `{}` for a user who's never saved any filters yet, not a 404.
+// These are the web UI's own state: a signed-in browser session only,
+// and a personal API token is refused with 403 (#1000).
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -11558,6 +11661,9 @@ func (c *ClientWithResponses) GetFilterStateWithResponse(ctx context.Context, re
 // partial patch. Filters.js's own client-side code decides when
 // to call this: immediately for a discrete control, debounced
 // while the user is still typing in the free-text Title filter.
+// A signed-in browser session only: a personal API token is refused
+// with 403, so a script or agent can't change the filters the user
+// sees (#1000). Each save is logged with the user agent.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -11581,6 +11687,9 @@ func (c *ClientWithResponses) SetFilterStateWithBodyWithResponse(ctx context.Con
 // partial patch. Filters.js's own client-side code decides when
 // to call this: immediately for a discrete control, debounced
 // while the user is still typing in the free-text Title filter.
+// A signed-in browser session only: a personal API token is refused
+// with 403, so a script or agent can't change the filters the user
+// sees (#1000). Each save is logged with the user agent.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -13540,6 +13649,13 @@ func ParseGetFilterStateResponse(rsp *http.Response) (*GetFilterStateResponse, e
 		}
 		response.JSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
 	}
 
 	return response, nil
@@ -13575,6 +13691,13 @@ func ParseSetFilterStateResponse(rsp *http.Response) (*SetFilterStateResponse, e
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
