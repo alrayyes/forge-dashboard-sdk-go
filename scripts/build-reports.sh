@@ -4,8 +4,8 @@
 #
 # Inputs, in the working directory: coverage.out (go test -coverprofile) and
 # junit.xml (gotestsum --junitfile). Output: <dest>/reports/, ready to upload
-# as the Pages artifact. The path under <dest> matters: the user site serves
-# every project as a subpath, so the artifact mirrors that path.
+# as the Pages artifact. A project site is already served under /<repo>/, so
+# <dest> is the artifact root and carries no repo-name prefix of its own.
 set -euo pipefail
 
 dest="${1:?usage: build-reports.sh <dest-dir>}"
