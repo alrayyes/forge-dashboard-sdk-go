@@ -410,6 +410,21 @@ func (e RateLimitSeverity) Valid() bool {
 	}
 }
 
+// Defines values for ReadyStatus.
+const (
+	ReadyStatusOk ReadyStatus = "ok"
+)
+
+// Valid indicates whether the value is a known member of the ReadyStatus enum.
+func (e ReadyStatus) Valid() bool {
+	switch e {
+	case ReadyStatusOk:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReviewStateDecision.
 const (
 	ReviewStateDecisionApproved         ReviewStateDecision = "approved"
@@ -1196,6 +1211,20 @@ type RateLimit struct {
 // yet low, for a gauge's amber stage; a banner or a lock has no
 // reason to act on it. `ok`: everything else.
 type RateLimitSeverity string
+
+// Ready defines model for Ready.
+type Ready struct {
+	// Goroutines Goroutines the process holds right now.
+	Goroutines int         `json:"goroutines"`
+	Status     ReadyStatus `json:"status"`
+
+	// Threads OS threads the process holds right now, read from
+	// `/proc/self/status`. Left out where that can't be read.
+	Threads *int `json:"threads,omitempty"`
+}
+
+// ReadyStatus defines model for Ready.Status.
+type ReadyStatus string
 
 // RegisterBeginRequest defines model for RegisterBeginRequest.
 type RegisterBeginRequest struct {
@@ -11181,13 +11210,13 @@ type ReadyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *Health
+	JSON200 *Ready
 	// JSON503 the response for an HTTP 503 `application/json` response
 	JSON503 *Error
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r ReadyResponse) GetJSON200() *Health {
+func (r ReadyResponse) GetJSON200() *Ready {
 	return r.JSON200
 }
 
@@ -15110,7 +15139,7 @@ func ParseReadyResponse(rsp *http.Response) (*ReadyResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Health
+		var dest Ready
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
