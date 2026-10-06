@@ -604,7 +604,7 @@ type ActionError struct {
 	// URL or JSON.
 	Message string `json:"message"`
 
-	// ResetsAt Only with `rate_limited`, when the forge said so. When the budget comes back.
+	// ResetsAt Only with `rate_limited`, when the forge said so. When the budget comes back. On Forgejo it comes from the `Retry-After` header, in seconds or as a date.
 	ResetsAt *time.Time `json:"resetsAt,omitempty"`
 }
 
