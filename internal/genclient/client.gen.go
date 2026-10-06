@@ -2423,17 +2423,19 @@ type ClientInterface interface {
 
 	// RerunPullRequestChecksWithBody Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
 	//
-	// Asks the forge to rerun the failed jobs of the GitHub Actions
-	// workflow runs on the pull request's head commit, and nothing that
-	// passed. It answers once the forge has queued them, not when they
-	// finish, so a client shows a queued state and lets the next refresh
-	// carry the result.
+	// Asks the forge to rerun the failed jobs of the Actions workflow
+	// runs on the pull request's head commit, and nothing that passed. It
+	// answers once the forge has queued them, not when they finish, so a
+	// client shows a queued state and lets the next refresh carry the
+	// result.
 	//
-	// GitHub only (#698). A pull request offers it as a `rerun_checks`
-	// entry in `allowedActions`, when its CI is failing. Forgejo's commit
-	// statuses don't say which workflow run they came from, so a Forgejo
-	// pull request never lists it. A failed check that isn't an Actions job
-	// (a third-party check, a legacy status) can't be rerun here.
+	// A pull request offers it as a `rerun_checks` entry in
+	// `allowedActions`, on GitHub and Forgejo, when its CI is failing. A
+	// Forgejo commit status doesn't say which workflow run it came from, so
+	// Forgejo's runs are found by the head commit instead. A failed check
+	// that isn't an Actions job (a third-party check, a legacy status, an
+	// external CI) can't be rerun here and is skipped. A Forgejo instance
+	// too old to have the rerun route refuses with its own words.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -2447,17 +2449,19 @@ type ClientInterface interface {
 
 	// RerunPullRequestChecks Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
 	//
-	// Asks the forge to rerun the failed jobs of the GitHub Actions
-	// workflow runs on the pull request's head commit, and nothing that
-	// passed. It answers once the forge has queued them, not when they
-	// finish, so a client shows a queued state and lets the next refresh
-	// carry the result.
+	// Asks the forge to rerun the failed jobs of the Actions workflow
+	// runs on the pull request's head commit, and nothing that passed. It
+	// answers once the forge has queued them, not when they finish, so a
+	// client shows a queued state and lets the next refresh carry the
+	// result.
 	//
-	// GitHub only (#698). A pull request offers it as a `rerun_checks`
-	// entry in `allowedActions`, when its CI is failing. Forgejo's commit
-	// statuses don't say which workflow run they came from, so a Forgejo
-	// pull request never lists it. A failed check that isn't an Actions job
-	// (a third-party check, a legacy status) can't be rerun here.
+	// A pull request offers it as a `rerun_checks` entry in
+	// `allowedActions`, on GitHub and Forgejo, when its CI is failing. A
+	// Forgejo commit status doesn't say which workflow run it came from, so
+	// Forgejo's runs are found by the head commit instead. A failed check
+	// that isn't an Actions job (a third-party check, a legacy status, an
+	// external CI) can't be rerun here and is skipped. A Forgejo instance
+	// too old to have the rerun route refuses with its own words.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -3931,17 +3935,19 @@ func (c *Client) PostPullRequestRenovateRebase(ctx context.Context, body PostPul
 
 // RerunPullRequestChecksWithBody Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
 //
-// Asks the forge to rerun the failed jobs of the GitHub Actions
-// workflow runs on the pull request's head commit, and nothing that
-// passed. It answers once the forge has queued them, not when they
-// finish, so a client shows a queued state and lets the next refresh
-// carry the result.
+// Asks the forge to rerun the failed jobs of the Actions workflow
+// runs on the pull request's head commit, and nothing that passed. It
+// answers once the forge has queued them, not when they finish, so a
+// client shows a queued state and lets the next refresh carry the
+// result.
 //
-// GitHub only (#698). A pull request offers it as a `rerun_checks`
-// entry in `allowedActions`, when its CI is failing. Forgejo's commit
-// statuses don't say which workflow run they came from, so a Forgejo
-// pull request never lists it. A failed check that isn't an Actions job
-// (a third-party check, a legacy status) can't be rerun here.
+// A pull request offers it as a `rerun_checks` entry in
+// `allowedActions`, on GitHub and Forgejo, when its CI is failing. A
+// Forgejo commit status doesn't say which workflow run it came from, so
+// Forgejo's runs are found by the head commit instead. A failed check
+// that isn't an Actions job (a third-party check, a legacy status, an
+// external CI) can't be rerun here and is skipped. A Forgejo instance
+// too old to have the rerun route refuses with its own words.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
@@ -3965,17 +3971,19 @@ func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType
 
 // RerunPullRequestChecks Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
 //
-// Asks the forge to rerun the failed jobs of the GitHub Actions
-// workflow runs on the pull request's head commit, and nothing that
-// passed. It answers once the forge has queued them, not when they
-// finish, so a client shows a queued state and lets the next refresh
-// carry the result.
+// Asks the forge to rerun the failed jobs of the Actions workflow
+// runs on the pull request's head commit, and nothing that passed. It
+// answers once the forge has queued them, not when they finish, so a
+// client shows a queued state and lets the next refresh carry the
+// result.
 //
-// GitHub only (#698). A pull request offers it as a `rerun_checks`
-// entry in `allowedActions`, when its CI is failing. Forgejo's commit
-// statuses don't say which workflow run they came from, so a Forgejo
-// pull request never lists it. A failed check that isn't an Actions job
-// (a third-party check, a legacy status) can't be rerun here.
+// A pull request offers it as a `rerun_checks` entry in
+// `allowedActions`, on GitHub and Forgejo, when its CI is failing. A
+// Forgejo commit status doesn't say which workflow run it came from, so
+// Forgejo's runs are found by the head commit instead. A failed check
+// that isn't an Actions job (a third-party check, a legacy status, an
+// external CI) can't be rerun here and is skipped. A Forgejo instance
+// too old to have the rerun route refuses with its own words.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
@@ -7651,17 +7659,19 @@ type ClientWithResponsesInterface interface {
 
 	// RerunPullRequestChecksWithBodyWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
 	//
-	// Asks the forge to rerun the failed jobs of the GitHub Actions
-	// workflow runs on the pull request's head commit, and nothing that
-	// passed. It answers once the forge has queued them, not when they
-	// finish, so a client shows a queued state and lets the next refresh
-	// carry the result.
+	// Asks the forge to rerun the failed jobs of the Actions workflow
+	// runs on the pull request's head commit, and nothing that passed. It
+	// answers once the forge has queued them, not when they finish, so a
+	// client shows a queued state and lets the next refresh carry the
+	// result.
 	//
-	// GitHub only (#698). A pull request offers it as a `rerun_checks`
-	// entry in `allowedActions`, when its CI is failing. Forgejo's commit
-	// statuses don't say which workflow run they came from, so a Forgejo
-	// pull request never lists it. A failed check that isn't an Actions job
-	// (a third-party check, a legacy status) can't be rerun here.
+	// A pull request offers it as a `rerun_checks` entry in
+	// `allowedActions`, on GitHub and Forgejo, when its CI is failing. A
+	// Forgejo commit status doesn't say which workflow run it came from, so
+	// Forgejo's runs are found by the head commit instead. A failed check
+	// that isn't an Actions job (a third-party check, a legacy status, an
+	// external CI) can't be rerun here and is skipped. A Forgejo instance
+	// too old to have the rerun route refuses with its own words.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -7675,17 +7685,19 @@ type ClientWithResponsesInterface interface {
 
 	// RerunPullRequestChecksWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
 	//
-	// Asks the forge to rerun the failed jobs of the GitHub Actions
-	// workflow runs on the pull request's head commit, and nothing that
-	// passed. It answers once the forge has queued them, not when they
-	// finish, so a client shows a queued state and lets the next refresh
-	// carry the result.
+	// Asks the forge to rerun the failed jobs of the Actions workflow
+	// runs on the pull request's head commit, and nothing that passed. It
+	// answers once the forge has queued them, not when they finish, so a
+	// client shows a queued state and lets the next refresh carry the
+	// result.
 	//
-	// GitHub only (#698). A pull request offers it as a `rerun_checks`
-	// entry in `allowedActions`, when its CI is failing. Forgejo's commit
-	// statuses don't say which workflow run they came from, so a Forgejo
-	// pull request never lists it. A failed check that isn't an Actions job
-	// (a third-party check, a legacy status) can't be rerun here.
+	// A pull request offers it as a `rerun_checks` entry in
+	// `allowedActions`, on GitHub and Forgejo, when its CI is failing. A
+	// Forgejo commit status doesn't say which workflow run it came from, so
+	// Forgejo's runs are found by the head commit instead. A failed check
+	// that isn't an Actions job (a third-party check, a legacy status, an
+	// external CI) can't be rerun here and is skipped. A Forgejo instance
+	// too old to have the rerun route refuses with its own words.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -12059,17 +12071,19 @@ func (c *ClientWithResponses) PostPullRequestRenovateRebaseWithResponse(ctx cont
 
 // RerunPullRequestChecksWithBodyWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
 //
-// Asks the forge to rerun the failed jobs of the GitHub Actions
-// workflow runs on the pull request's head commit, and nothing that
-// passed. It answers once the forge has queued them, not when they
-// finish, so a client shows a queued state and lets the next refresh
-// carry the result.
+// Asks the forge to rerun the failed jobs of the Actions workflow
+// runs on the pull request's head commit, and nothing that passed. It
+// answers once the forge has queued them, not when they finish, so a
+// client shows a queued state and lets the next refresh carry the
+// result.
 //
-// GitHub only (#698). A pull request offers it as a `rerun_checks`
-// entry in `allowedActions`, when its CI is failing. Forgejo's commit
-// statuses don't say which workflow run they came from, so a Forgejo
-// pull request never lists it. A failed check that isn't an Actions job
-// (a third-party check, a legacy status) can't be rerun here.
+// A pull request offers it as a `rerun_checks` entry in
+// `allowedActions`, on GitHub and Forgejo, when its CI is failing. A
+// Forgejo commit status doesn't say which workflow run it came from, so
+// Forgejo's runs are found by the head commit instead. A failed check
+// that isn't an Actions job (a third-party check, a legacy status, an
+// external CI) can't be rerun here and is skipped. A Forgejo instance
+// too old to have the rerun route refuses with its own words.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
@@ -12089,17 +12103,19 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithBodyWithResponse(ctx con
 
 // RerunPullRequestChecksWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
 //
-// Asks the forge to rerun the failed jobs of the GitHub Actions
-// workflow runs on the pull request's head commit, and nothing that
-// passed. It answers once the forge has queued them, not when they
-// finish, so a client shows a queued state and lets the next refresh
-// carry the result.
+// Asks the forge to rerun the failed jobs of the Actions workflow
+// runs on the pull request's head commit, and nothing that passed. It
+// answers once the forge has queued them, not when they finish, so a
+// client shows a queued state and lets the next refresh carry the
+// result.
 //
-// GitHub only (#698). A pull request offers it as a `rerun_checks`
-// entry in `allowedActions`, when its CI is failing. Forgejo's commit
-// statuses don't say which workflow run they came from, so a Forgejo
-// pull request never lists it. A failed check that isn't an Actions job
-// (a third-party check, a legacy status) can't be rerun here.
+// A pull request offers it as a `rerun_checks` entry in
+// `allowedActions`, on GitHub and Forgejo, when its CI is failing. A
+// Forgejo commit status doesn't say which workflow run it came from, so
+// Forgejo's runs are found by the head commit instead. A failed check
+// that isn't an Actions job (a third-party check, a legacy status, an
+// external CI) can't be rerun here and is skipped. A Forgejo instance
+// too old to have the rerun route refuses with its own words.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
