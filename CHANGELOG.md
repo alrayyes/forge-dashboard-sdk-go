@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.38.0](https://github.com/alrayyes/forge-dashboard-sdk-go/compare/v1.37.0...v1.38.0) (2026-10-06)
+
+
+### Features
+
+* **ci:** publish test and coverage reports to apis.ryankes.eu ([#92](https://github.com/alrayyes/forge-dashboard-sdk-go/issues/92)) ([e4710fa](https://github.com/alrayyes/forge-dashboard-sdk-go/commit/e4710fa696495e476987fdd21121604a51bb3ab3))
+
 ## [1.37.0](https://github.com/alrayyes/forge-dashboard-sdk-go/compare/v1.36.0...v1.37.0) (2026-10-05)
 
 
