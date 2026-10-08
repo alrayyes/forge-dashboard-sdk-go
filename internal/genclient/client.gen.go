@@ -1514,7 +1514,11 @@ type SettingsRequest struct {
 	GithubAppInstallationId *int64  `json:"githubAppInstallationId,omitempty"`
 	GithubToken             *string `json:"githubToken,omitempty"`
 	GithubUsername          *string `json:"githubUsername,omitempty"`
-	RenovateRebaseLabel     *string `json:"renovateRebaseLabel,omitempty"`
+
+	// RenovateAuthors Replaces the saved list. Entries are trimmed; blanks and
+	// repeats (ignoring case) are dropped. Omitted or empty clears it.
+	RenovateAuthors     *[]string `json:"renovateAuthors,omitempty"`
+	RenovateRebaseLabel *string   `json:"renovateRebaseLabel,omitempty"`
 }
 
 // SettingsResponse The signed-in user's own GitHub/Forgejo configuration. Never
@@ -1553,6 +1557,15 @@ type SettingsResponse struct {
 
 	// GithubUsername Used as a token-free public-repos fallback when no GitHub token is set.
 	GithubUsername string `json:"githubUsername"`
+
+	// RenovateAuthors The logins that are Renovate on the user's forges. On GitHub the
+	// App's own `renovate` and `renovate[bot]` are always recognised.
+	// A Forgejo or GitLab instance has no App: Renovate runs there as
+	// an ordinary account with whatever name the instance gave it, so
+	// the user lists it here. A pull request by one of these gets
+	// Renovate's own rebase, not Update branch, and is a `dependency`.
+	// Matched case-insensitively. Empty means only the GitHub slugs.
+	RenovateAuthors []string `json:"renovateAuthors"`
 
 	// RenovateRebaseLabel The label Renovate's own rebase/retry trigger listens for on
 	// a repo (Renovate's own `rebaseLabel` config option — genuinely
