@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-LINT_IMAGE="golangci/golangci-lint:v2.13.2"
+LINT_IMAGE="golangci/golangci-lint:v2.14.0"
 
 # See scripts/go-docker.sh for why these are pre-created rather than left
 # for Docker to auto-create (root-owned) on a fresh machine.

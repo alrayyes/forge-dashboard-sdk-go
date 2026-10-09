@@ -1,6 +1,6 @@
 module github.com/alrayyes/forge-dashboard-sdk-go
 
-go 1.27.1
+go 1.27.2
 
 require (
 	github.com/oapi-codegen/runtime v1.7.0
