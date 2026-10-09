@@ -893,7 +893,13 @@ type Dashboard struct {
 	// `housekeeping` ones. What the Issues badge shows.
 	OpenIssueCount int           `json:"openIssueCount"`
 	PullRequests   []PullRequest `json:"pullRequests"`
-	Repos          []RepoStatus  `json:"repos"`
+
+	// ReadIntervalSeconds How often, in seconds, a client should re-read GET
+	// /api/dashboard. The server's advice, so a client needs no
+	// interval of its own. The read is cheap and never calls a
+	// forge; this is not the backend's refresh schedule.
+	ReadIntervalSeconds int          `json:"readIntervalSeconds"`
+	Repos               []RepoStatus `json:"repos"`
 }
 
 // Error defines model for Error.
@@ -2249,6 +2255,15 @@ type ClientInterface interface {
 	// a user with shared access to someone else's dashboard can never
 	// spend that owner's own forge rate-limit budget on their own
 	// schedule.
+	//
+	// The server holds a five-second cooldown per user, so this can't
+	// be used to hammer a forge's API budget. A call inside that
+	// window does not fetch: it answers 200 with the current snapshot
+	// and a `Retry-After` header carrying the seconds left. Never a
+	// 429, because the page calls this straight after a merge, close
+	// or branch update to show the result, and a refusal there would
+	// leave the row stale. Only a call that actually fetched answers
+	// without the header.
 	//
 	// Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
 	RefreshDashboard(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3675,6 +3690,15 @@ func (c *Client) GetDashboard(ctx context.Context, params *GetDashboardParams, r
 // a user with shared access to someone else's dashboard can never
 // spend that owner's own forge rate-limit budget on their own
 // schedule.
+//
+// The server holds a five-second cooldown per user, so this can't
+// be used to hammer a forge's API budget. A call inside that
+// window does not fetch: it answers 200 with the current snapshot
+// and a `Retry-After` header carrying the seconds left. Never a
+// 429, because the page calls this straight after a merge, close
+// or branch update to show the result, and a refusal there would
+// leave the row stale. Only a call that actually fetched answers
+// without the header.
 //
 // Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
 func (c *Client) RefreshDashboard(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -7628,6 +7652,15 @@ type ClientWithResponsesInterface interface {
 	// spend that owner's own forge rate-limit budget on their own
 	// schedule.
 	//
+	// The server holds a five-second cooldown per user, so this can't
+	// be used to hammer a forge's API budget. A call inside that
+	// window does not fetch: it answers 200 with the current snapshot
+	// and a `Retry-After` header carrying the seconds left. Never a
+	// 429, because the page calls this straight after a merge, close
+	// or branch update to show the result, and a refusal there would
+	// leave the row stale. Only a call that actually fetched answers
+	// without the header.
+	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
@@ -9608,6 +9641,11 @@ func (r GetDashboardResponse) ContentType() string {
 	return ""
 }
 
+// RefreshDashboardResponse200Headers the declared response headers of an HTTP 200 response for RefreshDashboard
+type RefreshDashboardResponse200Headers struct {
+	RetryAfter *int
+}
+
 type RefreshDashboardResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9617,6 +9655,8 @@ type RefreshDashboardResponse struct {
 	JSON401 *Error
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *RefreshDashboardResponse200Headers
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -12054,6 +12094,15 @@ func (c *ClientWithResponses) GetDashboardWithResponse(ctx context.Context, para
 // spend that owner's own forge rate-limit budget on their own
 // schedule.
 //
+// The server holds a five-second cooldown per user, so this can't
+// be used to hammer a forge's API budget. A call inside that
+// window does not fetch: it answers 200 with the current snapshot
+// and a `Retry-After` header carrying the seconds left. Never a
+// 429, because the page calls this straight after a merge, close
+// or branch update to show the result, and a refusal there would
+// leave the row stale. Only a call that actually fetched answers
+// without the header.
+//
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
@@ -14107,6 +14156,19 @@ func ParseRefreshDashboardResponse(rsp *http.Response) (*RefreshDashboardRespons
 		}
 		response.JSON404 = &dest
 
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers RefreshDashboardResponse200Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
+		response.Headers200 = &headers
 	}
 
 	return response, nil
