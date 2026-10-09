@@ -3,7 +3,7 @@
 ## Requirements
 
 - Docker. Every Go command here runs inside a pinned `golang:1.27.2-bookworm`
-  or `golangci/golangci-lint:v2.13.2` image (`scripts/go-docker.sh`,
+  or `golangci/golangci-lint:v2.14.0` image (`scripts/go-docker.sh`,
   `scripts/golangci-lint-docker.sh`) rather than whatever Go your host
   package manager has — see the "why" in the comments at the top of each
   script.
