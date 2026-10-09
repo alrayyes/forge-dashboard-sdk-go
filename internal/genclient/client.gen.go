@@ -71,81 +71,6 @@ func (e ActionErrorCode) Valid() bool {
 	}
 }
 
-// Defines values for AllowedActionAction.
-const (
-	AutoMerge          AllowedActionAction = "auto_merge"
-	CancelAutoMerge    AllowedActionAction = "cancel_auto_merge"
-	Close              AllowedActionAction = "close"
-	DependabotRebase   AllowedActionAction = "dependabot_rebase"
-	DependabotRecreate AllowedActionAction = "dependabot_recreate"
-	Merge              AllowedActionAction = "merge"
-	RenovateRebase     AllowedActionAction = "renovate_rebase"
-	RerunChecks        AllowedActionAction = "rerun_checks"
-	UpdateBranch       AllowedActionAction = "update_branch"
-)
-
-// Valid indicates whether the value is a known member of the AllowedActionAction enum.
-func (e AllowedActionAction) Valid() bool {
-	switch e {
-	case AutoMerge:
-		return true
-	case CancelAutoMerge:
-		return true
-	case Close:
-		return true
-	case DependabotRebase:
-		return true
-	case DependabotRecreate:
-		return true
-	case Merge:
-		return true
-	case RenovateRebase:
-		return true
-	case RerunChecks:
-		return true
-	case UpdateBranch:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AllowedActionBlockedCode.
-const (
-	AllowedActionBlockedCodeAlreadyUpToDate     AllowedActionBlockedCode = "already_up_to_date"
-	AllowedActionBlockedCodeBehind              AllowedActionBlockedCode = "behind"
-	AllowedActionBlockedCodeBlockedByProtection AllowedActionBlockedCode = "blocked_by_protection"
-	AllowedActionBlockedCodeChecksFailing       AllowedActionBlockedCode = "checks_failing"
-	AllowedActionBlockedCodeChecksPending       AllowedActionBlockedCode = "checks_pending"
-	AllowedActionBlockedCodeConflict            AllowedActionBlockedCode = "conflict"
-	AllowedActionBlockedCodeNotMergeable        AllowedActionBlockedCode = "not_mergeable"
-	AllowedActionBlockedCodeStacked             AllowedActionBlockedCode = "stacked"
-)
-
-// Valid indicates whether the value is a known member of the AllowedActionBlockedCode enum.
-func (e AllowedActionBlockedCode) Valid() bool {
-	switch e {
-	case AllowedActionBlockedCodeAlreadyUpToDate:
-		return true
-	case AllowedActionBlockedCodeBehind:
-		return true
-	case AllowedActionBlockedCodeBlockedByProtection:
-		return true
-	case AllowedActionBlockedCodeChecksFailing:
-		return true
-	case AllowedActionBlockedCodeChecksPending:
-		return true
-	case AllowedActionBlockedCodeConflict:
-		return true
-	case AllowedActionBlockedCodeNotMergeable:
-		return true
-	case AllowedActionBlockedCodeStacked:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AutoMergeStatusState.
 const (
 	Stopped AutoMergeStatusState = "stopped"
@@ -691,13 +616,19 @@ type AdminUser struct {
 
 // AllowedAction defines model for AllowedAction.
 type AllowedAction struct {
-	Action AllowedActionAction `json:"action"`
+	// Action One of the values below today, and the server may learn more.
+	// A client should treat a value it doesn't know as an action it
+	// can't offer, not as an error. Declared with `x-extensible-enum`
+	// so adding a value is a minor SDK release.
+	Action string `json:"action"`
 
 	// Blocked Present when the action is offered but can't be taken yet. Merge
 	// is never hidden for an open pull request, only blocked.
 	Blocked *struct {
-		// Code The same codes as `ActionError.code`.
-		Code AllowedActionBlockedCode `json:"code"`
+		// Code The same codes as `ActionError.code`. The server may learn
+		// more, so a client should show `message` for a code it doesn't
+		// know. Declared with `x-extensible-enum`.
+		Code string `json:"code"`
 
 		// Message Plain words, safe to show a person.
 		Message string `json:"message"`
@@ -706,12 +637,6 @@ type AllowedAction struct {
 		Next *string `json:"next,omitempty"`
 	} `json:"blocked,omitempty"`
 }
-
-// AllowedActionAction defines model for AllowedAction.Action.
-type AllowedActionAction string
-
-// AllowedActionBlockedCode The same codes as `ActionError.code`.
-type AllowedActionBlockedCode string
 
 // AutoMergeStatus Where an armed Forgejo pull request stands, so the row can say why
 // auto-merge is waiting or stopped in words and not by colour. Present
