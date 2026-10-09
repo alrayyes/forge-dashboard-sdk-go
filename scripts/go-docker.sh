@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-GO_IMAGE="golang:1.27.1-bookworm"
+GO_IMAGE="golang:1.27.2-bookworm"
 
 # Pre-create the cache dirs as the invoking user. Docker auto-creates a
 # missing bind-mount source itself (as root, via the daemon) the first
