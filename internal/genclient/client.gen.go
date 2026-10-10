@@ -2471,13 +2471,20 @@ type ClientInterface interface {
 
 	// PostPullRequestRenovateRebaseWithBody Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
 	//
-	// Adds the signed-in user's own configured Renovate rebase label
+	// Ticks the `rebase-check` checkbox in the named pull request's
+	// body (`- [ ] <!-- rebase-check -->...` becomes `- [x] ...`, and
+	// nothing else in the body changes) — Renovate's own documented
+	// rebase/retry trigger, which every Renovate pull request carries
+	// and which needs no setup. Renovate doesn't read comments as
+	// commands. When the body has no such checkbox, falls back to
+	// adding the signed-in user's own configured Renovate rebase label
 	// (Settings' "Renovate rebase label" field, defaulting to
-	// Renovate's own `rebase` if left blank) to the named pull
-	// request — Renovate's own documented rebase/retry trigger, which
-	// is a label rather than a comment command. Works on both GitHub
+	// Renovate's own `rebase` if left blank). Works on both GitHub
 	// and Forgejo, unlike the Dependabot actions, since Renovate runs
 	// on both.
+	//
+	// A checkbox that is already ticked is not edited again: the
+	// answer is a 409 `ActionError` with `code: already_requested`.
 	//
 	// When the forge refuses, the server re-reads the pull request and
 	// answers an `ActionError` (see Merge): `already_merged` or
@@ -2491,13 +2498,20 @@ type ClientInterface interface {
 
 	// PostPullRequestRenovateRebase Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
 	//
-	// Adds the signed-in user's own configured Renovate rebase label
+	// Ticks the `rebase-check` checkbox in the named pull request's
+	// body (`- [ ] <!-- rebase-check -->...` becomes `- [x] ...`, and
+	// nothing else in the body changes) — Renovate's own documented
+	// rebase/retry trigger, which every Renovate pull request carries
+	// and which needs no setup. Renovate doesn't read comments as
+	// commands. When the body has no such checkbox, falls back to
+	// adding the signed-in user's own configured Renovate rebase label
 	// (Settings' "Renovate rebase label" field, defaulting to
-	// Renovate's own `rebase` if left blank) to the named pull
-	// request — Renovate's own documented rebase/retry trigger, which
-	// is a label rather than a comment command. Works on both GitHub
+	// Renovate's own `rebase` if left blank). Works on both GitHub
 	// and Forgejo, unlike the Dependabot actions, since Renovate runs
 	// on both.
+	//
+	// A checkbox that is already ticked is not edited again: the
+	// answer is a 409 `ActionError` with `code: already_requested`.
 	//
 	// When the forge refuses, the server re-reads the pull request and
 	// answers an `ActionError` (see Merge): `already_merged` or
@@ -4036,13 +4050,20 @@ func (c *Client) MergePullRequest(ctx context.Context, body MergePullRequestJSON
 
 // PostPullRequestRenovateRebaseWithBody Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
 //
-// Adds the signed-in user's own configured Renovate rebase label
+// Ticks the `rebase-check` checkbox in the named pull request's
+// body (`- [ ] <!-- rebase-check -->...` becomes `- [x] ...`, and
+// nothing else in the body changes) — Renovate's own documented
+// rebase/retry trigger, which every Renovate pull request carries
+// and which needs no setup. Renovate doesn't read comments as
+// commands. When the body has no such checkbox, falls back to
+// adding the signed-in user's own configured Renovate rebase label
 // (Settings' "Renovate rebase label" field, defaulting to
-// Renovate's own `rebase` if left blank) to the named pull
-// request — Renovate's own documented rebase/retry trigger, which
-// is a label rather than a comment command. Works on both GitHub
+// Renovate's own `rebase` if left blank). Works on both GitHub
 // and Forgejo, unlike the Dependabot actions, since Renovate runs
 // on both.
+//
+// A checkbox that is already ticked is not edited again: the
+// answer is a 409 `ActionError` with `code: already_requested`.
 //
 // When the forge refuses, the server re-reads the pull request and
 // answers an `ActionError` (see Merge): `already_merged` or
@@ -4066,13 +4087,20 @@ func (c *Client) PostPullRequestRenovateRebaseWithBody(ctx context.Context, cont
 
 // PostPullRequestRenovateRebase Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
 //
-// Adds the signed-in user's own configured Renovate rebase label
+// Ticks the `rebase-check` checkbox in the named pull request's
+// body (`- [ ] <!-- rebase-check -->...` becomes `- [x] ...`, and
+// nothing else in the body changes) — Renovate's own documented
+// rebase/retry trigger, which every Renovate pull request carries
+// and which needs no setup. Renovate doesn't read comments as
+// commands. When the body has no such checkbox, falls back to
+// adding the signed-in user's own configured Renovate rebase label
 // (Settings' "Renovate rebase label" field, defaulting to
-// Renovate's own `rebase` if left blank) to the named pull
-// request — Renovate's own documented rebase/retry trigger, which
-// is a label rather than a comment command. Works on both GitHub
+// Renovate's own `rebase` if left blank). Works on both GitHub
 // and Forgejo, unlike the Dependabot actions, since Renovate runs
 // on both.
+//
+// A checkbox that is already ticked is not edited again: the
+// answer is a 409 `ActionError` with `code: already_requested`.
 //
 // When the forge refuses, the server re-reads the pull request and
 // answers an `ActionError` (see Merge): `already_merged` or
@@ -7873,13 +7901,20 @@ type ClientWithResponsesInterface interface {
 
 	// PostPullRequestRenovateRebaseWithBodyWithResponse Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
 	//
-	// Adds the signed-in user's own configured Renovate rebase label
+	// Ticks the `rebase-check` checkbox in the named pull request's
+	// body (`- [ ] <!-- rebase-check -->...` becomes `- [x] ...`, and
+	// nothing else in the body changes) — Renovate's own documented
+	// rebase/retry trigger, which every Renovate pull request carries
+	// and which needs no setup. Renovate doesn't read comments as
+	// commands. When the body has no such checkbox, falls back to
+	// adding the signed-in user's own configured Renovate rebase label
 	// (Settings' "Renovate rebase label" field, defaulting to
-	// Renovate's own `rebase` if left blank) to the named pull
-	// request — Renovate's own documented rebase/retry trigger, which
-	// is a label rather than a comment command. Works on both GitHub
+	// Renovate's own `rebase` if left blank). Works on both GitHub
 	// and Forgejo, unlike the Dependabot actions, since Renovate runs
 	// on both.
+	//
+	// A checkbox that is already ticked is not edited again: the
+	// answer is a 409 `ActionError` with `code: already_requested`.
 	//
 	// When the forge refuses, the server re-reads the pull request and
 	// answers an `ActionError` (see Merge): `already_merged` or
@@ -7893,13 +7928,20 @@ type ClientWithResponsesInterface interface {
 
 	// PostPullRequestRenovateRebaseWithResponse Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
 	//
-	// Adds the signed-in user's own configured Renovate rebase label
+	// Ticks the `rebase-check` checkbox in the named pull request's
+	// body (`- [ ] <!-- rebase-check -->...` becomes `- [x] ...`, and
+	// nothing else in the body changes) — Renovate's own documented
+	// rebase/retry trigger, which every Renovate pull request carries
+	// and which needs no setup. Renovate doesn't read comments as
+	// commands. When the body has no such checkbox, falls back to
+	// adding the signed-in user's own configured Renovate rebase label
 	// (Settings' "Renovate rebase label" field, defaulting to
-	// Renovate's own `rebase` if left blank) to the named pull
-	// request — Renovate's own documented rebase/retry trigger, which
-	// is a label rather than a comment command. Works on both GitHub
+	// Renovate's own `rebase` if left blank). Works on both GitHub
 	// and Forgejo, unlike the Dependabot actions, since Renovate runs
 	// on both.
+	//
+	// A checkbox that is already ticked is not edited again: the
+	// answer is a 409 `ActionError` with `code: already_requested`.
 	//
 	// When the forge refuses, the server re-reads the pull request and
 	// answers an `ActionError` (see Merge): `already_merged` or
@@ -12393,13 +12435,20 @@ func (c *ClientWithResponses) MergePullRequestWithResponse(ctx context.Context, 
 
 // PostPullRequestRenovateRebaseWithBodyWithResponse Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
 //
-// Adds the signed-in user's own configured Renovate rebase label
+// Ticks the `rebase-check` checkbox in the named pull request's
+// body (`- [ ] <!-- rebase-check -->...` becomes `- [x] ...`, and
+// nothing else in the body changes) — Renovate's own documented
+// rebase/retry trigger, which every Renovate pull request carries
+// and which needs no setup. Renovate doesn't read comments as
+// commands. When the body has no such checkbox, falls back to
+// adding the signed-in user's own configured Renovate rebase label
 // (Settings' "Renovate rebase label" field, defaulting to
-// Renovate's own `rebase` if left blank) to the named pull
-// request — Renovate's own documented rebase/retry trigger, which
-// is a label rather than a comment command. Works on both GitHub
+// Renovate's own `rebase` if left blank). Works on both GitHub
 // and Forgejo, unlike the Dependabot actions, since Renovate runs
 // on both.
+//
+// A checkbox that is already ticked is not edited again: the
+// answer is a 409 `ActionError` with `code: already_requested`.
 //
 // When the forge refuses, the server re-reads the pull request and
 // answers an `ActionError` (see Merge): `already_merged` or
@@ -12419,13 +12468,20 @@ func (c *ClientWithResponses) PostPullRequestRenovateRebaseWithBodyWithResponse(
 
 // PostPullRequestRenovateRebaseWithResponse Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
 //
-// Adds the signed-in user's own configured Renovate rebase label
+// Ticks the `rebase-check` checkbox in the named pull request's
+// body (`- [ ] <!-- rebase-check -->...` becomes `- [x] ...`, and
+// nothing else in the body changes) — Renovate's own documented
+// rebase/retry trigger, which every Renovate pull request carries
+// and which needs no setup. Renovate doesn't read comments as
+// commands. When the body has no such checkbox, falls back to
+// adding the signed-in user's own configured Renovate rebase label
 // (Settings' "Renovate rebase label" field, defaulting to
-// Renovate's own `rebase` if left blank) to the named pull
-// request — Renovate's own documented rebase/retry trigger, which
-// is a label rather than a comment command. Works on both GitHub
+// Renovate's own `rebase` if left blank). Works on both GitHub
 // and Forgejo, unlike the Dependabot actions, since Renovate runs
 // on both.
+//
+// A checkbox that is already ticked is not edited again: the
+// answer is a 409 `ActionError` with `code: already_requested`.
 //
 // When the forge refuses, the server re-reads the pull request and
 // answers an `ActionError` (see Merge): `already_merged` or
