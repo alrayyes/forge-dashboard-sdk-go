@@ -29,6 +29,8 @@ const (
 	ActionErrorCodeChecksPending       ActionErrorCode = "checks_pending"
 	ActionErrorCodeConflict            ActionErrorCode = "conflict"
 	ActionErrorCodeNotMergeable        ActionErrorCode = "not_mergeable"
+	ActionErrorCodeNotOpen             ActionErrorCode = "not_open"
+	ActionErrorCodeNotRateLimited      ActionErrorCode = "not_rate_limited"
 	ActionErrorCodePermission          ActionErrorCode = "permission"
 	ActionErrorCodeRateLimited         ActionErrorCode = "rate_limited"
 	ActionErrorCodeReadyToMerge        ActionErrorCode = "ready_to_merge"
@@ -57,6 +59,10 @@ func (e ActionErrorCode) Valid() bool {
 	case ActionErrorCodeConflict:
 		return true
 	case ActionErrorCodeNotMergeable:
+		return true
+	case ActionErrorCodeNotOpen:
+		return true
+	case ActionErrorCodeNotRateLimited:
 		return true
 	case ActionErrorCodePermission:
 		return true
@@ -332,6 +338,72 @@ func (e PullRequestDependabotActionRequestAction) Valid() bool {
 	}
 }
 
+// Defines values for QueuedActionAction.
+const (
+	QueuedActionActionDependabotRebase QueuedActionAction = "dependabot_rebase"
+	QueuedActionActionRenovateRebase   QueuedActionAction = "renovate_rebase"
+	QueuedActionActionUpdateBranch     QueuedActionAction = "update_branch"
+)
+
+// Valid indicates whether the value is a known member of the QueuedActionAction enum.
+func (e QueuedActionAction) Valid() bool {
+	switch e {
+	case QueuedActionActionDependabotRebase:
+		return true
+	case QueuedActionActionRenovateRebase:
+		return true
+	case QueuedActionActionUpdateBranch:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QueuedActionStatus.
+const (
+	QueuedActionStatusDone    QueuedActionStatus = "done"
+	QueuedActionStatusFailed  QueuedActionStatus = "failed"
+	QueuedActionStatusQueued  QueuedActionStatus = "queued"
+	QueuedActionStatusSkipped QueuedActionStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the QueuedActionStatus enum.
+func (e QueuedActionStatus) Valid() bool {
+	switch e {
+	case QueuedActionStatusDone:
+		return true
+	case QueuedActionStatusFailed:
+		return true
+	case QueuedActionStatusQueued:
+		return true
+	case QueuedActionStatusSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QueuedActionRequestAction.
+const (
+	QueuedActionRequestActionDependabotRebase QueuedActionRequestAction = "dependabot_rebase"
+	QueuedActionRequestActionRenovateRebase   QueuedActionRequestAction = "renovate_rebase"
+	QueuedActionRequestActionUpdateBranch     QueuedActionRequestAction = "update_branch"
+)
+
+// Valid indicates whether the value is a known member of the QueuedActionRequestAction enum.
+func (e QueuedActionRequestAction) Valid() bool {
+	switch e {
+	case QueuedActionRequestActionDependabotRebase:
+		return true
+	case QueuedActionRequestActionRenovateRebase:
+		return true
+	case QueuedActionRequestActionUpdateBranch:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RateLimitSeverity.
 const (
 	RateLimitSeverityExceeded RateLimitSeverity = "exceeded"
@@ -528,6 +600,11 @@ type ActionError struct {
 	// mean the dashboard's row was stale: the pull request has
 	// nothing left to merge.
 	//
+	// `not_rate_limited` belongs to queueing an action: the forge
+	// isn't rate limited, so act directly. `not_open` is only an
+	// outcome of a queued action: the pull request was gone from the
+	// board when the reset came, merged or closed.
+	//
 	// Three codes belong to one action each: `already_up_to_date`
 	// (Update branch: nothing to bring in), `auto_merge_not_allowed`
 	// (Enable auto-merge: the repo or pull request doesn't allow it)
@@ -558,6 +635,11 @@ type ActionError struct {
 // request's real state. `already_merged` and `already_closed`
 // mean the dashboard's row was stale: the pull request has
 // nothing left to merge.
+//
+// `not_rate_limited` belongs to queueing an action: the forge
+// isn't rate limited, so act directly. `not_open` is only an
+// outcome of a queued action: the pull request was gone from the
+// board when the reset came, merged or closed.
 //
 // Three codes belong to one action each: `already_up_to_date`
 // (Update branch: nothing to bring in), `auto_merge_not_allowed`
@@ -818,6 +900,15 @@ type Dashboard struct {
 	// `housekeeping` ones. What the Issues badge shows.
 	OpenIssueCount int           `json:"openIssueCount"`
 	PullRequests   []PullRequest `json:"pullRequests"`
+
+	// QueuedActions The signed-in user's queued actions, waiting and finished in the
+	// last 24 hours (GET /api/queued-actions), so a client lists them in
+	// its Activity panel and learns an outcome from the stream it
+	// already reads. Empty when there are none, and always empty on
+	// another user's shared dashboard. Not yet in `required`: the
+	// handler that fills it ships in the next pull request of the
+	// stack, which makes it required.
+	QueuedActions *[]QueuedAction `json:"queuedActions,omitempty"`
 
 	// ReadIntervalSeconds How often, in seconds, a client should re-read GET
 	// /api/dashboard. The server's advice, so a client needs no
@@ -1085,6 +1176,13 @@ type PullRequest struct {
 	NeedsReview bool `json:"needsReview"`
 	Number      int  `json:"number"`
 
+	// Queued A safe action this user queued on this pull request that is still
+	// waiting for its forge's rate limit to reset, or null. The row can
+	// say "Update branch queued for 14:32" from `runAt` and offer
+	// Cancel with `id`. A final outcome is not here: it is in the
+	// dashboard's `queuedActions`.
+	Queued *QueuedAction `json:"queued,omitempty"`
+
 	// ReadyToMerge True when the pull request is mergeable, its CI is green and it
 	// isn't a draft: what the Ready quick filter lists. Always
 	// present. A pull request with no checks isn't ready.
@@ -1195,6 +1293,76 @@ type PullRequestDependabotActionRequest struct {
 
 // PullRequestDependabotActionRequestAction Which Dependabot comment command to post — "@dependabot rebase" or "@dependabot recreate".
 type PullRequestDependabotActionRequestAction string
+
+// QueuedAction A safe action queued to run when a rate-limited forge resets. A
+// client shows a `queued` one as "Update branch queued for 14:32"
+// with Cancel, and a final one in its Activity list.
+type QueuedAction struct {
+	Action QueuedActionAction `json:"action"`
+
+	// Code Only on `skipped` and `failed`. A value of ActionError.code,
+	// for example `already_merged`, `already_closed`, `not_open`,
+	// `already_up_to_date`, `conflict`, `already_requested`,
+	// `permission`.
+	Code      *string   `json:"code,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// FinishedAt Only on a final status.
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+	Forge      Forge      `json:"forge"`
+
+	// FullName "owner/repo".
+	FullName string `json:"fullName"`
+
+	// Id Opaque. What DELETE /api/queued-actions/{id} takes.
+	Id string `json:"id"`
+
+	// Message Only on `skipped` and `failed`. Plain words safe to show a person.
+	Message *string `json:"message,omitempty"`
+	Number  int     `json:"number"`
+
+	// RunAt When the forge's budget comes back, which is when the server
+	// looks again. If the budget is spent again by then, it moves to
+	// the new reset instead of failing.
+	RunAt time.Time `json:"runAt"`
+
+	// Status `queued`: waiting for the reset. `done`: the action ran.
+	// `skipped`: the server re-read the pull request at the reset and
+	// it no longer needed the action, so nothing was done; `code` and
+	// `message` say why ("Already merged"). `failed`: the action ran
+	// and the forge refused, with the structured `code` and `message`
+	// an immediate action would have answered.
+	Status QueuedActionStatus `json:"status"`
+}
+
+// QueuedActionAction defines model for QueuedAction.Action.
+type QueuedActionAction string
+
+// QueuedActionStatus `queued`: waiting for the reset. `done`: the action ran.
+// `skipped`: the server re-read the pull request at the reset and
+// it no longer needed the action, so nothing was done; `code` and
+// `message` say why ("Already merged"). `failed`: the action ran
+// and the forge refused, with the structured `code` and `message`
+// an immediate action would have answered.
+type QueuedActionStatus string
+
+// QueuedActionRequest Which safe action to queue, on which pull request.
+type QueuedActionRequest struct {
+	// Action The `AllowedAction.action` to run at the reset. Only these
+	// three are queueable; Merge, Close and the rest answer 400.
+	Action QueuedActionRequestAction `json:"action"`
+	Forge  Forge                     `json:"forge"`
+
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	FullName string `json:"fullName"`
+
+	// Number Matching a PullRequest.number from GET /api/dashboard.
+	Number int `json:"number"`
+}
+
+// QueuedActionRequestAction The `AllowedAction.action` to run at the reset. Only these
+// three are queueable; Merge, Close and the rest answer 400.
+type QueuedActionRequestAction string
 
 // RateLimit One of a forge API's own request budgets for the credential the last refresh used — see ForgeHealth.rateLimitGraphQL/rateLimitREST for which budget this is and when each is (or isn't) reported.
 type RateLimit struct {
@@ -1810,6 +1978,9 @@ type RerunPullRequestChecksJSONRequestBody = PullRequestActionRequest
 
 // UpdatePullRequestBranchJSONRequestBody defines body for UpdatePullRequestBranch for application/json ContentType.
 type UpdatePullRequestBranchJSONRequestBody = PullRequestActionRequest
+
+// QueueActionJSONRequestBody defines body for QueueAction for application/json ContentType.
+type QueueActionJSONRequestBody = QueuedActionRequest
 
 // DisableAutoUpdateBranchJSONRequestBody defines body for DisableAutoUpdateBranch for application/json ContentType.
 type DisableAutoUpdateBranchJSONRequestBody = WebhookEnsureRequest
@@ -2616,6 +2787,84 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
 	UpdatePullRequestBranch(ctx context.Context, body UpdatePullRequestBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListQueuedActions List the signed-in user's queued actions, waiting and recently finished
+	//
+	// Every action the user queued to run when a rate-limited forge
+	// resets (#756), oldest first: the ones still `queued`, and the
+	// final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
+	// client can show the outcome in its Activity list. The same list
+	// rides along on GET /api/dashboard as `queuedActions`.
+	//
+	// Corresponds with GET /api/queued-actions (the `ListQueuedActions` operationId).
+	ListQueuedActions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// QueueActionWithBody Queue a safe action to run when a rate-limited forge resets
+	//
+	// Stores the intent server-side. When the forge's budget comes back
+	// the server reads the pull request again and runs the action only
+	// if it still applies; otherwise it records why it did nothing. It
+	// survives a page reload and a server restart.
+	//
+	// Only safe, idempotent actions can be queued: `update_branch`,
+	// `dependabot_rebase` and `renovate_rebase`. Merge and Close are not
+	// queueable and answer 400: they would act unattended on a pull
+	// request whose checks or commits may have changed. To merge once
+	// the limit lifts, use the forge's own auto-merge.
+	//
+	// The forge must be rate limited right now (a spent budget in
+	// `forges[].rateLimitRest` or `rateLimitGraphql` whose `resetsAt` is
+	// ahead), otherwise there is nothing to wait for and the action
+	// should be taken directly: 409 `not_rate_limited`. The pull request
+	// must be on the signed-in user's board and offer the action
+	// (`allowedActions`) and be behind its base branch, with the same
+	// 409 codes the direct action answers. The queued item runs with
+	// the user's own saved credentials for that forge, never anyone
+	// else's. Queueing the same action on the same pull request twice
+	// returns the first item with 200.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+	QueueActionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// QueueAction Queue a safe action to run when a rate-limited forge resets
+	//
+	// Stores the intent server-side. When the forge's budget comes back
+	// the server reads the pull request again and runs the action only
+	// if it still applies; otherwise it records why it did nothing. It
+	// survives a page reload and a server restart.
+	//
+	// Only safe, idempotent actions can be queued: `update_branch`,
+	// `dependabot_rebase` and `renovate_rebase`. Merge and Close are not
+	// queueable and answer 400: they would act unattended on a pull
+	// request whose checks or commits may have changed. To merge once
+	// the limit lifts, use the forge's own auto-merge.
+	//
+	// The forge must be rate limited right now (a spent budget in
+	// `forges[].rateLimitRest` or `rateLimitGraphql` whose `resetsAt` is
+	// ahead), otherwise there is nothing to wait for and the action
+	// should be taken directly: 409 `not_rate_limited`. The pull request
+	// must be on the signed-in user's board and offer the action
+	// (`allowedActions`) and be behind its base branch, with the same
+	// 409 codes the direct action answers. The queued item runs with
+	// the user's own saved credentials for that forge, never anyone
+	// else's. Queueing the same action on the same pull request twice
+	// returns the first item with 200.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+	QueueAction(ctx context.Context, body QueueActionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelQueuedAction Cancel a queued action, or clear a finished one from the list
+	//
+	// A queued action that has not run is removed and nothing runs. A
+	// finished one is cleared from the list. An id that isn't the
+	// signed-in user's answers 404, the same as one that doesn't exist.
+	//
+	// Corresponds with DELETE /api/queued-actions/{id} (the `CancelQueuedAction` operationId).
+	CancelQueuedAction(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DisableAutoUpdateBranchWithBody Turn off automatic branch updates for one tracked repo
 	//
@@ -4246,6 +4495,124 @@ func (c *Client) UpdatePullRequestBranchWithBody(ctx context.Context, contentTyp
 // Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
 func (c *Client) UpdatePullRequestBranch(ctx context.Context, body UpdatePullRequestBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdatePullRequestBranchRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListQueuedActions List the signed-in user's queued actions, waiting and recently finished
+//
+// Every action the user queued to run when a rate-limited forge
+// resets (#756), oldest first: the ones still `queued`, and the
+// final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
+// client can show the outcome in its Activity list. The same list
+// rides along on GET /api/dashboard as `queuedActions`.
+//
+// Corresponds with GET /api/queued-actions (the `ListQueuedActions` operationId).
+func (c *Client) ListQueuedActions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListQueuedActionsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// QueueActionWithBody Queue a safe action to run when a rate-limited forge resets
+//
+// Stores the intent server-side. When the forge's budget comes back
+// the server reads the pull request again and runs the action only
+// if it still applies; otherwise it records why it did nothing. It
+// survives a page reload and a server restart.
+//
+// Only safe, idempotent actions can be queued: `update_branch`,
+// `dependabot_rebase` and `renovate_rebase`. Merge and Close are not
+// queueable and answer 400: they would act unattended on a pull
+// request whose checks or commits may have changed. To merge once
+// the limit lifts, use the forge's own auto-merge.
+//
+// The forge must be rate limited right now (a spent budget in
+// `forges[].rateLimitRest` or `rateLimitGraphql` whose `resetsAt` is
+// ahead), otherwise there is nothing to wait for and the action
+// should be taken directly: 409 `not_rate_limited`. The pull request
+// must be on the signed-in user's board and offer the action
+// (`allowedActions`) and be behind its base branch, with the same
+// 409 codes the direct action answers. The queued item runs with
+// the user's own saved credentials for that forge, never anyone
+// else's. Queueing the same action on the same pull request twice
+// returns the first item with 200.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+func (c *Client) QueueActionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewQueueActionRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// QueueAction Queue a safe action to run when a rate-limited forge resets
+//
+// Stores the intent server-side. When the forge's budget comes back
+// the server reads the pull request again and runs the action only
+// if it still applies; otherwise it records why it did nothing. It
+// survives a page reload and a server restart.
+//
+// Only safe, idempotent actions can be queued: `update_branch`,
+// `dependabot_rebase` and `renovate_rebase`. Merge and Close are not
+// queueable and answer 400: they would act unattended on a pull
+// request whose checks or commits may have changed. To merge once
+// the limit lifts, use the forge's own auto-merge.
+//
+// The forge must be rate limited right now (a spent budget in
+// `forges[].rateLimitRest` or `rateLimitGraphql` whose `resetsAt` is
+// ahead), otherwise there is nothing to wait for and the action
+// should be taken directly: 409 `not_rate_limited`. The pull request
+// must be on the signed-in user's board and offer the action
+// (`allowedActions`) and be behind its base branch, with the same
+// 409 codes the direct action answers. The queued item runs with
+// the user's own saved credentials for that forge, never anyone
+// else's. Queueing the same action on the same pull request twice
+// returns the first item with 200.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+func (c *Client) QueueAction(ctx context.Context, body QueueActionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewQueueActionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CancelQueuedAction Cancel a queued action, or clear a finished one from the list
+//
+// A queued action that has not run is removed and nothing runs. A
+// finished one is cleared from the list. An id that isn't the
+// signed-in user's answers 404, the same as one that doesn't exist.
+//
+// Corresponds with DELETE /api/queued-actions/{id} (the `CancelQueuedAction` operationId).
+func (c *Client) CancelQueuedAction(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelQueuedActionRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -6434,6 +6801,107 @@ func NewUpdatePullRequestBranchRequestWithBody(server string, contentType string
 	return req, nil
 }
 
+// NewListQueuedActionsRequest constructs an http.Request for the ListQueuedActions method
+func NewListQueuedActionsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/queued-actions")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewQueueActionRequest calls the generic QueueAction builder with application/json body
+func NewQueueActionRequest(server string, body QueueActionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewQueueActionRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewQueueActionRequestWithBody constructs an http.Request for the QueueAction method, with any body, and a specified content type
+func NewQueueActionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/queued-actions")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCancelQueuedActionRequest constructs an http.Request for the CancelQueuedAction method
+func NewCancelQueuedActionRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/queued-actions/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDisableAutoUpdateBranchRequest calls the generic DisableAutoUpdateBranch builder with application/json body
 func NewDisableAutoUpdateBranchRequest(server string, body DisableAutoUpdateBranchJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -8046,6 +8514,88 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
 	UpdatePullRequestBranchWithResponse(ctx context.Context, body UpdatePullRequestBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePullRequestBranchResponse, error)
+
+	// ListQueuedActionsWithResponse List the signed-in user's queued actions, waiting and recently finished
+	//
+	// Every action the user queued to run when a rate-limited forge
+	// resets (#756), oldest first: the ones still `queued`, and the
+	// final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
+	// client can show the outcome in its Activity list. The same list
+	// rides along on GET /api/dashboard as `queuedActions`.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/queued-actions (the `ListQueuedActions` operationId).
+	ListQueuedActionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListQueuedActionsResponse, error)
+
+	// QueueActionWithBodyWithResponse Queue a safe action to run when a rate-limited forge resets
+	//
+	// Stores the intent server-side. When the forge's budget comes back
+	// the server reads the pull request again and runs the action only
+	// if it still applies; otherwise it records why it did nothing. It
+	// survives a page reload and a server restart.
+	//
+	// Only safe, idempotent actions can be queued: `update_branch`,
+	// `dependabot_rebase` and `renovate_rebase`. Merge and Close are not
+	// queueable and answer 400: they would act unattended on a pull
+	// request whose checks or commits may have changed. To merge once
+	// the limit lifts, use the forge's own auto-merge.
+	//
+	// The forge must be rate limited right now (a spent budget in
+	// `forges[].rateLimitRest` or `rateLimitGraphql` whose `resetsAt` is
+	// ahead), otherwise there is nothing to wait for and the action
+	// should be taken directly: 409 `not_rate_limited`. The pull request
+	// must be on the signed-in user's board and offer the action
+	// (`allowedActions`) and be behind its base branch, with the same
+	// 409 codes the direct action answers. The queued item runs with
+	// the user's own saved credentials for that forge, never anyone
+	// else's. Queueing the same action on the same pull request twice
+	// returns the first item with 200.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+	QueueActionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*QueueActionResponse, error)
+
+	// QueueActionWithResponse Queue a safe action to run when a rate-limited forge resets
+	//
+	// Stores the intent server-side. When the forge's budget comes back
+	// the server reads the pull request again and runs the action only
+	// if it still applies; otherwise it records why it did nothing. It
+	// survives a page reload and a server restart.
+	//
+	// Only safe, idempotent actions can be queued: `update_branch`,
+	// `dependabot_rebase` and `renovate_rebase`. Merge and Close are not
+	// queueable and answer 400: they would act unattended on a pull
+	// request whose checks or commits may have changed. To merge once
+	// the limit lifts, use the forge's own auto-merge.
+	//
+	// The forge must be rate limited right now (a spent budget in
+	// `forges[].rateLimitRest` or `rateLimitGraphql` whose `resetsAt` is
+	// ahead), otherwise there is nothing to wait for and the action
+	// should be taken directly: 409 `not_rate_limited`. The pull request
+	// must be on the signed-in user's board and offer the action
+	// (`allowedActions`) and be behind its base branch, with the same
+	// 409 codes the direct action answers. The queued item runs with
+	// the user's own saved credentials for that forge, never anyone
+	// else's. Queueing the same action on the same pull request twice
+	// returns the first item with 200.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+	QueueActionWithResponse(ctx context.Context, body QueueActionJSONRequestBody, reqEditors ...RequestEditorFn) (*QueueActionResponse, error)
+
+	// CancelQueuedActionWithResponse Cancel a queued action, or clear a finished one from the list
+	//
+	// A queued action that has not run is removed and nothing runs. A
+	// finished one is cleared from the list. An id that isn't the
+	// signed-in user's answers 404, the same as one that doesn't exist.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/queued-actions/{id} (the `CancelQueuedAction` operationId).
+	CancelQueuedActionWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CancelQueuedActionResponse, error)
 
 	// DisableAutoUpdateBranchWithBodyWithResponse Turn off automatic branch updates for one tracked repo
 	//
@@ -10416,6 +10966,178 @@ func (r UpdatePullRequestBranchResponse) ContentType() string {
 	return ""
 }
 
+type ListQueuedActionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *[]QueuedAction
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListQueuedActionsResponse) GetJSON200() *[]QueuedAction {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListQueuedActionsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r ListQueuedActionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListQueuedActionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListQueuedActionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListQueuedActionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type QueueActionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *QueuedAction
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *QueuedAction
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *ActionError
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r QueueActionResponse) GetJSON200() *QueuedAction {
+	return r.JSON200
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r QueueActionResponse) GetJSON201() *QueuedAction {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r QueueActionResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r QueueActionResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r QueueActionResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r QueueActionResponse) GetJSON409() *ActionError {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r QueueActionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r QueueActionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r QueueActionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r QueueActionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CancelQueuedActionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CancelQueuedActionResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CancelQueuedActionResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r CancelQueuedActionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelQueuedActionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelQueuedActionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CancelQueuedActionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type DisableAutoUpdateBranchResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -12617,6 +13339,112 @@ func (c *ClientWithResponses) UpdatePullRequestBranchWithResponse(ctx context.Co
 	return ParseUpdatePullRequestBranchResponse(rsp)
 }
 
+// ListQueuedActionsWithResponse List the signed-in user's queued actions, waiting and recently finished
+//
+// Every action the user queued to run when a rate-limited forge
+// resets (#756), oldest first: the ones still `queued`, and the
+// final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
+// client can show the outcome in its Activity list. The same list
+// rides along on GET /api/dashboard as `queuedActions`.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/queued-actions (the `ListQueuedActions` operationId).
+func (c *ClientWithResponses) ListQueuedActionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListQueuedActionsResponse, error) {
+	rsp, err := c.ListQueuedActions(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListQueuedActionsResponse(rsp)
+}
+
+// QueueActionWithBodyWithResponse Queue a safe action to run when a rate-limited forge resets
+//
+// Stores the intent server-side. When the forge's budget comes back
+// the server reads the pull request again and runs the action only
+// if it still applies; otherwise it records why it did nothing. It
+// survives a page reload and a server restart.
+//
+// Only safe, idempotent actions can be queued: `update_branch`,
+// `dependabot_rebase` and `renovate_rebase`. Merge and Close are not
+// queueable and answer 400: they would act unattended on a pull
+// request whose checks or commits may have changed. To merge once
+// the limit lifts, use the forge's own auto-merge.
+//
+// The forge must be rate limited right now (a spent budget in
+// `forges[].rateLimitRest` or `rateLimitGraphql` whose `resetsAt` is
+// ahead), otherwise there is nothing to wait for and the action
+// should be taken directly: 409 `not_rate_limited`. The pull request
+// must be on the signed-in user's board and offer the action
+// (`allowedActions`) and be behind its base branch, with the same
+// 409 codes the direct action answers. The queued item runs with
+// the user's own saved credentials for that forge, never anyone
+// else's. Queueing the same action on the same pull request twice
+// returns the first item with 200.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+func (c *ClientWithResponses) QueueActionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*QueueActionResponse, error) {
+	rsp, err := c.QueueActionWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseQueueActionResponse(rsp)
+}
+
+// QueueActionWithResponse Queue a safe action to run when a rate-limited forge resets
+//
+// Stores the intent server-side. When the forge's budget comes back
+// the server reads the pull request again and runs the action only
+// if it still applies; otherwise it records why it did nothing. It
+// survives a page reload and a server restart.
+//
+// Only safe, idempotent actions can be queued: `update_branch`,
+// `dependabot_rebase` and `renovate_rebase`. Merge and Close are not
+// queueable and answer 400: they would act unattended on a pull
+// request whose checks or commits may have changed. To merge once
+// the limit lifts, use the forge's own auto-merge.
+//
+// The forge must be rate limited right now (a spent budget in
+// `forges[].rateLimitRest` or `rateLimitGraphql` whose `resetsAt` is
+// ahead), otherwise there is nothing to wait for and the action
+// should be taken directly: 409 `not_rate_limited`. The pull request
+// must be on the signed-in user's board and offer the action
+// (`allowedActions`) and be behind its base branch, with the same
+// 409 codes the direct action answers. The queued item runs with
+// the user's own saved credentials for that forge, never anyone
+// else's. Queueing the same action on the same pull request twice
+// returns the first item with 200.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+func (c *ClientWithResponses) QueueActionWithResponse(ctx context.Context, body QueueActionJSONRequestBody, reqEditors ...RequestEditorFn) (*QueueActionResponse, error) {
+	rsp, err := c.QueueAction(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseQueueActionResponse(rsp)
+}
+
+// CancelQueuedActionWithResponse Cancel a queued action, or clear a finished one from the list
+//
+// A queued action that has not run is removed and nothing runs. A
+// finished one is cleared from the list. An id that isn't the
+// signed-in user's answers 404, the same as one that doesn't exist.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/queued-actions/{id} (the `CancelQueuedAction` operationId).
+func (c *ClientWithResponses) CancelQueuedActionWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CancelQueuedActionResponse, error) {
+	rsp, err := c.CancelQueuedAction(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelQueuedActionResponse(rsp)
+}
+
 // DisableAutoUpdateBranchWithBodyWithResponse Turn off automatic branch updates for one tracked repo
 //
 // The reverse of POST /api/repos/auto-update-branch/enable.
@@ -14772,6 +15600,136 @@ func ParseUpdatePullRequestBranchResponse(rsp *http.Response) (*UpdatePullReques
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListQueuedActionsResponse parses an HTTP response from a ListQueuedActionsWithResponse call
+func ParseListQueuedActionsResponse(rsp *http.Response) (*ListQueuedActionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListQueuedActionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []QueuedAction
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseQueueActionResponse parses an HTTP response from a QueueActionWithResponse call
+func ParseQueueActionResponse(rsp *http.Response) (*QueueActionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &QueueActionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest QueuedAction
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest QueuedAction
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCancelQueuedActionResponse parses an HTTP response from a CancelQueuedActionWithResponse call
+func ParseCancelQueuedActionResponse(rsp *http.Response) (*CancelQueuedActionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelQueuedActionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
