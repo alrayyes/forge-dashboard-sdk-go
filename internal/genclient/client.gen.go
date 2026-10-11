@@ -272,6 +272,30 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Defines values for MainBranchStatus.
+const (
+	MainBranchStatusFailed  MainBranchStatus = "failed"
+	MainBranchStatusNone    MainBranchStatus = "none"
+	MainBranchStatusPassed  MainBranchStatus = "passed"
+	MainBranchStatusRunning MainBranchStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the MainBranchStatus enum.
+func (e MainBranchStatus) Valid() bool {
+	switch e {
+	case MainBranchStatusFailed:
+		return true
+	case MainBranchStatusNone:
+		return true
+	case MainBranchStatusPassed:
+		return true
+	case MainBranchStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MergeStatus.
 const (
 	MergeStatusBlocked     MergeStatus = "blocked"
@@ -1041,6 +1065,99 @@ type LoginBeginRequest struct {
 	//
 	// Examples: ryan
 	Username string `json:"username"`
+}
+
+// MainBranch One tracked repository and the CI status of its default branch.
+type MainBranch struct {
+	// Branch The repository's default branch. Empty for a repository the forge reports no default branch for.
+	Branch string `json:"branch"`
+
+	// Commit The newest commit, or null when the forge reported none (an empty repository, or no run on Forgejo to name one from).
+	Commit *MainBranchCommit `json:"commit"`
+
+	// DurationSeconds How long the pipeline ran, from its first job starting to its last
+	// finishing. Null while it runs, or when the forge didn't say.
+	DurationSeconds *int `json:"durationSeconds"`
+
+	// FailingJobs The names of the failed jobs (GitHub checks, Forgejo Actions
+	// jobs), or of the failed workflow when its jobs couldn't be read.
+	// Always present and empty unless `status` is "failed".
+	FailingJobs []string `json:"failingJobs"`
+
+	// FinishedAt When the pipeline's last job finished. Null while it runs, or when the forge didn't say.
+	FinishedAt *time.Time `json:"finishedAt"`
+	Forge      Forge      `json:"forge"`
+
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	FullName string `json:"fullName"`
+
+	// RunUrl Where to see the run on the forge: the failed job's page for a
+	// failed pipeline, else the run's, else the commit's. Falls back to
+	// the repository's `url`.
+	RunUrl string `json:"runUrl"`
+
+	// Stale True when this row is the last known one because its forge
+	// couldn't be read or its rate limit is spent. A client offers no
+	// write on a stale row (#1199).
+	Stale bool `json:"stale"`
+
+	// StaleSince When this row was last fetched. Null unless `stale`.
+	StaleSince *time.Time `json:"staleSince"`
+
+	// Status The result of the latest pipeline on a default branch's newest
+	// commit, across all its workflows. "failed" when any job failed,
+	// "running" when none failed and some are still queued or running,
+	// "passed" when all finished green, "none" when the commit has no
+	// pipeline at all (or the repository has no commit yet).
+	Status MainBranchStatus `json:"status"`
+
+	// Url The repository's own page on its forge.
+	Url string `json:"url"`
+}
+
+// MainBranchCommit The newest commit on the default branch.
+type MainBranchCommit struct {
+	// Author The commit author's login where the forge knows it, else the name
+	// on the commit. Empty when the forge didn't say.
+	Author string `json:"author"`
+
+	// CommittedAt When the commit was made, or null when the forge didn't say.
+	CommittedAt *time.Time `json:"committedAt"`
+
+	// Sha The commit id, shortened to seven characters.
+	Sha string `json:"sha"`
+
+	// Subject The first line of the commit message.
+	Subject string `json:"subject"`
+}
+
+// MainBranchCounts How many rows are in each status, the numbers on the filter pills.
+// `total` is every row, so it equals the sum of the other four.
+type MainBranchCounts struct {
+	Failed  int `json:"failed"`
+	None    int `json:"none"`
+	Passed  int `json:"passed"`
+	Running int `json:"running"`
+	Total   int `json:"total"`
+}
+
+// MainBranchStatus The result of the latest pipeline on a default branch's newest
+// commit, across all its workflows. "failed" when any job failed,
+// "running" when none failed and some are still queued or running,
+// "passed" when all finished green, "none" when the commit has no
+// pipeline at all (or the repository has no commit yet).
+type MainBranchStatus string
+
+// MainBranches defines model for MainBranches.
+type MainBranches struct {
+	Branches []MainBranch `json:"branches"`
+
+	// Counts How many rows are in each status, the numbers on the filter pills.
+	// `total` is every row, so it equals the sum of the other four.
+	Counts MainBranchCounts `json:"counts"`
+
+	// GeneratedAt When the snapshot was refreshed, not when it was requested.
+	GeneratedAt time.Time `json:"generatedAt"`
 }
 
 // MergeStatus A pull request's mergeable/blocked state, as coarse as every forge
@@ -2384,6 +2501,34 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetMainBranches The CI status of every tracked repository's default branch
+	//
+	// One row per tracked repository, showing the latest pipeline on its
+	// default branch: failed, passed, running or none (#1224). Every row is
+	// returned, whatever its status, with a count per status, so a client
+	// filters and sorts locally and its pill counts always match what each
+	// pill lists. Rows come failed first, then running, passed and none,
+	// each group by `fullName`.
+	//
+	// Served from the snapshot the background refresh already holds, so it
+	// never calls a forge. On GitHub the branch's check status rides the
+	// repository query the refresh already makes (no extra request); on
+	// Forgejo the refresh lists the Actions runs of the default branch, once
+	// per repository.
+	//
+	// A forge that can't be reached keeps its last known rows, each marked
+	// `stale` with `staleSince`, the same carry-over `forges[].staleSince`
+	// on GET /api/dashboard reports. A forge whose rate-limit budget is
+	// spent is skipped until it resets and its rows are kept the same way.
+	// Only the signed-in user's own repositories, so there is no `owner`.
+	//
+	// A repository with no default branch yet (empty) or no pipeline has
+	// status `none`. Unauthenticated GitHub access (a username with no
+	// token) has no rows: its budget is too small to spend on this.
+	//
+	// Corresponds with GET /api/main-branches (the `GetMainBranches` operationId).
+	GetMainBranches(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EnablePullRequestAutoMergeWithBody Arm auto-merge on a pull request, on the signed-in user's behalf
 	//
@@ -3922,6 +4067,44 @@ func (c *Client) RefreshDashboard(ctx context.Context, params *RefreshDashboardP
 // Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStreamDashboardRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetMainBranches The CI status of every tracked repository's default branch
+//
+// One row per tracked repository, showing the latest pipeline on its
+// default branch: failed, passed, running or none (#1224). Every row is
+// returned, whatever its status, with a count per status, so a client
+// filters and sorts locally and its pill counts always match what each
+// pill lists. Rows come failed first, then running, passed and none,
+// each group by `fullName`.
+//
+// Served from the snapshot the background refresh already holds, so it
+// never calls a forge. On GitHub the branch's check status rides the
+// repository query the refresh already makes (no extra request); on
+// Forgejo the refresh lists the Actions runs of the default branch, once
+// per repository.
+//
+// A forge that can't be reached keeps its last known rows, each marked
+// `stale` with `staleSince`, the same carry-over `forges[].staleSince`
+// on GET /api/dashboard reports. A forge whose rate-limit budget is
+// spent is skipped until it resets and its rows are kept the same way.
+// Only the signed-in user's own repositories, so there is no `owner`.
+//
+// A repository with no default branch yet (empty) or no pipeline has
+// status `none`. Unauthenticated GitHub access (a username with no
+// token) has no rows: its budget is too small to spend on this.
+//
+// Corresponds with GET /api/main-branches (the `GetMainBranches` operationId).
+func (c *Client) GetMainBranches(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMainBranchesRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -6413,6 +6596,33 @@ func NewStreamDashboardRequest(server string, params *StreamDashboardParams) (*h
 	return req, nil
 }
 
+// NewGetMainBranchesRequest constructs an http.Request for the GetMainBranches method
+func NewGetMainBranchesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/main-branches")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewEnablePullRequestAutoMergeRequest calls the generic EnablePullRequestAutoMerge builder with application/json body
 func NewEnablePullRequestAutoMergeRequest(server string, body EnablePullRequestAutoMergeJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -8109,6 +8319,36 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboardWithResponse(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*StreamDashboardResponse, error)
+
+	// GetMainBranchesWithResponse The CI status of every tracked repository's default branch
+	//
+	// One row per tracked repository, showing the latest pipeline on its
+	// default branch: failed, passed, running or none (#1224). Every row is
+	// returned, whatever its status, with a count per status, so a client
+	// filters and sorts locally and its pill counts always match what each
+	// pill lists. Rows come failed first, then running, passed and none,
+	// each group by `fullName`.
+	//
+	// Served from the snapshot the background refresh already holds, so it
+	// never calls a forge. On GitHub the branch's check status rides the
+	// repository query the refresh already makes (no extra request); on
+	// Forgejo the refresh lists the Actions runs of the default branch, once
+	// per repository.
+	//
+	// A forge that can't be reached keeps its last known rows, each marked
+	// `stale` with `staleSince`, the same carry-over `forges[].staleSince`
+	// on GET /api/dashboard reports. A forge whose rate-limit budget is
+	// spent is skipped until it resets and its rows are kept the same way.
+	// Only the signed-in user's own repositories, so there is no `owner`.
+	//
+	// A repository with no default branch yet (empty) or no pipeline has
+	// status `none`. Unauthenticated GitHub access (a username with no
+	// token) has no rows: its budget is too small to spend on this.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/main-branches (the `GetMainBranches` operationId).
+	GetMainBranchesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMainBranchesResponse, error)
 
 	// EnablePullRequestAutoMergeWithBodyWithResponse Arm auto-merge on a pull request, on the signed-in user's behalf
 	//
@@ -10260,6 +10500,54 @@ func (r StreamDashboardResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r StreamDashboardResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetMainBranchesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *MainBranches
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetMainBranchesResponse) GetJSON200() *MainBranches {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetMainBranchesResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetMainBranchesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMainBranchesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMainBranchesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetMainBranchesResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -12832,6 +13120,42 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 	return ParseStreamDashboardResponse(rsp)
 }
 
+// GetMainBranchesWithResponse The CI status of every tracked repository's default branch
+//
+// One row per tracked repository, showing the latest pipeline on its
+// default branch: failed, passed, running or none (#1224). Every row is
+// returned, whatever its status, with a count per status, so a client
+// filters and sorts locally and its pill counts always match what each
+// pill lists. Rows come failed first, then running, passed and none,
+// each group by `fullName`.
+//
+// Served from the snapshot the background refresh already holds, so it
+// never calls a forge. On GitHub the branch's check status rides the
+// repository query the refresh already makes (no extra request); on
+// Forgejo the refresh lists the Actions runs of the default branch, once
+// per repository.
+//
+// A forge that can't be reached keeps its last known rows, each marked
+// `stale` with `staleSince`, the same carry-over `forges[].staleSince`
+// on GET /api/dashboard reports. A forge whose rate-limit budget is
+// spent is skipped until it resets and its rows are kept the same way.
+// Only the signed-in user's own repositories, so there is no `owner`.
+//
+// A repository with no default branch yet (empty) or no pipeline has
+// status `none`. Unauthenticated GitHub access (a username with no
+// token) has no rows: its budget is too small to spend on this.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/main-branches (the `GetMainBranches` operationId).
+func (c *ClientWithResponses) GetMainBranchesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMainBranchesResponse, error) {
+	rsp, err := c.GetMainBranches(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMainBranchesResponse(rsp)
+}
+
 // EnablePullRequestAutoMergeWithBodyWithResponse Arm auto-merge on a pull request, on the signed-in user's behalf
 //
 // Forgejo: this app keeps the intent itself and merges the pull
@@ -15008,6 +15332,39 @@ func ParseStreamDashboardResponse(rsp *http.Response) (*StreamDashboardResponse,
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetMainBranchesResponse parses an HTTP response from a GetMainBranchesWithResponse call
+func ParseGetMainBranchesResponse(rsp *http.Response) (*GetMainBranchesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMainBranchesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MainBranches
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	}
 
