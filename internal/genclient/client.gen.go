@@ -904,11 +904,9 @@ type Dashboard struct {
 	// QueuedActions The signed-in user's queued actions, waiting and finished in the
 	// last 24 hours (GET /api/queued-actions), so a client lists them in
 	// its Activity panel and learns an outcome from the stream it
-	// already reads. Empty when there are none, and always empty on
-	// another user's shared dashboard. Not yet in `required`: the
-	// handler that fills it ships in the next pull request of the
-	// stack, which makes it required.
-	QueuedActions *[]QueuedAction `json:"queuedActions,omitempty"`
+	// already reads. Always present, empty when there are none, and
+	// always empty on another user's shared dashboard.
+	QueuedActions []QueuedAction `json:"queuedActions"`
 
 	// ReadIntervalSeconds How often, in seconds, a client should re-read GET
 	// /api/dashboard. The server's advice, so a client needs no
