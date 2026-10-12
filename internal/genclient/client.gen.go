@@ -730,6 +730,11 @@ type AllowedAction struct {
 
 	// Blocked Present when the action is offered but can't be taken yet. Merge
 	// is never hidden for an open pull request, only blocked.
+	// `renovate_rebase` is blocked with `already_requested` while
+	// Renovate's rebase checkbox in the pull request description is
+	// ticked, whether it was ticked from this app or on the forge: one
+	// rebase is already waiting for Renovate, and it is offered again
+	// once Renovate has rebased and cleared the box.
 	Blocked *struct {
 		// Code The same codes as `ActionError.code`. The server may learn
 		// more, so a client should show `message` for a code it doesn't
