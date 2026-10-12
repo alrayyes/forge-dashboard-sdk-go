@@ -926,6 +926,19 @@ type Dashboard struct {
 	HiddenPullRequests *int    `json:"hiddenPullRequests,omitempty"`
 	Issues             []Issue `json:"issues"`
 
+	// NavCounts The numbers behind the navigation badges (#1315), counted from what the
+	// board shows by default, so they match each page when it opens. Pull
+	// requests leave out ignored repos, draft pull requests and hidden pull
+	// requests whatever `includeDrafts` and `includeHidden` ask for, so the
+	// badge doesn't jump when a toggle flips; branches counts every tracked
+	// default branch, as GET /api/main-branches lists them. Pull requests are
+	// split by `kind`
+	// (release pull requests under `releases`, Dependabot and Renovate
+	// under `bots`, the rest under `pullRequests`). Always present, with
+	// zeros when there is nothing. A client hides a page's whole nav item at
+	// zero total, and its red failed number at zero failed.
+	NavCounts NavCounts `json:"navCounts"`
+
 	// OpenIssueCount How many of `issues` are real work: all of them except the
 	// `housekeeping` ones. What the Issues badge shows.
 	OpenIssueCount int           `json:"openIssueCount"`
@@ -1177,6 +1190,44 @@ type MainBranches struct {
 // "unknown" covers both a forge that hasn't determined this yet and
 // this service being unable to determine it.
 type MergeStatus string
+
+// NavCount defines model for NavCount.
+type NavCount struct {
+	// Failed How many of them fail: a pull request whose CI is failing, or a
+	// default branch whose pipeline is. An item with no pipeline counts
+	// in `total` only.
+	Failed int `json:"failed"`
+
+	// Total How many items the page lists.
+	Total int `json:"total"`
+}
+
+// NavCounts The numbers behind the navigation badges (#1315), counted from what the
+// board shows by default, so they match each page when it opens. Pull
+// requests leave out ignored repos, draft pull requests and hidden pull
+// requests whatever `includeDrafts` and `includeHidden` ask for, so the
+// badge doesn't jump when a toggle flips; branches counts every tracked
+// default branch, as GET /api/main-branches lists them. Pull requests are
+// split by `kind`
+// (release pull requests under `releases`, Dependabot and Renovate
+// under `bots`, the rest under `pullRequests`). Always present, with
+// zeros when there is nothing. A client hides a page's whole nav item at
+// zero total, and its red failed number at zero failed.
+type NavCounts struct {
+	Bots         NavCount      `json:"bots"`
+	Branches     NavCount      `json:"branches"`
+	Issues       NavIssueCount `json:"issues"`
+	PullRequests NavCount      `json:"pullRequests"`
+	Releases     NavCount      `json:"releases"`
+}
+
+// NavIssueCount defines model for NavIssueCount.
+type NavIssueCount struct {
+	// Total How many open issues are real work, the same number as
+	// `openIssueCount`. Issues have no failing state, so there is no
+	// `failed`.
+	Total int `json:"total"`
+}
 
 // PullRequest defines model for PullRequest.
 type PullRequest struct {
