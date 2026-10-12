@@ -744,10 +744,10 @@ type AllowedAction struct {
 	} `json:"blocked,omitempty"`
 }
 
-// AutoMergeStatus Where an armed Forgejo pull request stands, so the row can say why
+// AutoMergeStatus Where an armed pull request stands, so the row can say why
 // auto-merge is waiting or stopped in words and not by colour. Present
-// only while the signed-in user has auto-merge armed on it. This app
-// holds that intent itself, so GitHub's own auto-merge never has it.
+// while auto-merge is armed on it: on Forgejo the signed-in user's
+// intent held by this app, on GitHub the forge's own auto-merge (#1293).
 type AutoMergeStatus struct {
 	// Code The same codes as `ActionError.code` (`checks_pending`,
 	// `checks_failing`, `conflict`, `stacked`, `permission`,
@@ -1185,10 +1185,10 @@ type PullRequest struct {
 	AllowedActions []AllowedAction `json:"allowedActions"`
 	Author         string          `json:"author"`
 
-	// AutoMerge Where an armed Forgejo pull request stands, so the row can say why
+	// AutoMerge Where an armed pull request stands, so the row can say why
 	// auto-merge is waiting or stopped in words and not by colour. Present
-	// only while the signed-in user has auto-merge armed on it. This app
-	// holds that intent itself, so GitHub's own auto-merge never has it.
+	// while auto-merge is armed on it: on Forgejo the signed-in user's
+	// intent held by this app, on GitHub the forge's own auto-merge (#1293).
 	AutoMerge *AutoMergeStatus `json:"autoMerge,omitempty"`
 
 	// AutoMergeAllowed Whether GitHub will accept an "Enable auto-merge" request for
@@ -2618,26 +2618,34 @@ type ClientInterface interface {
 	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
 	EnablePullRequestAutoMerge(ctx context.Context, body EnablePullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CancelPullRequestAutoMergeWithBody Cancel the auto-merge this app holds for a pull request
+	// CancelPullRequestAutoMergeWithBody Cancel auto-merge on a pull request, on the signed-in user's behalf
 	//
-	// Forgejo only: removes the intent stored by
-	// `POST /api/pull-requests/auto-merge`, so the background pass never
-	// merges the pull request. Nothing is sent to the forge. Idempotent: a
-	// pull request with no intent is a 204 too. GitHub's own auto-merge
-	// isn't cancelled from here, so a GitHub pull request is a 400.
+	// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+	// so the background pass never merges the pull request. Nothing is sent
+	// to the forge. Idempotent: a pull request with no intent is a 204 too.
+	//
+	// GitHub: turns the pull request's own auto-merge off with GitHub's
+	// `disablePullRequestAutoMerge` GraphQL mutation. Only a pull request
+	// whose `allowedActions` has a `cancel_auto_merge` entry; otherwise this
+	// server answers 409 itself and never asks GitHub. A refusal from
+	// GitHub is an `ActionError`, as for arming.
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 	CancelPullRequestAutoMergeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CancelPullRequestAutoMerge Cancel the auto-merge this app holds for a pull request
+	// CancelPullRequestAutoMerge Cancel auto-merge on a pull request, on the signed-in user's behalf
 	//
-	// Forgejo only: removes the intent stored by
-	// `POST /api/pull-requests/auto-merge`, so the background pass never
-	// merges the pull request. Nothing is sent to the forge. Idempotent: a
-	// pull request with no intent is a 204 too. GitHub's own auto-merge
-	// isn't cancelled from here, so a GitHub pull request is a 400.
+	// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+	// so the background pass never merges the pull request. Nothing is sent
+	// to the forge. Idempotent: a pull request with no intent is a 204 too.
+	//
+	// GitHub: turns the pull request's own auto-merge off with GitHub's
+	// `disablePullRequestAutoMerge` GraphQL mutation. Only a pull request
+	// whose `allowedActions` has a `cancel_auto_merge` entry; otherwise this
+	// server answers 409 itself and never asks GitHub. A refusal from
+	// GitHub is an `ActionError`, as for arming.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -4223,13 +4231,17 @@ func (c *Client) EnablePullRequestAutoMerge(ctx context.Context, body EnablePull
 	return c.Client.Do(req)
 }
 
-// CancelPullRequestAutoMergeWithBody Cancel the auto-merge this app holds for a pull request
+// CancelPullRequestAutoMergeWithBody Cancel auto-merge on a pull request, on the signed-in user's behalf
 //
-// Forgejo only: removes the intent stored by
-// `POST /api/pull-requests/auto-merge`, so the background pass never
-// merges the pull request. Nothing is sent to the forge. Idempotent: a
-// pull request with no intent is a 204 too. GitHub's own auto-merge
-// isn't cancelled from here, so a GitHub pull request is a 400.
+// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+// so the background pass never merges the pull request. Nothing is sent
+// to the forge. Idempotent: a pull request with no intent is a 204 too.
+//
+// GitHub: turns the pull request's own auto-merge off with GitHub's
+// `disablePullRequestAutoMerge` GraphQL mutation. Only a pull request
+// whose `allowedActions` has a `cancel_auto_merge` entry; otherwise this
+// server answers 409 itself and never asks GitHub. A refusal from
+// GitHub is an `ActionError`, as for arming.
 //
 // Takes any type of body and a specified content type.
 //
@@ -4246,13 +4258,17 @@ func (c *Client) CancelPullRequestAutoMergeWithBody(ctx context.Context, content
 	return c.Client.Do(req)
 }
 
-// CancelPullRequestAutoMerge Cancel the auto-merge this app holds for a pull request
+// CancelPullRequestAutoMerge Cancel auto-merge on a pull request, on the signed-in user's behalf
 //
-// Forgejo only: removes the intent stored by
-// `POST /api/pull-requests/auto-merge`, so the background pass never
-// merges the pull request. Nothing is sent to the forge. Idempotent: a
-// pull request with no intent is a 204 too. GitHub's own auto-merge
-// isn't cancelled from here, so a GitHub pull request is a 400.
+// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+// so the background pass never merges the pull request. Nothing is sent
+// to the forge. Idempotent: a pull request with no intent is a 204 too.
+//
+// GitHub: turns the pull request's own auto-merge off with GitHub's
+// `disablePullRequestAutoMerge` GraphQL mutation. Only a pull request
+// whose `allowedActions` has a `cancel_auto_merge` entry; otherwise this
+// server answers 409 itself and never asks GitHub. A refusal from
+// GitHub is an `ActionError`, as for arming.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -8438,26 +8454,34 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
 	EnablePullRequestAutoMergeWithResponse(ctx context.Context, body EnablePullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*EnablePullRequestAutoMergeResponse, error)
 
-	// CancelPullRequestAutoMergeWithBodyWithResponse Cancel the auto-merge this app holds for a pull request
+	// CancelPullRequestAutoMergeWithBodyWithResponse Cancel auto-merge on a pull request, on the signed-in user's behalf
 	//
-	// Forgejo only: removes the intent stored by
-	// `POST /api/pull-requests/auto-merge`, so the background pass never
-	// merges the pull request. Nothing is sent to the forge. Idempotent: a
-	// pull request with no intent is a 204 too. GitHub's own auto-merge
-	// isn't cancelled from here, so a GitHub pull request is a 400.
+	// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+	// so the background pass never merges the pull request. Nothing is sent
+	// to the forge. Idempotent: a pull request with no intent is a 204 too.
+	//
+	// GitHub: turns the pull request's own auto-merge off with GitHub's
+	// `disablePullRequestAutoMerge` GraphQL mutation. Only a pull request
+	// whose `allowedActions` has a `cancel_auto_merge` entry; otherwise this
+	// server answers 409 itself and never asks GitHub. A refusal from
+	// GitHub is an `ActionError`, as for arming.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 	CancelPullRequestAutoMergeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelPullRequestAutoMergeResponse, error)
 
-	// CancelPullRequestAutoMergeWithResponse Cancel the auto-merge this app holds for a pull request
+	// CancelPullRequestAutoMergeWithResponse Cancel auto-merge on a pull request, on the signed-in user's behalf
 	//
-	// Forgejo only: removes the intent stored by
-	// `POST /api/pull-requests/auto-merge`, so the background pass never
-	// merges the pull request. Nothing is sent to the forge. Idempotent: a
-	// pull request with no intent is a 204 too. GitHub's own auto-merge
-	// isn't cancelled from here, so a GitHub pull request is a 400.
+	// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+	// so the background pass never merges the pull request. Nothing is sent
+	// to the forge. Idempotent: a pull request with no intent is a 204 too.
+	//
+	// GitHub: turns the pull request's own auto-merge off with GitHub's
+	// `disablePullRequestAutoMerge` GraphQL mutation. Only a pull request
+	// whose `allowedActions` has a `cancel_auto_merge` entry; otherwise this
+	// server answers 409 itself and never asks GitHub. A refusal from
+	// GitHub is an `ActionError`, as for arming.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -10637,6 +10661,10 @@ type CancelPullRequestAutoMergeResponse struct {
 	JSON400 *Error
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *ActionError
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *ActionError
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -10647,6 +10675,16 @@ func (r CancelPullRequestAutoMergeResponse) GetJSON400() *Error {
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r CancelPullRequestAutoMergeResponse) GetJSON401() *Error {
 	return r.JSON401
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CancelPullRequestAutoMergeResponse) GetJSON409() *ActionError {
+	return r.JSON409
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r CancelPullRequestAutoMergeResponse) GetJSON502() *ActionError {
+	return r.JSON502
 }
 
 // GetBody returns the raw response body bytes
@@ -13256,13 +13294,17 @@ func (c *ClientWithResponses) EnablePullRequestAutoMergeWithResponse(ctx context
 	return ParseEnablePullRequestAutoMergeResponse(rsp)
 }
 
-// CancelPullRequestAutoMergeWithBodyWithResponse Cancel the auto-merge this app holds for a pull request
+// CancelPullRequestAutoMergeWithBodyWithResponse Cancel auto-merge on a pull request, on the signed-in user's behalf
 //
-// Forgejo only: removes the intent stored by
-// `POST /api/pull-requests/auto-merge`, so the background pass never
-// merges the pull request. Nothing is sent to the forge. Idempotent: a
-// pull request with no intent is a 204 too. GitHub's own auto-merge
-// isn't cancelled from here, so a GitHub pull request is a 400.
+// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+// so the background pass never merges the pull request. Nothing is sent
+// to the forge. Idempotent: a pull request with no intent is a 204 too.
+//
+// GitHub: turns the pull request's own auto-merge off with GitHub's
+// `disablePullRequestAutoMerge` GraphQL mutation. Only a pull request
+// whose `allowedActions` has a `cancel_auto_merge` entry; otherwise this
+// server answers 409 itself and never asks GitHub. A refusal from
+// GitHub is an `ActionError`, as for arming.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -13275,13 +13317,17 @@ func (c *ClientWithResponses) CancelPullRequestAutoMergeWithBodyWithResponse(ctx
 	return ParseCancelPullRequestAutoMergeResponse(rsp)
 }
 
-// CancelPullRequestAutoMergeWithResponse Cancel the auto-merge this app holds for a pull request
+// CancelPullRequestAutoMergeWithResponse Cancel auto-merge on a pull request, on the signed-in user's behalf
 //
-// Forgejo only: removes the intent stored by
-// `POST /api/pull-requests/auto-merge`, so the background pass never
-// merges the pull request. Nothing is sent to the forge. Idempotent: a
-// pull request with no intent is a 204 too. GitHub's own auto-merge
-// isn't cancelled from here, so a GitHub pull request is a 400.
+// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+// so the background pass never merges the pull request. Nothing is sent
+// to the forge. Idempotent: a pull request with no intent is a 204 too.
+//
+// GitHub: turns the pull request's own auto-merge off with GitHub's
+// `disablePullRequestAutoMerge` GraphQL mutation. Only a pull request
+// whose `allowedActions` has a `cancel_auto_merge` entry; otherwise this
+// server answers 409 itself and never asks GitHub. A refusal from
+// GitHub is an `ActionError`, as for arming.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -15465,6 +15511,20 @@ func ParseCancelPullRequestAutoMergeResponse(rsp *http.Response) (*CancelPullReq
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
