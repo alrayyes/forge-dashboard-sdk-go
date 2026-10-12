@@ -917,8 +917,14 @@ type Dashboard struct {
 	// a client can render "N hidden" without a special case. Drafts
 	// in a repo the account ignores aren't counted, since none of
 	// that repo's pull requests show.
-	HiddenDrafts int     `json:"hiddenDrafts"`
-	Issues       []Issue `json:"issues"`
+	HiddenDrafts int `json:"hiddenDrafts"`
+
+	// HiddenPullRequests How many pull requests the user hid that are still open and not
+	// expired. Always present, so a client can render "Hidden (N)"
+	// without a special case. With `includeHidden=true` they are in
+	// `pullRequests`, marked `hidden`, and this still counts them.
+	HiddenPullRequests *int    `json:"hiddenPullRequests,omitempty"`
+	Issues             []Issue `json:"issues"`
 
 	// OpenIssueCount How many of `issues` are real work: all of them except the
 	// `housekeeping` ones. What the Issues badge shows.
@@ -1261,6 +1267,15 @@ type PullRequest struct {
 	// with. Empty when the forge didn't say. Always present.
 	HeadSha string `json:"headSha"`
 
+	// Hidden True on a pull request the user hid. Only present when the request
+	// set `includeHidden=true`: without it a hidden pull request isn't
+	// in the list at all.
+	Hidden *bool `json:"hidden,omitempty"`
+
+	// HiddenUntil When a hide for a number of days ends. Absent for a pull request
+	// hidden until it is restored, and for one that isn't hidden.
+	HiddenUntil *time.Time `json:"hiddenUntil,omitempty"`
+
 	// Kind What sort of pull request this is, decided by the server so no
 	// client keeps its own copy of the rule. `release`: release-please's,
 	// by its `autorelease:` label (a person opens these, so the label is
@@ -1408,6 +1423,20 @@ type PullRequestDependabotActionRequest struct {
 
 // PullRequestDependabotActionRequestAction Which Dependabot comment command to post — "@dependabot rebase" or "@dependabot recreate".
 type PullRequestDependabotActionRequestAction string
+
+// PullRequestHideRequest Which pull request to hide, and for how long. Without `days` it stays
+// hidden until it is restored.
+type PullRequestHideRequest struct {
+	// Days Hide for this many days, then show it again on its own.
+	Days  *int  `json:"days,omitempty"`
+	Forge Forge `json:"forge"`
+
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	FullName string `json:"fullName"`
+
+	// Number Matching a PullRequest.number from GET /api/dashboard.
+	Number int `json:"number"`
+}
 
 // QueuedAction A safe action queued to run when a rate-limited forge resets. A
 // client shows a `queued` one as "Update branch queued for 14:32"
@@ -1952,6 +1981,9 @@ type PathWebhookToken = string
 // QueryIncludeDrafts defines model for QueryIncludeDrafts.
 type QueryIncludeDrafts = bool
 
+// QueryIncludeHidden defines model for QueryIncludeHidden.
+type QueryIncludeHidden = bool
+
 // QueryRequestLogAccount defines model for QueryRequestLogAccount.
 type QueryRequestLogAccount = string
 
@@ -2013,6 +2045,14 @@ type GetDashboardParams struct {
 	// instead. The stream and the refresh endpoint take the same
 	// parameter, so every snapshot a client receives follows one rule.
 	IncludeDrafts *QueryIncludeDrafts `form:"includeDrafts,omitempty" json:"includeDrafts,omitempty"`
+
+	// IncludeHidden Whether pull requests the user hid (`POST /api/pull-requests/hide`)
+	// are in `pullRequests`, marked `hidden: true`. Defaults to `false`: a
+	// hidden pull request is left out and counted in the response's
+	// `hiddenPullRequests`. A client lists the hidden ones, to offer a
+	// Restore, by asking with `true`. The stream and the refresh endpoint
+	// take the same parameter.
+	IncludeHidden *QueryIncludeHidden `form:"includeHidden,omitempty" json:"includeHidden,omitempty"`
 }
 
 // RefreshDashboardParams defines parameters for RefreshDashboard.
@@ -2023,6 +2063,14 @@ type RefreshDashboardParams struct {
 	// instead. The stream and the refresh endpoint take the same
 	// parameter, so every snapshot a client receives follows one rule.
 	IncludeDrafts *QueryIncludeDrafts `form:"includeDrafts,omitempty" json:"includeDrafts,omitempty"`
+
+	// IncludeHidden Whether pull requests the user hid (`POST /api/pull-requests/hide`)
+	// are in `pullRequests`, marked `hidden: true`. Defaults to `false`: a
+	// hidden pull request is left out and counted in the response's
+	// `hiddenPullRequests`. A client lists the hidden ones, to offer a
+	// Restore, by asking with `true`. The stream and the refresh endpoint
+	// take the same parameter.
+	IncludeHidden *QueryIncludeHidden `form:"includeHidden,omitempty" json:"includeHidden,omitempty"`
 }
 
 // StreamDashboardParams defines parameters for StreamDashboard.
@@ -2033,6 +2081,14 @@ type StreamDashboardParams struct {
 	// instead. The stream and the refresh endpoint take the same
 	// parameter, so every snapshot a client receives follows one rule.
 	IncludeDrafts *QueryIncludeDrafts `form:"includeDrafts,omitempty" json:"includeDrafts,omitempty"`
+
+	// IncludeHidden Whether pull requests the user hid (`POST /api/pull-requests/hide`)
+	// are in `pullRequests`, marked `hidden: true`. Defaults to `false`: a
+	// hidden pull request is left out and counted in the response's
+	// `hiddenPullRequests`. A client lists the hidden ones, to offer a
+	// Restore, by asking with `true`. The stream and the refresh endpoint
+	// take the same parameter.
+	IncludeHidden *QueryIncludeHidden `form:"includeHidden,omitempty" json:"includeHidden,omitempty"`
 }
 
 // GetPullRequestChecksParams defines parameters for GetPullRequestChecks.
@@ -2082,6 +2138,9 @@ type ClosePullRequestJSONRequestBody = PullRequestActionRequest
 // PostPullRequestDependabotActionJSONRequestBody defines body for PostPullRequestDependabotAction for application/json ContentType.
 type PostPullRequestDependabotActionJSONRequestBody = PullRequestDependabotActionRequest
 
+// HidePullRequestJSONRequestBody defines body for HidePullRequest for application/json ContentType.
+type HidePullRequestJSONRequestBody = PullRequestHideRequest
+
 // MergePullRequestJSONRequestBody defines body for MergePullRequest for application/json ContentType.
 type MergePullRequestJSONRequestBody = PullRequestActionRequest
 
@@ -2090,6 +2149,9 @@ type PostPullRequestRenovateRebaseJSONRequestBody = PullRequestActionRequest
 
 // RerunPullRequestChecksJSONRequestBody defines body for RerunPullRequestChecks for application/json ContentType.
 type RerunPullRequestChecksJSONRequestBody = PullRequestActionRequest
+
+// UnhidePullRequestJSONRequestBody defines body for UnhidePullRequest for application/json ContentType.
+type UnhidePullRequestJSONRequestBody = PullRequestActionRequest
 
 // UpdatePullRequestBranchJSONRequestBody defines body for UpdatePullRequestBranch for application/json ContentType.
 type UpdatePullRequestBranchJSONRequestBody = PullRequestActionRequest
@@ -2745,6 +2807,48 @@ type ClientInterface interface {
 	// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
 	PostPullRequestDependabotAction(ctx context.Context, body PostPullRequestDependabotActionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// HidePullRequestWithBody Hide one pull request from the signed-in user's dashboard
+	//
+	// Reversible, not destructive, like ignoring a repo: nothing is sent to
+	// the forge. A hidden pull request leaves `pullRequests` in
+	// GET /api/dashboard and everything counted from it, and is counted in
+	// `hiddenPullRequests` instead. It stays listed for
+	// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
+	//
+	// With `days`, the hide ends by itself that many days from now. Without
+	// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+	// A repeat call replaces the earlier choice (hide until restored, then
+	// hide for 7 days, ends with the 7 days). The server forgets the record
+	// once the pull request is no longer open, so the list never grows
+	// without end. The pull request need not be on the board yet: hiding
+	// one the user can't see is still a 204.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+	HidePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// HidePullRequest Hide one pull request from the signed-in user's dashboard
+	//
+	// Reversible, not destructive, like ignoring a repo: nothing is sent to
+	// the forge. A hidden pull request leaves `pullRequests` in
+	// GET /api/dashboard and everything counted from it, and is counted in
+	// `hiddenPullRequests` instead. It stays listed for
+	// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
+	//
+	// With `days`, the hide ends by itself that many days from now. Without
+	// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+	// A repeat call replaces the earlier choice (hide until restored, then
+	// hide for 7 days, ends with the 7 days). The server forgets the record
+	// once the pull request is no longer open, so the list never grows
+	// without end. The pull request need not be on the board yet: hiding
+	// one the user can't see is still a 204.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+	HidePullRequest(ctx context.Context, body HidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// MergePullRequestWithBody Merge one pull request, on the signed-in user's behalf
 	//
 	// Merges the named pull request using its repo's own configured
@@ -2896,6 +3000,26 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 	RerunPullRequestChecks(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UnhidePullRequestWithBody Bring a hidden pull request back onto the signed-in user's dashboard
+	//
+	// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+	// pull request that isn't hidden is a 204 too.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+	UnhidePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UnhidePullRequest Bring a hidden pull request back onto the signed-in user's dashboard
+	//
+	// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+	// pull request that isn't hidden is a 204 too.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+	UnhidePullRequest(ctx context.Context, body UnhidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdatePullRequestBranchWithBody Bring one pull request's branch up to date with its base, on the signed-in user's behalf
 	//
@@ -4428,6 +4552,68 @@ func (c *Client) PostPullRequestDependabotAction(ctx context.Context, body PostP
 	return c.Client.Do(req)
 }
 
+// HidePullRequestWithBody Hide one pull request from the signed-in user's dashboard
+//
+// Reversible, not destructive, like ignoring a repo: nothing is sent to
+// the forge. A hidden pull request leaves `pullRequests` in
+// GET /api/dashboard and everything counted from it, and is counted in
+// `hiddenPullRequests` instead. It stays listed for
+// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
+//
+// With `days`, the hide ends by itself that many days from now. Without
+// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+// A repeat call replaces the earlier choice (hide until restored, then
+// hide for 7 days, ends with the 7 days). The server forgets the record
+// once the pull request is no longer open, so the list never grows
+// without end. The pull request need not be on the board yet: hiding
+// one the user can't see is still a 204.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+func (c *Client) HidePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewHidePullRequestRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// HidePullRequest Hide one pull request from the signed-in user's dashboard
+//
+// Reversible, not destructive, like ignoring a repo: nothing is sent to
+// the forge. A hidden pull request leaves `pullRequests` in
+// GET /api/dashboard and everything counted from it, and is counted in
+// `hiddenPullRequests` instead. It stays listed for
+// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
+//
+// With `days`, the hide ends by itself that many days from now. Without
+// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+// A repeat call replaces the earlier choice (hide until restored, then
+// hide for 7 days, ends with the 7 days). The server forgets the record
+// once the pull request is no longer open, so the list never grows
+// without end. The pull request need not be on the board yet: hiding
+// one the user can't see is still a 204.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+func (c *Client) HidePullRequest(ctx context.Context, body HidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewHidePullRequestRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // MergePullRequestWithBody Merge one pull request, on the signed-in user's behalf
 //
 // Merges the named pull request using its repo's own configured
@@ -4630,6 +4816,46 @@ func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType
 // Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 func (c *Client) RerunPullRequestChecks(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRerunPullRequestChecksRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UnhidePullRequestWithBody Bring a hidden pull request back onto the signed-in user's dashboard
+//
+// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+// pull request that isn't hidden is a 204 too.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+func (c *Client) UnhidePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUnhidePullRequestRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UnhidePullRequest Bring a hidden pull request back onto the signed-in user's dashboard
+//
+// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+// pull request that isn't hidden is a 204 too.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+func (c *Client) UnhidePullRequest(ctx context.Context, body UnhidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUnhidePullRequestRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6490,6 +6716,18 @@ func NewGetDashboardRequest(server string, params *GetDashboardParams) (*http.Re
 
 		}
 
+		if params.IncludeHidden != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "includeHidden", *params.IncludeHidden, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -6544,6 +6782,18 @@ func NewRefreshDashboardRequest(server string, params *RefreshDashboardParams) (
 
 		}
 
+		if params.IncludeHidden != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "includeHidden", *params.IncludeHidden, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -6589,6 +6839,18 @@ func NewStreamDashboardRequest(server string, params *StreamDashboardParams) (*h
 		if params.IncludeDrafts != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "includeDrafts", *params.IncludeDrafts, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.IncludeHidden != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "includeHidden", *params.IncludeHidden, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -6865,6 +7127,46 @@ func NewPostPullRequestDependabotActionRequestWithBody(server string, contentTyp
 	return req, nil
 }
 
+// NewHidePullRequestRequest calls the generic HidePullRequest builder with application/json body
+func NewHidePullRequestRequest(server string, body HidePullRequestJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewHidePullRequestRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewHidePullRequestRequestWithBody constructs an http.Request for the HidePullRequest method, with any body, and a specified content type
+func NewHidePullRequestRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/pull-requests/hide")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewMergePullRequestRequest calls the generic MergePullRequest builder with application/json body
 func NewMergePullRequestRequest(server string, body MergePullRequestJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -6966,6 +7268,46 @@ func NewRerunPullRequestChecksRequestWithBody(server string, contentType string,
 	}
 
 	operationPath := fmt.Sprintf("/api/pull-requests/rerun-checks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUnhidePullRequestRequest calls the generic UnhidePullRequest builder with application/json body
+func NewUnhidePullRequestRequest(server string, body UnhidePullRequestJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUnhidePullRequestRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUnhidePullRequestRequestWithBody constructs an http.Request for the UnhidePullRequest method, with any body, and a specified content type
+func NewUnhidePullRequestRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/pull-requests/unhide")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -8583,6 +8925,48 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
 	PostPullRequestDependabotActionWithResponse(ctx context.Context, body PostPullRequestDependabotActionJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPullRequestDependabotActionResponse, error)
 
+	// HidePullRequestWithBodyWithResponse Hide one pull request from the signed-in user's dashboard
+	//
+	// Reversible, not destructive, like ignoring a repo: nothing is sent to
+	// the forge. A hidden pull request leaves `pullRequests` in
+	// GET /api/dashboard and everything counted from it, and is counted in
+	// `hiddenPullRequests` instead. It stays listed for
+	// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
+	//
+	// With `days`, the hide ends by itself that many days from now. Without
+	// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+	// A repeat call replaces the earlier choice (hide until restored, then
+	// hide for 7 days, ends with the 7 days). The server forgets the record
+	// once the pull request is no longer open, so the list never grows
+	// without end. The pull request need not be on the board yet: hiding
+	// one the user can't see is still a 204.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+	HidePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HidePullRequestResponse, error)
+
+	// HidePullRequestWithResponse Hide one pull request from the signed-in user's dashboard
+	//
+	// Reversible, not destructive, like ignoring a repo: nothing is sent to
+	// the forge. A hidden pull request leaves `pullRequests` in
+	// GET /api/dashboard and everything counted from it, and is counted in
+	// `hiddenPullRequests` instead. It stays listed for
+	// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
+	//
+	// With `days`, the hide ends by itself that many days from now. Without
+	// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+	// A repeat call replaces the earlier choice (hide until restored, then
+	// hide for 7 days, ends with the 7 days). The server forgets the record
+	// once the pull request is no longer open, so the list never grows
+	// without end. The pull request need not be on the board yet: hiding
+	// one the user can't see is still a 204.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+	HidePullRequestWithResponse(ctx context.Context, body HidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*HidePullRequestResponse, error)
+
 	// MergePullRequestWithBodyWithResponse Merge one pull request, on the signed-in user's behalf
 	//
 	// Merges the named pull request using its repo's own configured
@@ -8734,6 +9118,26 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 	RerunPullRequestChecksWithResponse(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*RerunPullRequestChecksResponse, error)
+
+	// UnhidePullRequestWithBodyWithResponse Bring a hidden pull request back onto the signed-in user's dashboard
+	//
+	// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+	// pull request that isn't hidden is a 204 too.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+	UnhidePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UnhidePullRequestResponse, error)
+
+	// UnhidePullRequestWithResponse Bring a hidden pull request back onto the signed-in user's dashboard
+	//
+	// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+	// pull request that isn't hidden is a 204 too.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+	UnhidePullRequestWithResponse(ctx context.Context, body UnhidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*UnhidePullRequestResponse, error)
 
 	// UpdatePullRequestBranchWithBodyWithResponse Bring one pull request's branch up to date with its base, on the signed-in user's behalf
 	//
@@ -10958,6 +11362,54 @@ func (r PostPullRequestDependabotActionResponse) ContentType() string {
 	return ""
 }
 
+type HidePullRequestResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r HidePullRequestResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r HidePullRequestResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r HidePullRequestResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r HidePullRequestResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r HidePullRequestResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r HidePullRequestResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type MergePullRequestResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11201,6 +11653,54 @@ func (r RerunPullRequestChecksResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RerunPullRequestChecksResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UnhidePullRequestResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UnhidePullRequestResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UnhidePullRequestResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r UnhidePullRequestResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UnhidePullRequestResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UnhidePullRequestResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UnhidePullRequestResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -13465,6 +13965,60 @@ func (c *ClientWithResponses) PostPullRequestDependabotActionWithResponse(ctx co
 	return ParsePostPullRequestDependabotActionResponse(rsp)
 }
 
+// HidePullRequestWithBodyWithResponse Hide one pull request from the signed-in user's dashboard
+//
+// Reversible, not destructive, like ignoring a repo: nothing is sent to
+// the forge. A hidden pull request leaves `pullRequests` in
+// GET /api/dashboard and everything counted from it, and is counted in
+// `hiddenPullRequests` instead. It stays listed for
+// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
+//
+// With `days`, the hide ends by itself that many days from now. Without
+// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+// A repeat call replaces the earlier choice (hide until restored, then
+// hide for 7 days, ends with the 7 days). The server forgets the record
+// once the pull request is no longer open, so the list never grows
+// without end. The pull request need not be on the board yet: hiding
+// one the user can't see is still a 204.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+func (c *ClientWithResponses) HidePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HidePullRequestResponse, error) {
+	rsp, err := c.HidePullRequestWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseHidePullRequestResponse(rsp)
+}
+
+// HidePullRequestWithResponse Hide one pull request from the signed-in user's dashboard
+//
+// Reversible, not destructive, like ignoring a repo: nothing is sent to
+// the forge. A hidden pull request leaves `pullRequests` in
+// GET /api/dashboard and everything counted from it, and is counted in
+// `hiddenPullRequests` instead. It stays listed for
+// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
+//
+// With `days`, the hide ends by itself that many days from now. Without
+// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+// A repeat call replaces the earlier choice (hide until restored, then
+// hide for 7 days, ends with the 7 days). The server forgets the record
+// once the pull request is no longer open, so the list never grows
+// without end. The pull request need not be on the board yet: hiding
+// one the user can't see is still a 204.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+func (c *ClientWithResponses) HidePullRequestWithResponse(ctx context.Context, body HidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*HidePullRequestResponse, error) {
+	rsp, err := c.HidePullRequest(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseHidePullRequestResponse(rsp)
+}
+
 // MergePullRequestWithBodyWithResponse Merge one pull request, on the signed-in user's behalf
 //
 // Merges the named pull request using its repo's own configured
@@ -13651,6 +14205,38 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithResponse(ctx context.Con
 		return nil, err
 	}
 	return ParseRerunPullRequestChecksResponse(rsp)
+}
+
+// UnhidePullRequestWithBodyWithResponse Bring a hidden pull request back onto the signed-in user's dashboard
+//
+// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+// pull request that isn't hidden is a 204 too.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+func (c *ClientWithResponses) UnhidePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UnhidePullRequestResponse, error) {
+	rsp, err := c.UnhidePullRequestWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUnhidePullRequestResponse(rsp)
+}
+
+// UnhidePullRequestWithResponse Bring a hidden pull request back onto the signed-in user's dashboard
+//
+// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+// pull request that isn't hidden is a 204 too.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+func (c *ClientWithResponses) UnhidePullRequestWithResponse(ctx context.Context, body UnhidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*UnhidePullRequestResponse, error) {
+	rsp, err := c.UnhidePullRequest(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUnhidePullRequestResponse(rsp)
 }
 
 // UpdatePullRequestBranchWithBodyWithResponse Bring one pull request's branch up to date with its base, on the signed-in user's behalf
@@ -15734,6 +16320,42 @@ func ParsePostPullRequestDependabotActionResponse(rsp *http.Response) (*PostPull
 	return response, nil
 }
 
+// ParseHidePullRequestResponse parses an HTTP response from a HidePullRequestWithResponse call
+func ParseHidePullRequestResponse(rsp *http.Response) (*HidePullRequestResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &HidePullRequestResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseMergePullRequestResponse parses an HTTP response from a MergePullRequestWithResponse call
 func ParseMergePullRequestResponse(rsp *http.Response) (*MergePullRequestResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -15941,6 +16563,42 @@ func ParseRerunPullRequestChecksResponse(rsp *http.Response) (*RerunPullRequestC
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUnhidePullRequestResponse parses an HTTP response from a UnhidePullRequestWithResponse call
+func ParseUnhidePullRequestResponse(rsp *http.Response) (*UnhidePullRequestResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UnhidePullRequestResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	}
 
