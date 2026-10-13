@@ -935,8 +935,9 @@ type Dashboard struct {
 	// board shows by default, so they match each page when it opens. Pull
 	// requests leave out ignored repos, draft pull requests and hidden pull
 	// requests whatever `includeDrafts` and `includeHidden` ask for, so the
-	// badge doesn't jump when a toggle flips; branches counts every tracked
-	// default branch, as GET /api/main-branches lists them. Pull requests are
+	// badge doesn't jump when a toggle flips; branches counts the default
+	// branches GET /api/main-branches lists, which also leave out ignored
+	// repos. Pull requests are
 	// split by `kind`
 	// (release pull requests under `releases`, Dependabot and Renovate
 	// under `bots`, the rest under `pullRequests`). Always present, with
@@ -1211,8 +1212,9 @@ type NavCount struct {
 // board shows by default, so they match each page when it opens. Pull
 // requests leave out ignored repos, draft pull requests and hidden pull
 // requests whatever `includeDrafts` and `includeHidden` ask for, so the
-// badge doesn't jump when a toggle flips; branches counts every tracked
-// default branch, as GET /api/main-branches lists them. Pull requests are
+// badge doesn't jump when a toggle flips; branches counts the default
+// branches GET /api/main-branches lists, which also leave out ignored
+// repos. Pull requests are
 // split by `kind`
 // (release pull requests under `releases`, Dependabot and Renovate
 // under `bots`, the rest under `pullRequests`). Always present, with
@@ -2639,8 +2641,10 @@ type ClientInterface interface {
 	// GetMainBranches The CI status of every tracked repository's default branch
 	//
 	// One row per tracked repository, showing the latest pipeline on its
-	// default branch: failed, passed, running or none (#1224). Every row is
-	// returned, whatever its status, with a count per status, so a client
+	// default branch: failed, passed, running or none (#1224). A repository
+	// ignored for pull requests is left out, as on the pull requests page
+	// (#1337). Every other row is returned, whatever its status, with a
+	// count per status, so a client
 	// filters and sorts locally and its pill counts always match what each
 	// pill lists. Rows come failed first, then running, passed and none,
 	// each group by `fullName`.
@@ -4284,8 +4288,10 @@ func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardPar
 // GetMainBranches The CI status of every tracked repository's default branch
 //
 // One row per tracked repository, showing the latest pipeline on its
-// default branch: failed, passed, running or none (#1224). Every row is
-// returned, whatever its status, with a count per status, so a client
+// default branch: failed, passed, running or none (#1224). A repository
+// ignored for pull requests is left out, as on the pull requests page
+// (#1337). Every other row is returned, whatever its status, with a
+// count per status, so a client
 // filters and sorts locally and its pill counts always match what each
 // pill lists. Rows come failed first, then running, passed and none,
 // each group by `fullName`.
@@ -8753,8 +8759,10 @@ type ClientWithResponsesInterface interface {
 	// GetMainBranchesWithResponse The CI status of every tracked repository's default branch
 	//
 	// One row per tracked repository, showing the latest pipeline on its
-	// default branch: failed, passed, running or none (#1224). Every row is
-	// returned, whatever its status, with a count per status, so a client
+	// default branch: failed, passed, running or none (#1224). A repository
+	// ignored for pull requests is left out, as on the pull requests page
+	// (#1337). Every other row is returned, whatever its status, with a
+	// count per status, so a client
 	// filters and sorts locally and its pill counts always match what each
 	// pill lists. Rows come failed first, then running, passed and none,
 	// each group by `fullName`.
@@ -13733,8 +13741,10 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 // GetMainBranchesWithResponse The CI status of every tracked repository's default branch
 //
 // One row per tracked repository, showing the latest pipeline on its
-// default branch: failed, passed, running or none (#1224). Every row is
-// returned, whatever its status, with a count per status, so a client
+// default branch: failed, passed, running or none (#1224). A repository
+// ignored for pull requests is left out, as on the pull requests page
+// (#1337). Every other row is returned, whatever its status, with a
+// count per status, so a client
 // filters and sorts locally and its pill counts always match what each
 // pill lists. Rows come failed first, then running, passed and none,
 // each group by `fullName`.
