@@ -1400,6 +1400,15 @@ type PullRequest struct {
 	// pull request's updatedAt changes.
 	Review *ReviewState `json:"review,omitempty"`
 
+	// ReviewComments How many review comments the pull request has (#1335). Ordinary
+	// conversation comments are not counted. Always present, and 0 when
+	// there are none or the forge can't say (a Forgejo draft or failed
+	// reviews call, GitHub's unauthenticated fallback). On GitHub it is read from
+	// the review threads in the pull request query, first 30 threads; on Forgejo it is the sum
+	// of each review's comment count, from the reviews call that already
+	// feeds `review`, so a draft (which makes no such call) reports 0.
+	ReviewComments int `json:"reviewComments"`
+
 	// ReviewRequestedFromMe True when this open, non-draft pull request asks the signed-in
 	// user to review it, matched without regard to case against the
 	// username saved in Settings for its forge. False when no
@@ -1425,6 +1434,13 @@ type PullRequest struct {
 	// base is not another open pull request's head.
 	StackedOn *StackRef `json:"stackedOn"`
 	Title     string    `json:"title"`
+
+	// UnresolvedThreads How many review threads are still open, or null when the forge
+	// can't say. GitHub reports it from its review threads, except in the
+	// unauthenticated fallback, which has none. Forgejo reports no
+	// resolved state on a review without a call per review, so it is null
+	// there and a client shows the comment count without an open state.
+	UnresolvedThreads *int `json:"unresolvedThreads"`
 
 	// UpdateRequest An Update branch the forge accepted and that no snapshot has shown
 	// landing yet, or null. The server keeps it, so a reload during the
