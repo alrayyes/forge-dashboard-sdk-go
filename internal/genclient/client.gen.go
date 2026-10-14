@@ -952,7 +952,8 @@ type Dashboard struct {
 	// (release pull requests under `releases`, Dependabot and Renovate
 	// under `bots`, the rest under `pullRequests`). Always present, with
 	// zeros when there is nothing. A client hides a page's whole nav item at
-	// zero total, and its red failed number at zero failed.
+	// zero total, and a state's number at zero. Pull request pages also carry
+	// `running` and `passed` (#1439).
 	NavCounts NavCounts `json:"navCounts"`
 
 	// OpenIssueCount How many of `issues` are real work: all of them except the
@@ -1229,13 +1230,28 @@ type NavCount struct {
 // (release pull requests under `releases`, Dependabot and Renovate
 // under `bots`, the rest under `pullRequests`). Always present, with
 // zeros when there is nothing. A client hides a page's whole nav item at
-// zero total, and its red failed number at zero failed.
+// zero total, and a state's number at zero. Pull request pages also carry
+// `running` and `passed` (#1439).
 type NavCounts struct {
-	Bots         NavCount      `json:"bots"`
-	Branches     NavCount      `json:"branches"`
-	Issues       NavIssueCount `json:"issues"`
-	PullRequests NavCount      `json:"pullRequests"`
-	Releases     NavCount      `json:"releases"`
+	// Bots A pull request page's numbers (#1439). `running`, `failed` and
+	// `passed` count the pull requests whose CI is pending, failing and
+	// succeeded. A pull request with no checks counts in `total` only, so
+	// the four numbers need not add up. All four are always present.
+	Bots     NavPullRequestCount `json:"bots"`
+	Branches NavCount            `json:"branches"`
+	Issues   NavIssueCount       `json:"issues"`
+
+	// PullRequests A pull request page's numbers (#1439). `running`, `failed` and
+	// `passed` count the pull requests whose CI is pending, failing and
+	// succeeded. A pull request with no checks counts in `total` only, so
+	// the four numbers need not add up. All four are always present.
+	PullRequests NavPullRequestCount `json:"pullRequests"`
+
+	// Releases A pull request page's numbers (#1439). `running`, `failed` and
+	// `passed` count the pull requests whose CI is pending, failing and
+	// succeeded. A pull request with no checks counts in `total` only, so
+	// the four numbers need not add up. All four are always present.
+	Releases NavPullRequestCount `json:"releases"`
 }
 
 // NavIssueCount defines model for NavIssueCount.
@@ -1243,6 +1259,24 @@ type NavIssueCount struct {
 	// Total How many open issues are real work, the same number as
 	// `openIssueCount`. Issues have no failing state, so there is no
 	// `failed`.
+	Total int `json:"total"`
+}
+
+// NavPullRequestCount A pull request page's numbers (#1439). `running`, `failed` and
+// `passed` count the pull requests whose CI is pending, failing and
+// succeeded. A pull request with no checks counts in `total` only, so
+// the four numbers need not add up. All four are always present.
+type NavPullRequestCount struct {
+	// Failed How many of them have failing CI.
+	Failed int `json:"failed"`
+
+	// Passed How many of them have CI that succeeded.
+	Passed int `json:"passed"`
+
+	// Running How many of them have CI that is still pending.
+	Running int `json:"running"`
+
+	// Total How many pull requests the page lists.
 	Total int `json:"total"`
 }
 
