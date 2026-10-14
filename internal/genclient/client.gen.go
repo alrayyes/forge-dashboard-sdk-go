@@ -1274,6 +1274,16 @@ type PullRequest struct {
 	// case, since this service genuinely doesn't know.
 	AutoMergeEnabled *bool `json:"autoMergeEnabled,omitempty"`
 
+	// AwaitingWorkflowApproval True when GitHub is holding a workflow run on the head commit
+	// until someone approves it (#1280): its rollup counts a check run
+	// as ACTION_REQUIRED. Those runs also keep `ci` at failure when
+	// nothing else is running, so a client reads this to say "waiting
+	// for approval" rather than "check failed". It can be true while
+	// `ci` is pending (other runs are going) or failing for another
+	// reason too. Always present; false on Forgejo, which has no
+	// such state.
+	AwaitingWorkflowApproval bool `json:"awaitingWorkflowApproval"`
+
 	// BaseBranch The branch the pull request targets. Empty when the forge didn't
 	// say.
 	BaseBranch string `json:"baseBranch"`
