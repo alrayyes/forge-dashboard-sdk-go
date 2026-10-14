@@ -757,6 +757,12 @@ type AllowedAction struct {
 // auto-merge is waiting or stopped in words and not by colour. Present
 // while auto-merge is armed on it: on Forgejo the signed-in user's
 // intent held by this app, on GitHub the forge's own auto-merge (#1293).
+// Also present for ten minutes after this app cancelled an armed
+// auto-merge because the pull request went empty (its branch landed on
+// the base some other way): `stopped`, code `already_up_to_date` and the
+// message "Auto-merge was cancelled: there is nothing left to merge."
+// Auto-merge is off by then, so this is the only place the reason lives
+// (#1375).
 type AutoMergeStatus struct {
 	// Code The same codes as `ActionError.code` (`checks_pending`,
 	// `checks_failing`, `conflict`, `stacked`, `permission`,
@@ -1257,6 +1263,12 @@ type PullRequest struct {
 	// auto-merge is waiting or stopped in words and not by colour. Present
 	// while auto-merge is armed on it: on Forgejo the signed-in user's
 	// intent held by this app, on GitHub the forge's own auto-merge (#1293).
+	// Also present for ten minutes after this app cancelled an armed
+	// auto-merge because the pull request went empty (its branch landed on
+	// the base some other way): `stopped`, code `already_up_to_date` and the
+	// message "Auto-merge was cancelled: there is nothing left to merge."
+	// Auto-merge is off by then, so this is the only place the reason lives
+	// (#1375).
 	AutoMerge *AutoMergeStatus `json:"autoMerge,omitempty"`
 
 	// AutoMergeAllowed Whether GitHub will accept an "Enable auto-merge" request for
