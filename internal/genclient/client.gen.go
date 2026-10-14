@@ -952,8 +952,8 @@ type Dashboard struct {
 	// (release pull requests under `releases`, Dependabot and Renovate
 	// under `bots`, the rest under `pullRequests`). Always present, with
 	// zeros when there is nothing. A client hides a page's whole nav item at
-	// zero total, and a state's number at zero. Pull request pages also carry
-	// `running` and `passed` (#1439).
+	// zero total, and a state's number at zero. Every page except Issues also
+	// carries `running` and `passed` (#1439, #1458).
 	NavCounts NavCounts `json:"navCounts"`
 
 	// OpenIssueCount How many of `issues` are real work: all of them except the
@@ -1208,14 +1208,22 @@ type MainBranches struct {
 // this service being unable to determine it.
 type MergeStatus string
 
-// NavCount defines model for NavCount.
+// NavCount The Branches page's numbers (#1458): how many default branches it
+// lists and how many of those have a pipeline running, failed and
+// passed, the same four as `NavPullRequestCount`. A branch with no
+// pipeline counts in `total` only, so the four numbers need not add up.
+// All four are always present.
 type NavCount struct {
-	// Failed How many of them fail: a pull request whose CI is failing, or a
-	// default branch whose pipeline is. An item with no pipeline counts
-	// in `total` only.
+	// Failed How many of them have a failing pipeline.
 	Failed int `json:"failed"`
 
-	// Total How many items the page lists.
+	// Passed How many of them have a pipeline that passed.
+	Passed int `json:"passed"`
+
+	// Running How many of them have a pipeline that is still running.
+	Running int `json:"running"`
+
+	// Total How many default branches the page lists.
 	Total int `json:"total"`
 }
 
@@ -1230,16 +1238,22 @@ type NavCount struct {
 // (release pull requests under `releases`, Dependabot and Renovate
 // under `bots`, the rest under `pullRequests`). Always present, with
 // zeros when there is nothing. A client hides a page's whole nav item at
-// zero total, and a state's number at zero. Pull request pages also carry
-// `running` and `passed` (#1439).
+// zero total, and a state's number at zero. Every page except Issues also
+// carries `running` and `passed` (#1439, #1458).
 type NavCounts struct {
 	// Bots A pull request page's numbers (#1439). `running`, `failed` and
 	// `passed` count the pull requests whose CI is pending, failing and
 	// succeeded. A pull request with no checks counts in `total` only, so
 	// the four numbers need not add up. All four are always present.
-	Bots     NavPullRequestCount `json:"bots"`
-	Branches NavCount            `json:"branches"`
-	Issues   NavIssueCount       `json:"issues"`
+	Bots NavPullRequestCount `json:"bots"`
+
+	// Branches The Branches page's numbers (#1458): how many default branches it
+	// lists and how many of those have a pipeline running, failed and
+	// passed, the same four as `NavPullRequestCount`. A branch with no
+	// pipeline counts in `total` only, so the four numbers need not add up.
+	// All four are always present.
+	Branches NavCount      `json:"branches"`
+	Issues   NavIssueCount `json:"issues"`
 
 	// PullRequests A pull request page's numbers (#1439). `running`, `failed` and
 	// `passed` count the pull requests whose CI is pending, failing and
