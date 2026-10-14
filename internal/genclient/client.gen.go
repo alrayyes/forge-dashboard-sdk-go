@@ -629,11 +629,12 @@ type ActionError struct {
 	// outcome of a queued action: the pull request was gone from the
 	// board when the reset came, merged or closed.
 	//
-	// Three codes belong to one action each: `already_up_to_date`
-	// (Update branch: nothing to bring in), `auto_merge_not_allowed`
-	// (Enable auto-merge: the repo or pull request doesn't allow it)
-	// and `ready_to_merge` (Enable auto-merge: already clean, use
-	// Merge).
+	// Three codes belong to a few actions each: `already_up_to_date`
+	// (Update branch: nothing to bring in; Merge or Enable auto-merge
+	// on an empty pull request: nothing to merge),
+	// `auto_merge_not_allowed` (Enable auto-merge: the repo or pull
+	// request doesn't allow it) and `ready_to_merge` (Enable
+	// auto-merge: already clean, use Merge).
 	Code ActionErrorCode `json:"code"`
 
 	// Error The same string every Error carries. With `code: unknown` it
@@ -665,11 +666,12 @@ type ActionError struct {
 // outcome of a queued action: the pull request was gone from the
 // board when the reset came, merged or closed.
 //
-// Three codes belong to one action each: `already_up_to_date`
-// (Update branch: nothing to bring in), `auto_merge_not_allowed`
-// (Enable auto-merge: the repo or pull request doesn't allow it)
-// and `ready_to_merge` (Enable auto-merge: already clean, use
-// Merge).
+// Three codes belong to a few actions each: `already_up_to_date`
+// (Update branch: nothing to bring in; Merge or Enable auto-merge
+// on an empty pull request: nothing to merge),
+// `auto_merge_not_allowed` (Enable auto-merge: the repo or pull
+// request doesn't allow it) and `ready_to_merge` (Enable
+// auto-merge: already clean, use Merge).
 type ActionErrorCode string
 
 // AdminInvite An outstanding (unconsumed, unexpired) invite's own metadata —
@@ -729,7 +731,9 @@ type AllowedAction struct {
 	Action string `json:"action"`
 
 	// Blocked Present when the action is offered but can't be taken yet. Merge
-	// is never hidden for an open pull request, only blocked.
+	// is blocked rather than hidden while waiting or fixing something can
+	// unlock it. An empty pull request, which nothing can unlock, has no
+	// `merge` entry at all (#1375): see `status`.
 	// `renovate_rebase` is blocked with `already_requested` while
 	// Renovate's rebase checkbox in the pull request description is
 	// ticked, whether it was ticked from this app or on the forge: one
@@ -1445,7 +1449,18 @@ type PullRequest struct {
 	// StackedOn The open pull request this one is stacked on, or null when its
 	// base is not another open pull request's head.
 	StackedOn *StackRef `json:"stackedOn"`
-	Title     string    `json:"title"`
+
+	// Status The one reason this pull request is waiting on something or can't
+	// be merged, for a fixed place on its row (#1375): a check still
+	// running, a conflict, a draft, a parent it is stacked on, or, for
+	// an empty pull request, that there is nothing to merge. `code`,
+	// `message` and `next` are the same as on `allowedActions[].blocked`,
+	// and for a pull request that waiting or fixing can unlock they
+	// repeat Merge's blocked reason. An empty pull request offers no
+	// `merge` (only `close`), so this is where its reason lives. Null
+	// when nothing holds the pull request back. Always present.
+	Status *PullRequestStatus `json:"status"`
+	Title  string             `json:"title"`
 
 	// UnresolvedThreads How many review threads are still open, or null when the forge
 	// can't say. GitHub reports it from its review threads, except in the
@@ -1520,6 +1535,22 @@ type PullRequestHideRequest struct {
 
 	// Number Matching a PullRequest.number from GET /api/dashboard.
 	Number int `json:"number"`
+}
+
+// PullRequestStatus Why a pull request is waiting on something or can't be merged, in one
+// place for a client to show (#1375). Same shape as
+// `AllowedAction.blocked`.
+type PullRequestStatus struct {
+	// Code The same codes as `AllowedAction.blocked.code`. The server may
+	// learn more, so a client should show `message` for a code it
+	// doesn't know. Declared with `x-extensible-enum`.
+	Code string `json:"code"`
+
+	// Message Plain words, safe to show a person.
+	Message string `json:"message"`
+
+	// Next What unlocks it or what to do about it, when there is something.
+	Next *string `json:"next,omitempty"`
 }
 
 // QueuedAction A safe action queued to run when a rate-limited forge resets. A
@@ -2953,6 +2984,11 @@ type ClientInterface interface {
 	// `already_merged` / `already_closed`. If the re-read itself fails,
 	// the original forge error is returned with `code: unknown`.
 	//
+	// An empty pull request, whose branch is already on the target, has no
+	// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+	// gets 409 `already_up_to_date` from this server, which never asks the
+	// forge.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -2975,6 +3011,11 @@ type ClientInterface interface {
 	// pull request that is already merged or closed answers
 	// `already_merged` / `already_closed`. If the re-read itself fails,
 	// the original forge error is returned with `code: unknown`.
+	//
+	// An empty pull request, whose branch is already on the target, has no
+	// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+	// gets 409 `already_up_to_date` from this server, which never asks the
+	// forge.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -4720,6 +4761,11 @@ func (c *Client) HidePullRequest(ctx context.Context, body HidePullRequestJSONRe
 // `already_merged` / `already_closed`. If the re-read itself fails,
 // the original forge error is returned with `code: unknown`.
 //
+// An empty pull request, whose branch is already on the target, has no
+// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+// gets 409 `already_up_to_date` from this server, which never asks the
+// forge.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -4752,6 +4798,11 @@ func (c *Client) MergePullRequestWithBody(ctx context.Context, contentType strin
 // pull request that is already merged or closed answers
 // `already_merged` / `already_closed`. If the re-read itself fails,
 // the original forge error is returned with `code: unknown`.
+//
+// An empty pull request, whose branch is already on the target, has no
+// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+// gets 409 `already_up_to_date` from this server, which never asks the
+// forge.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -9075,6 +9126,11 @@ type ClientWithResponsesInterface interface {
 	// `already_merged` / `already_closed`. If the re-read itself fails,
 	// the original forge error is returned with `code: unknown`.
 	//
+	// An empty pull request, whose branch is already on the target, has no
+	// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+	// gets 409 `already_up_to_date` from this server, which never asks the
+	// forge.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -9097,6 +9153,11 @@ type ClientWithResponsesInterface interface {
 	// pull request that is already merged or closed answers
 	// `already_merged` / `already_closed`. If the re-read itself fails,
 	// the original forge error is returned with `code: unknown`.
+	//
+	// An empty pull request, whose branch is already on the target, has no
+	// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+	// gets 409 `already_up_to_date` from this server, which never asks the
+	// forge.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -14129,6 +14190,11 @@ func (c *ClientWithResponses) HidePullRequestWithResponse(ctx context.Context, b
 // `already_merged` / `already_closed`. If the re-read itself fails,
 // the original forge error is returned with `code: unknown`.
 //
+// An empty pull request, whose branch is already on the target, has no
+// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+// gets 409 `already_up_to_date` from this server, which never asks the
+// forge.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -14157,6 +14223,11 @@ func (c *ClientWithResponses) MergePullRequestWithBodyWithResponse(ctx context.C
 // pull request that is already merged or closed answers
 // `already_merged` / `already_closed`. If the re-read itself fails,
 // the original forge error is returned with `code: unknown`.
+//
+// An empty pull request, whose branch is already on the target, has no
+// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+// gets 409 `already_up_to_date` from this server, which never asks the
+// forge.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
