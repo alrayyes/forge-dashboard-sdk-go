@@ -108,14 +108,35 @@ jobs:
       - name: golangci-lint
         run: ./scripts/golangci-lint-docker.sh run ./...
 
-  govulncheck:
+  # Fails only on advisories this change adds over its base (rules/dependencies.md). What is
+  # already on main is the scan's to track, in advisory-scan.yml. Runs the audit only when a
+  # manifest or lockfile changed, and always on a push to main; the job still reports either way.
+  audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: govulncheck
-        run: >-
-          ./scripts/go-docker.sh sh -c
-          "go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./..."
+        with:
+          fetch-depth: 0
+      - id: changed
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "deps=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD | grep -Eq '^(go\.mod|go\.sum)$'; then
+            echo "deps=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deps=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.changed.outputs.deps == 'true'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # Pinned to a main commit of alrayyes/advisory-scan until its first release; re-pin then.
+      - if: steps.changed.outputs.deps == 'true'
+        uses: alrayyes/advisory-scan@425418a63e80eb10142fbd2e82127b7ef3a51d68
+        with:
+          mode: gate
+          command: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
   generated-code-is-fresh:
     runs-on: ubuntu-latest
@@ -139,7 +160,7 @@ jobs:
   # block the reports.
   pages-deploy:
     name: deploy reports
-    needs: [test, contract, lint, govulncheck, generated-code-is-fresh]
+    needs: [test, contract, lint, audit, generated-code-is-fresh]
     if: >-
       !failure() && !cancelled() &&
       github.event_name == 'push' && github.ref == 'refs/heads/main'
