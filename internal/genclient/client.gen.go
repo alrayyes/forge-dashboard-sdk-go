@@ -1285,14 +1285,18 @@ type MainBranches struct {
 // this service being unable to determine it.
 type MergeStatus string
 
-// NavCount The Branches page's numbers (#1458): how many default branches it
-// lists and how many of those have a pipeline running, failed and
-// passed, the same four as `NavPullRequestCount`. A branch with no
-// pipeline counts in `total` only, so the four numbers need not add up.
-// All four are always present.
+// NavCount The Branches page's numbers (#1458, #1531): how many default branches
+// it lists and how many of those have a pipeline running, failed and
+// passed, the same four as `NavPullRequestCount`, plus `none`, the ones
+// with no pipeline. Every branch is in exactly one of the four states,
+// so `running`, `failed`, `passed` and `none` add up to `total`. All
+// five are always present.
 type NavCount struct {
 	// Failed How many of them have a failing pipeline.
 	Failed int `json:"failed"`
+
+	// None How many of them have no pipeline.
+	None int `json:"none"`
 
 	// Passed How many of them have a pipeline that passed.
 	Passed int `json:"passed"`
@@ -1324,11 +1328,12 @@ type NavCounts struct {
 	// the four numbers need not add up. All four are always present.
 	Bots NavPullRequestCount `json:"bots"`
 
-	// Branches The Branches page's numbers (#1458): how many default branches it
-	// lists and how many of those have a pipeline running, failed and
-	// passed, the same four as `NavPullRequestCount`. A branch with no
-	// pipeline counts in `total` only, so the four numbers need not add up.
-	// All four are always present.
+	// Branches The Branches page's numbers (#1458, #1531): how many default branches
+	// it lists and how many of those have a pipeline running, failed and
+	// passed, the same four as `NavPullRequestCount`, plus `none`, the ones
+	// with no pipeline. Every branch is in exactly one of the four states,
+	// so `running`, `failed`, `passed` and `none` add up to `total`. All
+	// five are always present.
 	Branches NavCount      `json:"branches"`
 	Issues   NavIssueCount `json:"issues"`
 
@@ -2878,8 +2883,9 @@ type ClientInterface interface {
 	// (#1337). Every other row is returned, whatever its status, with a
 	// count per status, so a client
 	// filters and sorts locally and its pill counts always match what each
-	// pill lists. Rows come failed first, then running, passed and none,
-	// each group by `fullName`.
+	// pill lists. Rows come newest commit first (`commit.committedAt`),
+	// whatever their status (#1552). A row with no commit time comes after
+	// every dated one; ties and undated rows go by `fullName`, then `forge`.
 	//
 	// Served from the snapshot the background refresh already holds, so it
 	// never calls a forge. On GitHub the branch's check status rides the
@@ -4568,8 +4574,9 @@ func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardPar
 // (#1337). Every other row is returned, whatever its status, with a
 // count per status, so a client
 // filters and sorts locally and its pill counts always match what each
-// pill lists. Rows come failed first, then running, passed and none,
-// each group by `fullName`.
+// pill lists. Rows come newest commit first (`commit.committedAt`),
+// whatever their status (#1552). A row with no commit time comes after
+// every dated one; ties and undated rows go by `fullName`, then `forge`.
 //
 // Served from the snapshot the background refresh already holds, so it
 // never calls a forge. On GitHub the branch's check status rides the
@@ -9158,8 +9165,9 @@ type ClientWithResponsesInterface interface {
 	// (#1337). Every other row is returned, whatever its status, with a
 	// count per status, so a client
 	// filters and sorts locally and its pill counts always match what each
-	// pill lists. Rows come failed first, then running, passed and none,
-	// each group by `fullName`.
+	// pill lists. Rows come newest commit first (`commit.committedAt`),
+	// whatever their status (#1552). A row with no commit time comes after
+	// every dated one; ties and undated rows go by `fullName`, then `forge`.
 	//
 	// Served from the snapshot the background refresh already holds, so it
 	// never calls a forge. On GitHub the branch's check status rides the
@@ -14268,8 +14276,9 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 // (#1337). Every other row is returned, whatever its status, with a
 // count per status, so a client
 // filters and sorts locally and its pill counts always match what each
-// pill lists. Rows come failed first, then running, passed and none,
-// each group by `fullName`.
+// pill lists. Rows come newest commit first (`commit.committedAt`),
+// whatever their status (#1552). A row with no commit time comes after
+// every dated one; ties and undated rows go by `fullName`, then `forge`.
 //
 // Served from the snapshot the background refresh already holds, so it
 // never calls a forge. On GitHub the branch's check status rides the
