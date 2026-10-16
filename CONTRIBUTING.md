@@ -90,7 +90,7 @@ Two jobs share the work, both through
 [advisory-scan](https://github.com/alrayyes/advisory-scan). The `audit` job in
 `ci.yml` runs `govulncheck` on a pull request and on its base, and fails only on
 advisories the pull request adds, so an advisory published overnight doesn't
-turn unrelated pull requests red. It runs when a manifest or lockfile
+turn unrelated pull requests red. It runs when a Go file, manifest or lockfile
 changes, and on every push to `main`. `advisory-scan.yml` audits `main`
 daily, on every push that changes a manifest or lockfile, and on demand, and
 keeps one open issue titled "Dependency advisories" listing what it finds. It

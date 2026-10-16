@@ -109,8 +109,9 @@ jobs:
         run: ./scripts/golangci-lint-docker.sh run ./...
 
   # Fails only on advisories this change adds over its base (rules/dependencies.md). What is
-  # already on main is the scan's to track, in advisory-scan.yml. Runs the audit only when a
-  # manifest or lockfile changed, and always on a push to main; the job still reports either way.
+  # already on main is the scan's to track, in advisory-scan.yml. Runs the audit only when a Go
+  # file, manifest or lockfile changed (govulncheck reports called code, so Go source counts),
+  # and always on a push to main; the job still reports either way.
   audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -122,7 +123,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "deps=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD | grep -Eq '^(go\.mod|go\.sum)$'; then
+          elif git diff --name-only "${{ github.event.pull_request.base.sha }}" HEAD | grep -Eq '^(go\.mod|go\.sum)$|\.go$'; then
             echo "deps=true" >> "$GITHUB_OUTPUT"
           else
             echo "deps=false" >> "$GITHUB_OUTPUT"
