@@ -1430,6 +1430,17 @@ type PullRequest struct {
 	// or the read failed, since this service then doesn't know.
 	AutoMergeEnabled *bool `json:"autoMergeEnabled,omitempty"`
 
+	// AutoMergeHeldBy Who holds the auto-merge, so a client can word it right. Present
+	// only when `autoMergeEnabled` is true. `dashboard` means this app
+	// holds a stored intent and performs the merge itself (Forgejo).
+	// `forge` means the merge is scheduled on the forge: Forgejo's own
+	// scheduled merge, or GitHub's auto-merge. When both exist on
+	// Forgejo it is `dashboard`, since this app's loop merges and
+	// Cancel clears both. Omitted means unknown: a client must not
+	// guess it from other fields, and should treat a value it doesn't
+	// know like an omitted one.
+	AutoMergeHeldBy *string `json:"autoMergeHeldBy,omitempty"`
+
 	// AwaitingWorkflowApproval True when GitHub is holding a workflow run on the head commit
 	// until someone approves it (#1280): its rollup counts a check run
 	// as ACTION_REQUIRED. Those runs also keep `ci` at failure when
