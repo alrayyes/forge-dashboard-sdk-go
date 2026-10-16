@@ -113,6 +113,8 @@ jobs:
   # file, manifest or lockfile changed (govulncheck reports called code, so Go source counts),
   # and always on a push to main; the job still reports either way.
   audit:
+    # Keeps the reported name `govulncheck`, the check branch protection requires.
+    name: govulncheck
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
