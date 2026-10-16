@@ -20,8 +20,9 @@
 ./scripts/go-docker.sh sh -c "go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./..."
 ```
 
-`lefthook run pre-push` runs the same set (plus `go mod tidy -diff`), so
-that's the one command to run before opening a pull request.
+`lefthook run pre-push` runs the same set (plus `go mod tidy -diff`) except
+`govulncheck`, which would fail every push the day an advisory lands on `main`.
+Run that one by hand; CI owns the gate.
 
 `scripts/build-reports.sh` turns `coverage.out` and `junit.xml` into the
 published report layout; `scripts/build-reports.test.sh` checks it and runs
