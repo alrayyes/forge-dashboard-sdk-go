@@ -1004,6 +1004,13 @@ type Dashboard struct {
 	// forge; this is not the backend's refresh schedule.
 	ReadIntervalSeconds int          `json:"readIntervalSeconds"`
 	Repos               []RepoStatus `json:"repos"`
+
+	// SettingsHiddenIssueCount How many open issues the user's own settings (`hideDependencyDashboard`
+	// and `ignoredTitles`) left out of `issues`, so a client can say
+	// "N hidden by your settings" and link to Settings; it cannot work
+	// that out, the issues are not sent. Always present once the
+	// server applies the settings (#1630); 0 when none are hidden.
+	SettingsHiddenIssueCount *int `json:"settingsHiddenIssueCount,omitempty"`
 }
 
 // DetailsBody A pull request's description, or the release notes of a release pull request.
@@ -1142,7 +1149,9 @@ type Issue struct {
 	// Housekeeping True for an issue a bot keeps open and rewrites, Renovate's
 	// "Dependency Dashboard", which is not work for a person. The
 	// server decides, so every client lists and counts the same
-	// issues. It stays in `issues`; `openIssueCount` leaves it out.
+	// issues. It stays in `issues`, and `openIssueCount` leaves it out,
+	// unless the user's `hideDependencyDashboard` setting is on: then
+	// the server leaves it out of `issues` as well.
 	Housekeeping bool    `json:"housekeeping"`
 	Labels       []Label `json:"labels"`
 	Number       int     `json:"number"`
@@ -2084,6 +2093,20 @@ type SettingsRequest struct {
 	GithubToken             *string `json:"githubToken,omitempty"`
 	GithubUsername          *string `json:"githubUsername,omitempty"`
 
+	// HideDependencyDashboard Replaces the saved choice; omitted means false, like
+	// `renovateAuthors`, so a form sends it on every save. See
+	// SettingsResponse.hideDependencyDashboard.
+	HideDependencyDashboard *bool `json:"hideDependencyDashboard,omitempty"`
+
+	// IgnoredTitles Replaces the saved list; omitted or empty clears it. Entries are
+	// trimmed; blanks and repeats (ignoring case) are dropped. Each
+	// must compile as a Go RE2 regular expression: one that does not
+	// is a 400 naming `ignoredTitles` and the entry, with the reason in
+	// plain words ("ignoredTitles entry 2, "(": missing closing )"),
+	// and nothing is saved. More than 20 entries, or an entry over 200
+	// characters, is a 400 too. See SettingsResponse.ignoredTitles.
+	IgnoredTitles *[]string `json:"ignoredTitles,omitempty"`
+
 	// RenovateAuthors Replaces the saved list. Entries are trimmed; blanks and
 	// repeats (ignoring case) are dropped. Omitted or empty clears it.
 	RenovateAuthors     *[]string `json:"renovateAuthors,omitempty"`
@@ -2126,6 +2149,22 @@ type SettingsResponse struct {
 
 	// GithubUsername Used as a token-free public-repos fallback when no GitHub token is set.
 	GithubUsername string `json:"githubUsername"`
+
+	// HideDependencyDashboard Whether the user hides the bot-kept "Dependency Dashboard" issue
+	// everywhere: the server leaves a `housekeeping` issue out of the
+	// `issues` of GET /api/dashboard and its stream, and out of every
+	// count and total built from them (`navCounts`, Insights). Always
+	// present once the server applies it (#1630).
+	HideDependencyDashboard *bool `json:"hideDependencyDashboard,omitempty"`
+
+	// IgnoredTitles Patterns for issue titles to leave out, in the server's own
+	// regular expression syntax (Go RE2: no lookahead and no
+	// backreferences). A pattern matches anywhere in the title and
+	// ignores case; an issue matching any one is left out of `issues`
+	// and of every count and total built from them, the same as
+	// `hideDependencyDashboard`. Always present once the server
+	// applies it (#1630). Empty means none.
+	IgnoredTitles *[]string `json:"ignoredTitles,omitempty"`
 
 	// RenovateAuthors The logins that are Renovate on the user's forges. On GitHub the
 	// App's own `renovate` and `renovate[bot]` are always recognised.
