@@ -952,7 +952,19 @@ type Dashboard struct {
 	// present, empty when there are none. A client shows each one once,
 	// matched on `forge`, `fullName`, `number` and `mergedAt`.
 	AutoMerged []AutoMergedPullRequest `json:"autoMerged"`
-	Forges     []ForgeHealth           `json:"forges"`
+
+	// FirstRefreshDone False from process start until this viewer's first refresh has
+	// finished, whether it succeeded or failed; true from then on,
+	// including after later refreshes. Per viewer: another user's
+	// refresh does not flip it. A client shows a loading state instead
+	// of empty lists while it is false; a failed first refresh is
+	// reported through forge health, not by keeping this false. The same
+	// on `GET /api/dashboard`, the stream and the MCP `get_dashboard`
+	// output. Optional until the server emits it (#1673); the server
+	// change makes it required, and a client treats a missing flag as
+	// true (loaded).
+	FirstRefreshDone *bool         `json:"firstRefreshDone,omitempty"`
+	Forges           []ForgeHealth `json:"forges"`
 
 	// GeneratedAt When this snapshot was refreshed, not when it was requested.
 	GeneratedAt time.Time `json:"generatedAt"`
