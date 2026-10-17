@@ -542,6 +542,27 @@ func (e SettingsResponseTheme) Valid() bool {
 	}
 }
 
+// Defines values for SettingsSummaryTheme.
+const (
+	SettingsSummaryThemeDark  SettingsSummaryTheme = "dark"
+	SettingsSummaryThemeEmpty SettingsSummaryTheme = ""
+	SettingsSummaryThemeLight SettingsSummaryTheme = "light"
+)
+
+// Valid indicates whether the value is a known member of the SettingsSummaryTheme enum.
+func (e SettingsSummaryTheme) Valid() bool {
+	switch e {
+	case SettingsSummaryThemeDark:
+		return true
+	case SettingsSummaryThemeEmpty:
+		return true
+	case SettingsSummaryThemeLight:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ThemeRequestTheme.
 const (
 	ThemeRequestThemeDark  ThemeRequestTheme = "dark"
@@ -1011,7 +1032,10 @@ type Dashboard struct {
 	// ReadIntervalSeconds How often, in seconds, a client should re-read GET
 	// /api/dashboard. The server's advice, so a client needs no
 	// interval of its own. The read is cheap and never calls a
-	// forge; this is not the backend's refresh schedule.
+	// forge; this is not the backend's refresh schedule. It is
+	// shorter (2) until the viewer's first refresh has finished, so a
+	// page that is still loading picks the data up soon after it is
+	// ready, and the normal 30 from then on.
 	ReadIntervalSeconds int          `json:"readIntervalSeconds"`
 	Repos               []RepoStatus `json:"repos"`
 
@@ -2243,6 +2267,38 @@ type SettingsResponse struct {
 // other page reads it via the lightweight
 // GET /api/settings/theme instead of this endpoint.
 type SettingsResponseTheme string
+
+// SettingsSummary The signed-in user's settings as `GET /api/settings/summary` and the
+// `get_settings` MCP tool return them: every field of
+// SettingsResponse except `webhookToken` and `webhookSecret`, which are
+// never part of it, plus `webhookConfigured`. No forge token appears,
+// only whether one is set. Field meanings are those of the same-named
+// SettingsResponse properties.
+type SettingsSummary struct {
+	ForgejoTokenSet         bool                 `json:"forgejoTokenSet"`
+	ForgejoUrl              string               `json:"forgejoUrl"`
+	ForgejoUsername         string               `json:"forgejoUsername"`
+	GithubAppConfigured     bool                 `json:"githubAppConfigured"`
+	GithubAppInstallationId int64                `json:"githubAppInstallationId"`
+	GithubTokenSet          bool                 `json:"githubTokenSet"`
+	GithubUsername          string               `json:"githubUsername"`
+	HideDependencyDashboard bool                 `json:"hideDependencyDashboard"`
+	IgnoredTitleCounts      []*int               `json:"ignoredTitleCounts"`
+	IgnoredTitles           []string             `json:"ignoredTitles"`
+	RenovateAuthors         []string             `json:"renovateAuthors"`
+	RenovateRebaseLabel     string               `json:"renovateRebaseLabel"`
+	Theme                   SettingsSummaryTheme `json:"theme"`
+	Timezone                string               `json:"timezone"`
+
+	// WebhookConfigured Whether this user's webhook token and secret exist. They are
+	// created the first time the Settings page reads
+	// `GET /api/settings`, never by this read, so this is false for a
+	// user who has not opened Settings yet.
+	WebhookConfigured bool `json:"webhookConfigured"`
+}
+
+// SettingsSummaryTheme defines model for SettingsSummary.Theme.
+type SettingsSummaryTheme string
 
 // SharedUser defines model for SharedUser.
 type SharedUser struct {
@@ -3688,8 +3744,9 @@ type ClientInterface interface {
 	//
 	// Forge tokens are never returned, only whether one is set. The
 	// webhook token and secret are returned, since the user pastes them
-	// into the forge's webhook setup. The `get_settings` MCP tool omits
-	// both and reports `webhookConfigured` instead.
+	// into the forge's webhook setup, and a first read creates them. For
+	// a read that creates nothing and omits both, see
+	// `GET /api/settings/summary`.
 	//
 	// Corresponds with GET /api/settings (the `GetSettings` operationId).
 	GetSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3772,6 +3829,18 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /api/settings/filter-state (the `SetFilterState` operationId).
 	SetFilterState(ctx context.Context, body SetFilterStateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSettingsSummary The signed-in user's settings, read without side effects
+	//
+	// The same data as `GET /api/settings`, minus the webhook token and
+	// secret, plus `webhookConfigured`. It never provisions webhook
+	// credentials: for a user who has none yet it answers
+	// `webhookConfigured: false` and creates nothing. Forge tokens are
+	// never returned, only whether one is set. It returns exactly what
+	// the `get_settings` MCP tool returns.
+	//
+	// Corresponds with GET /api/settings/summary (the `GetSettingsSummary` operationId).
+	GetSettingsSummary(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTheme The signed-in user's own saved theme preference
 	//
@@ -5729,8 +5798,9 @@ func (c *Client) UnignoreRepo(ctx context.Context, body UnignoreRepoJSONRequestB
 //
 // Forge tokens are never returned, only whether one is set. The
 // webhook token and secret are returned, since the user pastes them
-// into the forge's webhook setup. The `get_settings` MCP tool omits
-// both and reports `webhookConfigured` instead.
+// into the forge's webhook setup, and a first read creates them. For
+// a read that creates nothing and omits both, see
+// `GET /api/settings/summary`.
 //
 // Corresponds with GET /api/settings (the `GetSettings` operationId).
 func (c *Client) GetSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -5864,6 +5934,28 @@ func (c *Client) SetFilterStateWithBody(ctx context.Context, contentType string,
 // Corresponds with PUT /api/settings/filter-state (the `SetFilterState` operationId).
 func (c *Client) SetFilterState(ctx context.Context, body SetFilterStateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetFilterStateRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetSettingsSummary The signed-in user's settings, read without side effects
+//
+// The same data as `GET /api/settings`, minus the webhook token and
+// secret, plus `webhookConfigured`. It never provisions webhook
+// credentials: for a user who has none yet it answers
+// `webhookConfigured: false` and creates nothing. Forge tokens are
+// never returned, only whether one is set. It returns exactly what
+// the `get_settings` MCP tool returns.
+//
+// Corresponds with GET /api/settings/summary (the `GetSettingsSummary` operationId).
+func (c *Client) GetSettingsSummary(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSettingsSummaryRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -8324,6 +8416,33 @@ func NewSetFilterStateRequestWithBody(server string, contentType string, body io
 	return req, nil
 }
 
+// NewGetSettingsSummaryRequest constructs an http.Request for the GetSettingsSummary method
+func NewGetSettingsSummaryRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/settings/summary")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetThemeRequest constructs an http.Request for the GetTheme method
 func NewGetThemeRequest(server string) (*http.Request, error) {
 	var err error
@@ -9980,8 +10099,9 @@ type ClientWithResponsesInterface interface {
 	//
 	// Forge tokens are never returned, only whether one is set. The
 	// webhook token and secret are returned, since the user pastes them
-	// into the forge's webhook setup. The `get_settings` MCP tool omits
-	// both and reports `webhookConfigured` instead.
+	// into the forge's webhook setup, and a first read creates them. For
+	// a read that creates nothing and omits both, see
+	// `GET /api/settings/summary`.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -10068,6 +10188,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /api/settings/filter-state (the `SetFilterState` operationId).
 	SetFilterStateWithResponse(ctx context.Context, body SetFilterStateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetFilterStateResponse, error)
+
+	// GetSettingsSummaryWithResponse The signed-in user's settings, read without side effects
+	//
+	// The same data as `GET /api/settings`, minus the webhook token and
+	// secret, plus `webhookConfigured`. It never provisions webhook
+	// credentials: for a user who has none yet it answers
+	// `webhookConfigured: false` and creates nothing. Forge tokens are
+	// never returned, only whether one is set. It returns exactly what
+	// the `get_settings` MCP tool returns.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/settings/summary (the `GetSettingsSummary` operationId).
+	GetSettingsSummaryWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSettingsSummaryResponse, error)
 
 	// GetThemeWithResponse The signed-in user's own saved theme preference
 	//
@@ -13060,6 +13194,54 @@ func (r SetFilterStateResponse) ContentType() string {
 	return ""
 }
 
+type GetSettingsSummaryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SettingsSummary
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSettingsSummaryResponse) GetJSON200() *SettingsSummary {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetSettingsSummaryResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSettingsSummaryResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSettingsSummaryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSettingsSummaryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSettingsSummaryResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetThemeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -15301,8 +15483,9 @@ func (c *ClientWithResponses) UnignoreRepoWithResponse(ctx context.Context, body
 //
 // Forge tokens are never returned, only whether one is set. The
 // webhook token and secret are returned, since the user pastes them
-// into the forge's webhook setup. The `get_settings` MCP tool omits
-// both and reports `webhookConfigured` instead.
+// into the forge's webhook setup, and a first read creates them. For
+// a read that creates nothing and omits both, see
+// `GET /api/settings/summary`.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -15424,6 +15607,26 @@ func (c *ClientWithResponses) SetFilterStateWithResponse(ctx context.Context, bo
 		return nil, err
 	}
 	return ParseSetFilterStateResponse(rsp)
+}
+
+// GetSettingsSummaryWithResponse The signed-in user's settings, read without side effects
+//
+// The same data as `GET /api/settings`, minus the webhook token and
+// secret, plus `webhookConfigured`. It never provisions webhook
+// credentials: for a user who has none yet it answers
+// `webhookConfigured: false` and creates nothing. Forge tokens are
+// never returned, only whether one is set. It returns exactly what
+// the `get_settings` MCP tool returns.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/settings/summary (the `GetSettingsSummary` operationId).
+func (c *ClientWithResponses) GetSettingsSummaryWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSettingsSummaryResponse, error) {
+	rsp, err := c.GetSettingsSummary(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSettingsSummaryResponse(rsp)
 }
 
 // GetThemeWithResponse The signed-in user's own saved theme preference
@@ -17918,6 +18121,39 @@ func ParseSetFilterStateResponse(rsp *http.Response) (*SetFilterStateResponse, e
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSettingsSummaryResponse parses an HTTP response from a GetSettingsSummaryWithResponse call
+func ParseGetSettingsSummaryResponse(rsp *http.Response) (*GetSettingsSummaryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSettingsSummaryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SettingsSummary
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	}
 
