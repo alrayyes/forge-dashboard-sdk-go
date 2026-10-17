@@ -3210,7 +3210,10 @@ type ClientInterface interface {
 	// answers an `ActionError` (see Merge): `already_merged` or
 	// `already_closed` when the row was stale, otherwise a `code` and a
 	// plain-words `message` safe to show a person.
-	// Closing a merged pull request is `already_merged`.
+	// Closing a merged pull request is `already_merged`. Closing one
+	// that is already closed on Forgejo is not refused, because Forgejo
+	// treats it as done, so that call succeeds and there is no
+	// `already_closed` answer for it.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -3227,7 +3230,10 @@ type ClientInterface interface {
 	// answers an `ActionError` (see Merge): `already_merged` or
 	// `already_closed` when the row was stale, otherwise a `code` and a
 	// plain-words `message` safe to show a person.
-	// Closing a merged pull request is `already_merged`.
+	// Closing a merged pull request is `already_merged`. Closing one
+	// that is already closed on Forgejo is not refused, because Forgejo
+	// treats it as done, so that call succeeds and there is no
+	// `already_closed` answer for it.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -4974,7 +4980,10 @@ func (c *Client) GetPullRequestChecks(ctx context.Context, params *GetPullReques
 // answers an `ActionError` (see Merge): `already_merged` or
 // `already_closed` when the row was stale, otherwise a `code` and a
 // plain-words `message` safe to show a person.
-// Closing a merged pull request is `already_merged`.
+// Closing a merged pull request is `already_merged`. Closing one
+// that is already closed on Forgejo is not refused, because Forgejo
+// treats it as done, so that call succeeds and there is no
+// `already_closed` answer for it.
 //
 // Takes any type of body and a specified content type.
 //
@@ -5001,7 +5010,10 @@ func (c *Client) ClosePullRequestWithBody(ctx context.Context, contentType strin
 // answers an `ActionError` (see Merge): `already_merged` or
 // `already_closed` when the row was stale, otherwise a `code` and a
 // plain-words `message` safe to show a person.
-// Closing a merged pull request is `already_merged`.
+// Closing a merged pull request is `already_merged`. Closing one
+// that is already closed on Forgejo is not refused, because Forgejo
+// treats it as done, so that call succeeds and there is no
+// `already_closed` answer for it.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -9559,7 +9571,10 @@ type ClientWithResponsesInterface interface {
 	// answers an `ActionError` (see Merge): `already_merged` or
 	// `already_closed` when the row was stale, otherwise a `code` and a
 	// plain-words `message` safe to show a person.
-	// Closing a merged pull request is `already_merged`.
+	// Closing a merged pull request is `already_merged`. Closing one
+	// that is already closed on Forgejo is not refused, because Forgejo
+	// treats it as done, so that call succeeds and there is no
+	// `already_closed` answer for it.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -9576,7 +9591,10 @@ type ClientWithResponsesInterface interface {
 	// answers an `ActionError` (see Merge): `already_merged` or
 	// `already_closed` when the row was stale, otherwise a `code` and a
 	// plain-words `message` safe to show a person.
-	// Closing a merged pull request is `already_merged`.
+	// Closing a merged pull request is `already_merged`. Closing one
+	// that is already closed on Forgejo is not refused, because Forgejo
+	// treats it as done, so that call succeeds and there is no
+	// `already_closed` answer for it.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -14769,7 +14787,10 @@ func (c *ClientWithResponses) GetPullRequestChecksWithResponse(ctx context.Conte
 // answers an `ActionError` (see Merge): `already_merged` or
 // `already_closed` when the row was stale, otherwise a `code` and a
 // plain-words `message` safe to show a person.
-// Closing a merged pull request is `already_merged`.
+// Closing a merged pull request is `already_merged`. Closing one
+// that is already closed on Forgejo is not refused, because Forgejo
+// treats it as done, so that call succeeds and there is no
+// `already_closed` answer for it.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -14792,7 +14813,10 @@ func (c *ClientWithResponses) ClosePullRequestWithBodyWithResponse(ctx context.C
 // answers an `ActionError` (see Merge): `already_merged` or
 // `already_closed` when the row was stale, otherwise a `code` and a
 // plain-words `message` safe to show a person.
-// Closing a merged pull request is `already_merged`.
+// Closing a merged pull request is `already_merged`. Closing one
+// that is already closed on Forgejo is not refused, because Forgejo
+// treats it as done, so that call succeeds and there is no
+// `already_closed` answer for it.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
