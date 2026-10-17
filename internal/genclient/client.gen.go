@@ -959,10 +959,9 @@ type Dashboard struct {
 	// of empty lists while it is false; a failed first refresh is
 	// reported through forge health, not by keeping this false. The same
 	// on `GET /api/dashboard`, the stream and the MCP `get_dashboard`
-	// output. Optional until the server emits it; the server
-	// change makes it required, and a client treats a missing flag as
-	// true (loaded).
-	FirstRefreshDone *bool         `json:"firstRefreshDone,omitempty"`
+	// output. Always present. A client of an older server that
+	// lacks it should treat a missing flag as true (loaded).
+	FirstRefreshDone bool          `json:"firstRefreshDone"`
 	Forges           []ForgeHealth `json:"forges"`
 
 	// GeneratedAt When this snapshot was refreshed, not when it was requested.
@@ -3678,9 +3677,10 @@ type ClientInterface interface {
 
 	// GetSettings The signed-in user's own forge configuration
 	//
-	// Tokens are never returned, before or after being saved — only
-	// whether one is currently on file. There is no way to read a saved
-	// token back out through this API.
+	// Forge tokens are never returned, only whether one is set. The
+	// webhook token and secret are returned, since the user pastes them
+	// into the forge's webhook setup. The `get_settings` MCP tool omits
+	// both and reports `webhookConfigured` instead.
 	//
 	// Corresponds with GET /api/settings (the `GetSettings` operationId).
 	GetSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5718,9 +5718,10 @@ func (c *Client) UnignoreRepo(ctx context.Context, body UnignoreRepoJSONRequestB
 
 // GetSettings The signed-in user's own forge configuration
 //
-// Tokens are never returned, before or after being saved — only
-// whether one is currently on file. There is no way to read a saved
-// token back out through this API.
+// Forge tokens are never returned, only whether one is set. The
+// webhook token and secret are returned, since the user pastes them
+// into the forge's webhook setup. The `get_settings` MCP tool omits
+// both and reports `webhookConfigured` instead.
 //
 // Corresponds with GET /api/settings (the `GetSettings` operationId).
 func (c *Client) GetSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -9968,9 +9969,10 @@ type ClientWithResponsesInterface interface {
 
 	// GetSettingsWithResponse The signed-in user's own forge configuration
 	//
-	// Tokens are never returned, before or after being saved — only
-	// whether one is currently on file. There is no way to read a saved
-	// token back out through this API.
+	// Forge tokens are never returned, only whether one is set. The
+	// webhook token and secret are returned, since the user pastes them
+	// into the forge's webhook setup. The `get_settings` MCP tool omits
+	// both and reports `webhookConfigured` instead.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -15288,9 +15290,10 @@ func (c *ClientWithResponses) UnignoreRepoWithResponse(ctx context.Context, body
 
 // GetSettingsWithResponse The signed-in user's own forge configuration
 //
-// Tokens are never returned, before or after being saved — only
-// whether one is currently on file. There is no way to read a saved
-// token back out through this API.
+// Forge tokens are never returned, only whether one is set. The
+// webhook token and secret are returned, since the user pastes them
+// into the forge's webhook setup. The `get_settings` MCP tool omits
+// both and reports `webhookConfigured` instead.
 //
 // Returns a wrapper object for the known response body format(s).
 //
