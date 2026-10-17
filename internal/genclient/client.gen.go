@@ -2167,6 +2167,19 @@ type SettingsResponse struct {
 	// present once the server applies it.
 	HideDependencyDashboard *bool `json:"hideDependencyDashboard,omitempty"`
 
+	// IgnoredTitleCounts Per pattern in `ignoredTitles`, same order and same length: how
+	// many of the viewer's currently open issues that pattern matches
+	// on its own. An issue two patterns match counts for both, so the
+	// entries can sum to more than `settingsHiddenIssueCount`. Every
+	// entry is null while the count is unknown (the viewer's first
+	// refresh has not finished, see `firstRefreshDone` on the
+	// dashboard snapshot, or there is no snapshot), never a made-up 0.
+	// Only this viewer's issues are counted. On GET and on the PUT
+	// response alike: a PUT returns the counts for the list it just
+	// saved. Optional until the server emits it; the server
+	// change makes it required.
+	IgnoredTitleCounts *[]*int `json:"ignoredTitleCounts,omitempty"`
+
 	// IgnoredTitles Patterns for issue titles to leave out, in the server's own
 	// regular expression syntax (Go RE2: no lookahead and no
 	// backreferences). A pattern matches anywhere in the title and
