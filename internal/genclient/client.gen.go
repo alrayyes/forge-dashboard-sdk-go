@@ -763,7 +763,7 @@ type AllowedAction struct {
 	// Blocked Present when the action is offered but can't be taken yet. Merge
 	// is blocked rather than hidden while waiting or fixing something can
 	// unlock it. An empty pull request, which nothing can unlock, has no
-	// `merge` entry at all (#1375): see `status`.
+	// `merge` entry at all: see `status`.
 	// `renovate_rebase` is blocked with `already_requested` while
 	// Renovate's rebase checkbox in the pull request description is
 	// ticked, whether it was ticked from this app or on the forge: one
@@ -786,13 +786,12 @@ type AllowedAction struct {
 // AutoMergeStatus Where an armed pull request stands, so the row can say why
 // auto-merge is waiting or stopped in words and not by colour. Present
 // while auto-merge is armed on it: on Forgejo the signed-in user's
-// intent held by this app, on GitHub the forge's own auto-merge (#1293).
+// intent held by this app, on GitHub the forge's own auto-merge.
 // Also present for ten minutes after this app cancelled an armed
 // auto-merge because the pull request went empty (its branch landed on
 // the base some other way): `stopped`, code `already_up_to_date` and the
 // message "Auto-merge was cancelled: there is nothing left to merge."
-// Auto-merge is off by then, so this is the only place the reason lives
-// (#1375).
+// Auto-merge is off by then, so this is the only place the reason lives.
 type AutoMergeStatus struct {
 	// Code The same codes as `ActionError.code` (`checks_pending`,
 	// `checks_failing`, `conflict`, `stacked`, `permission`,
@@ -960,7 +959,7 @@ type Dashboard struct {
 	// of empty lists while it is false; a failed first refresh is
 	// reported through forge health, not by keeping this false. The same
 	// on `GET /api/dashboard`, the stream and the MCP `get_dashboard`
-	// output. Optional until the server emits it (#1673); the server
+	// output. Optional until the server emits it; the server
 	// change makes it required, and a client treats a missing flag as
 	// true (loaded).
 	FirstRefreshDone *bool         `json:"firstRefreshDone,omitempty"`
@@ -983,7 +982,7 @@ type Dashboard struct {
 	HiddenPullRequests *int    `json:"hiddenPullRequests,omitempty"`
 	Issues             []Issue `json:"issues"`
 
-	// NavCounts The numbers behind the navigation badges (#1315), counted from what the
+	// NavCounts The numbers behind the navigation badges, counted from what the
 	// board shows by default, so they match each page when it opens. Pull
 	// requests leave out ignored repos, draft pull requests and hidden pull
 	// requests whatever `includeDrafts` and `includeHidden` ask for, so the
@@ -995,7 +994,7 @@ type Dashboard struct {
 	// under `bots`, the rest under `pullRequests`). Always present, with
 	// zeros when there is nothing. A client hides a page's whole nav item at
 	// zero total, and a state's number at zero. Every page except Issues also
-	// carries `running` and `passed` (#1439, #1458).
+	// carries `running` and `passed`.
 	NavCounts NavCounts `json:"navCounts"`
 
 	// OpenIssueCount How many of `issues` are real work: all of them except the
@@ -1021,7 +1020,7 @@ type Dashboard struct {
 	// and `ignoredTitles`) left out of `issues`, so a client can say
 	// "N hidden by your settings" and link to Settings; it cannot work
 	// that out, the issues are not sent. Always present once the
-	// server applies the settings (#1630); 0 when none are hidden.
+	// server applies the settings; 0 when none are hidden.
 	SettingsHiddenIssueCount *int `json:"settingsHiddenIssueCount,omitempty"`
 }
 
@@ -1232,7 +1231,7 @@ type MainBranch struct {
 
 	// Stale True when this row is the last known one because its forge
 	// couldn't be read or its rate limit is spent. A client offers no
-	// write on a stale row (#1199).
+	// write on a stale row.
 	Stale bool `json:"stale"`
 
 	// StaleSince When this row was last fetched. Null unless `stale`.
@@ -1306,7 +1305,7 @@ type MainBranches struct {
 // this service being unable to determine it.
 type MergeStatus string
 
-// NavCount The Branches page's numbers (#1458, #1531): how many default branches
+// NavCount The Branches page's numbers: how many default branches
 // it lists and how many of those have a pipeline running, failed and
 // passed, the same four as `NavPullRequestCount`, plus `none`, the ones
 // with no pipeline. Every branch is in exactly one of the four states,
@@ -1329,7 +1328,7 @@ type NavCount struct {
 	Total int `json:"total"`
 }
 
-// NavCounts The numbers behind the navigation badges (#1315), counted from what the
+// NavCounts The numbers behind the navigation badges, counted from what the
 // board shows by default, so they match each page when it opens. Pull
 // requests leave out ignored repos, draft pull requests and hidden pull
 // requests whatever `includeDrafts` and `includeHidden` ask for, so the
@@ -1341,15 +1340,15 @@ type NavCount struct {
 // under `bots`, the rest under `pullRequests`). Always present, with
 // zeros when there is nothing. A client hides a page's whole nav item at
 // zero total, and a state's number at zero. Every page except Issues also
-// carries `running` and `passed` (#1439, #1458).
+// carries `running` and `passed`.
 type NavCounts struct {
-	// Bots A pull request page's numbers (#1439). `running`, `failed` and
+	// Bots A pull request page's numbers. `running`, `failed` and
 	// `passed` count the pull requests whose CI is pending, failing and
 	// succeeded. A pull request with no checks counts in `total` only, so
 	// the four numbers need not add up. All four are always present.
 	Bots NavPullRequestCount `json:"bots"`
 
-	// Branches The Branches page's numbers (#1458, #1531): how many default branches
+	// Branches The Branches page's numbers: how many default branches
 	// it lists and how many of those have a pipeline running, failed and
 	// passed, the same four as `NavPullRequestCount`, plus `none`, the ones
 	// with no pipeline. Every branch is in exactly one of the four states,
@@ -1358,13 +1357,13 @@ type NavCounts struct {
 	Branches NavCount      `json:"branches"`
 	Issues   NavIssueCount `json:"issues"`
 
-	// PullRequests A pull request page's numbers (#1439). `running`, `failed` and
+	// PullRequests A pull request page's numbers. `running`, `failed` and
 	// `passed` count the pull requests whose CI is pending, failing and
 	// succeeded. A pull request with no checks counts in `total` only, so
 	// the four numbers need not add up. All four are always present.
 	PullRequests NavPullRequestCount `json:"pullRequests"`
 
-	// Releases A pull request page's numbers (#1439). `running`, `failed` and
+	// Releases A pull request page's numbers. `running`, `failed` and
 	// `passed` count the pull requests whose CI is pending, failing and
 	// succeeded. A pull request with no checks counts in `total` only, so
 	// the four numbers need not add up. All four are always present.
@@ -1379,7 +1378,7 @@ type NavIssueCount struct {
 	Total int `json:"total"`
 }
 
-// NavPullRequestCount A pull request page's numbers (#1439). `running`, `failed` and
+// NavPullRequestCount A pull request page's numbers. `running`, `failed` and
 // `passed` count the pull requests whose CI is pending, failing and
 // succeeded. A pull request with no checks counts in `total` only, so
 // the four numbers need not add up. All four are always present.
@@ -1420,13 +1419,12 @@ type PullRequest struct {
 	// AutoMerge Where an armed pull request stands, so the row can say why
 	// auto-merge is waiting or stopped in words and not by colour. Present
 	// while auto-merge is armed on it: on Forgejo the signed-in user's
-	// intent held by this app, on GitHub the forge's own auto-merge (#1293).
+	// intent held by this app, on GitHub the forge's own auto-merge.
 	// Also present for ten minutes after this app cancelled an armed
 	// auto-merge because the pull request went empty (its branch landed on
 	// the base some other way): `stopped`, code `already_up_to_date` and the
 	// message "Auto-merge was cancelled: there is nothing left to merge."
-	// Auto-merge is off by then, so this is the only place the reason lives
-	// (#1375).
+	// Auto-merge is off by then, so this is the only place the reason lives.
 	AutoMerge *AutoMergeStatus `json:"autoMerge,omitempty"`
 
 	// AutoMergeAllowed Whether GitHub will accept an "Enable auto-merge" request for
@@ -1463,7 +1461,7 @@ type PullRequest struct {
 	AutoMergeHeldBy *string `json:"autoMergeHeldBy,omitempty"`
 
 	// AwaitingWorkflowApproval True when GitHub is holding a workflow run on the head commit
-	// until someone approves it (#1280): its rollup counts a check run
+	// until someone approves it: its rollup counts a check run
 	// as ACTION_REQUIRED. Those runs also keep `ci` at failure when
 	// nothing else is running, so a client reads this to say "waiting
 	// for approval" rather than "check failed". It can be true while
@@ -1600,7 +1598,7 @@ type PullRequest struct {
 	// pull request's updatedAt changes.
 	Review *ReviewState `json:"review,omitempty"`
 
-	// ReviewComments How many review comments the pull request has (#1335). Ordinary
+	// ReviewComments How many review comments the pull request has. Ordinary
 	// conversation comments are not counted. Always present, and 0 when
 	// there are none or the forge can't say (a Forgejo draft or failed
 	// reviews call, GitHub's unauthenticated fallback). On GitHub it is read from
@@ -1635,7 +1633,7 @@ type PullRequest struct {
 	StackedOn *StackRef `json:"stackedOn"`
 
 	// Status The one reason this pull request is waiting on something or can't
-	// be merged, for a fixed place on its row (#1375): a check still
+	// be merged, for a fixed place on its row: a check still
 	// running, a conflict, a draft, a parent it is stacked on, or, for
 	// an empty pull request, that there is nothing to merge. `code`,
 	// `message` and `next` are the same as on `allowedActions[].blocked`,
@@ -1707,7 +1705,7 @@ type PullRequestDependabotActionRequest struct {
 // PullRequestDependabotActionRequestAction Which Dependabot comment command to post — "@dependabot rebase" or "@dependabot recreate".
 type PullRequestDependabotActionRequestAction string
 
-// PullRequestDetails What the pull request dialog shows (#1506).
+// PullRequestDetails What the pull request dialog shows.
 type PullRequestDetails struct {
 	// CommentCount How many comments the forge has on the pull request.
 	CommentCount int `json:"commentCount"`
@@ -1743,7 +1741,7 @@ type PullRequestHideRequest struct {
 }
 
 // PullRequestStatus Why a pull request is waiting on something or can't be merged, in one
-// place for a client to show (#1375). Same shape as
+// place for a client to show. Same shape as
 // `AllowedAction.blocked`.
 type PullRequestStatus struct {
 	// Code The same codes as `AllowedAction.blocked.code`. The server may
@@ -2166,7 +2164,7 @@ type SettingsResponse struct {
 	// everywhere: the server leaves a `housekeeping` issue out of the
 	// `issues` of GET /api/dashboard and its stream, and out of every
 	// count and total built from them (`navCounts`, Insights). Always
-	// present once the server applies it (#1630).
+	// present once the server applies it.
 	HideDependencyDashboard *bool `json:"hideDependencyDashboard,omitempty"`
 
 	// IgnoredTitles Patterns for issue titles to leave out, in the server's own
@@ -2175,7 +2173,7 @@ type SettingsResponse struct {
 	// ignores case; an issue matching any one is left out of `issues`
 	// and of every count and total built from them, the same as
 	// `hideDependencyDashboard`. Always present once the server
-	// applies it (#1630). Empty means none.
+	// applies it. Empty means none.
 	IgnoredTitles *[]string `json:"ignoredTitles,omitempty"`
 
 	// RenovateAuthors The logins that are Renovate on the user's forges. On GitHub the
@@ -2943,13 +2941,12 @@ type ClientInterface interface {
 	// GetMainBranches The CI status of every tracked repository's default branch
 	//
 	// One row per tracked repository, showing the latest pipeline on its
-	// default branch: failed, passed, running or none (#1224). A repository
-	// ignored for pull requests is left out, as on the pull requests page
-	// (#1337). Every other row is returned, whatever its status, with a
+	// default branch: failed, passed, running or none. A repository
+	// ignored for pull requests is left out, as on the pull requests page. Every other row is returned, whatever its status, with a
 	// count per status, so a client
 	// filters and sorts locally and its pill counts always match what each
 	// pill lists. Rows come newest commit first (`commit.committedAt`),
-	// whatever their status (#1552). A row with no commit time comes after
+	// whatever their status. A row with no commit time comes after
 	// every dated one; ties and undated rows go by `fullName`, then `forge`.
 	//
 	// Served from the snapshot the background refresh already holds, so it
@@ -3188,7 +3185,7 @@ type ClientInterface interface {
 
 	// GetPullRequestDetails Read a pull request's description, comments and reactions, on demand
 	//
-	// What the pull request dialog shows (#1506): the description, the
+	// What the pull request dialog shows: the description, the
 	// conversation in order, the thumbs up and thumbs down reactions on each
 	// with who gave them, and, for a release pull request, the release
 	// notes. Fetched live on every call, never as part of GET
@@ -3280,7 +3277,7 @@ type ClientInterface interface {
 	// the original forge error is returned with `code: unknown`.
 	//
 	// An empty pull request, whose branch is already on the target, has no
-	// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+	// `merge` in `allowedActions`. A Merge posted for one anyway
 	// gets 409 `already_up_to_date` from this server, which never asks the
 	// forge.
 	//
@@ -3308,7 +3305,7 @@ type ClientInterface interface {
 	// the original forge error is returned with `code: unknown`.
 	//
 	// An empty pull request, whose branch is already on the target, has no
-	// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+	// `merge` in `allowedActions`. A Merge posted for one anyway
 	// gets 409 `already_up_to_date` from this server, which never asks the
 	// forge.
 	//
@@ -3488,7 +3485,7 @@ type ClientInterface interface {
 	// ListQueuedActions List the signed-in user's queued actions, waiting and recently finished
 	//
 	// Every action the user queued to run when a rate-limited forge
-	// resets (#756), oldest first: the ones still `queued`, and the
+	// resets, oldest first: the ones still `queued`, and the
 	// final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
 	// client can show the outcome in its Activity list. The same list
 	// rides along on GET /api/dashboard as `queuedActions`.
@@ -3710,7 +3707,7 @@ type ClientInterface interface {
 	// shouldn't provision webhook credentials as a side effect.
 	// `{}` for a user who's never saved any filters yet, not a 404.
 	// These are the web UI's own state: a signed-in browser session only,
-	// and a personal API token is refused with 403 (#1000).
+	// and a personal API token is refused with 403.
 	//
 	// Corresponds with GET /api/settings/filter-state (the `GetFilterState` operationId).
 	GetFilterState(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3728,7 +3725,7 @@ type ClientInterface interface {
 	// while the user is still typing in the free-text Title filter.
 	// A signed-in browser session only: a personal API token is refused
 	// with 403, so a script or agent can't change the filters the user
-	// sees (#1000). Each save is logged with the user agent.
+	// sees. Each save is logged with the user agent.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -3748,7 +3745,7 @@ type ClientInterface interface {
 	// while the user is still typing in the free-text Title filter.
 	// A signed-in browser session only: a personal API token is refused
 	// with 403, so a script or agent can't change the filters the user
-	// sees (#1000). Each save is logged with the user agent.
+	// sees. Each save is logged with the user agent.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -4634,13 +4631,12 @@ func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardPar
 // GetMainBranches The CI status of every tracked repository's default branch
 //
 // One row per tracked repository, showing the latest pipeline on its
-// default branch: failed, passed, running or none (#1224). A repository
-// ignored for pull requests is left out, as on the pull requests page
-// (#1337). Every other row is returned, whatever its status, with a
+// default branch: failed, passed, running or none. A repository
+// ignored for pull requests is left out, as on the pull requests page. Every other row is returned, whatever its status, with a
 // count per status, so a client
 // filters and sorts locally and its pill counts always match what each
 // pill lists. Rows come newest commit first (`commit.committedAt`),
-// whatever their status (#1552). A row with no commit time comes after
+// whatever their status. A row with no commit time comes after
 // every dated one; ties and undated rows go by `fullName`, then `forge`.
 //
 // Served from the snapshot the background refresh already holds, so it
@@ -4979,7 +4975,7 @@ func (c *Client) PostPullRequestDependabotAction(ctx context.Context, body PostP
 
 // GetPullRequestDetails Read a pull request's description, comments and reactions, on demand
 //
-// What the pull request dialog shows (#1506): the description, the
+// What the pull request dialog shows: the description, the
 // conversation in order, the thumbs up and thumbs down reactions on each
 // with who gave them, and, for a release pull request, the release
 // notes. Fetched live on every call, never as part of GET
@@ -5101,7 +5097,7 @@ func (c *Client) HidePullRequest(ctx context.Context, body HidePullRequestJSONRe
 // the original forge error is returned with `code: unknown`.
 //
 // An empty pull request, whose branch is already on the target, has no
-// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+// `merge` in `allowedActions`. A Merge posted for one anyway
 // gets 409 `already_up_to_date` from this server, which never asks the
 // forge.
 //
@@ -5139,7 +5135,7 @@ func (c *Client) MergePullRequestWithBody(ctx context.Context, contentType strin
 // the original forge error is returned with `code: unknown`.
 //
 // An empty pull request, whose branch is already on the target, has no
-// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+// `merge` in `allowedActions`. A Merge posted for one anyway
 // gets 409 `already_up_to_date` from this server, which never asks the
 // forge.
 //
@@ -5409,7 +5405,7 @@ func (c *Client) UpdatePullRequestBranch(ctx context.Context, body UpdatePullReq
 // ListQueuedActions List the signed-in user's queued actions, waiting and recently finished
 //
 // Every action the user queued to run when a rate-limited forge
-// resets (#756), oldest first: the ones still `queued`, and the
+// resets, oldest first: the ones still `queued`, and the
 // final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
 // client can show the outcome in its Activity list. The same list
 // rides along on GET /api/dashboard as `queuedActions`.
@@ -5781,7 +5777,7 @@ func (c *Client) PutSettings(ctx context.Context, body PutSettingsJSONRequestBod
 // shouldn't provision webhook credentials as a side effect.
 // `{}` for a user who's never saved any filters yet, not a 404.
 // These are the web UI's own state: a signed-in browser session only,
-// and a personal API token is refused with 403 (#1000).
+// and a personal API token is refused with 403.
 //
 // Corresponds with GET /api/settings/filter-state (the `GetFilterState` operationId).
 func (c *Client) GetFilterState(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -5809,7 +5805,7 @@ func (c *Client) GetFilterState(ctx context.Context, reqEditors ...RequestEditor
 // while the user is still typing in the free-text Title filter.
 // A signed-in browser session only: a personal API token is refused
 // with 403, so a script or agent can't change the filters the user
-// sees (#1000). Each save is logged with the user agent.
+// sees. Each save is logged with the user agent.
 //
 // Takes any type of body and a specified content type.
 //
@@ -5839,7 +5835,7 @@ func (c *Client) SetFilterStateWithBody(ctx context.Context, contentType string,
 // while the user is still typing in the free-text Title filter.
 // A signed-in browser session only: a personal API token is refused
 // with 403, so a script or agent can't change the filters the user
-// sees (#1000). Each save is logged with the user agent.
+// sees. Each save is logged with the user agent.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -9225,13 +9221,12 @@ type ClientWithResponsesInterface interface {
 	// GetMainBranchesWithResponse The CI status of every tracked repository's default branch
 	//
 	// One row per tracked repository, showing the latest pipeline on its
-	// default branch: failed, passed, running or none (#1224). A repository
-	// ignored for pull requests is left out, as on the pull requests page
-	// (#1337). Every other row is returned, whatever its status, with a
+	// default branch: failed, passed, running or none. A repository
+	// ignored for pull requests is left out, as on the pull requests page. Every other row is returned, whatever its status, with a
 	// count per status, so a client
 	// filters and sorts locally and its pill counts always match what each
 	// pill lists. Rows come newest commit first (`commit.committedAt`),
-	// whatever their status (#1552). A row with no commit time comes after
+	// whatever their status. A row with no commit time comes after
 	// every dated one; ties and undated rows go by `fullName`, then `forge`.
 	//
 	// Served from the snapshot the background refresh already holds, so it
@@ -9474,7 +9469,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetPullRequestDetailsWithResponse Read a pull request's description, comments and reactions, on demand
 	//
-	// What the pull request dialog shows (#1506): the description, the
+	// What the pull request dialog shows: the description, the
 	// conversation in order, the thumbs up and thumbs down reactions on each
 	// with who gave them, and, for a release pull request, the release
 	// notes. Fetched live on every call, never as part of GET
@@ -9568,7 +9563,7 @@ type ClientWithResponsesInterface interface {
 	// the original forge error is returned with `code: unknown`.
 	//
 	// An empty pull request, whose branch is already on the target, has no
-	// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+	// `merge` in `allowedActions`. A Merge posted for one anyway
 	// gets 409 `already_up_to_date` from this server, which never asks the
 	// forge.
 	//
@@ -9596,7 +9591,7 @@ type ClientWithResponsesInterface interface {
 	// the original forge error is returned with `code: unknown`.
 	//
 	// An empty pull request, whose branch is already on the target, has no
-	// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+	// `merge` in `allowedActions`. A Merge posted for one anyway
 	// gets 409 `already_up_to_date` from this server, which never asks the
 	// forge.
 	//
@@ -9776,7 +9771,7 @@ type ClientWithResponsesInterface interface {
 	// ListQueuedActionsWithResponse List the signed-in user's queued actions, waiting and recently finished
 	//
 	// Every action the user queued to run when a rate-limited forge
-	// resets (#756), oldest first: the ones still `queued`, and the
+	// resets, oldest first: the ones still `queued`, and the
 	// final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
 	// client can show the outcome in its Activity list. The same list
 	// rides along on GET /api/dashboard as `queuedActions`.
@@ -10004,7 +9999,7 @@ type ClientWithResponsesInterface interface {
 	// shouldn't provision webhook credentials as a side effect.
 	// `{}` for a user who's never saved any filters yet, not a 404.
 	// These are the web UI's own state: a signed-in browser session only,
-	// and a personal API token is refused with 403 (#1000).
+	// and a personal API token is refused with 403.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -10024,7 +10019,7 @@ type ClientWithResponsesInterface interface {
 	// while the user is still typing in the free-text Title filter.
 	// A signed-in browser session only: a personal API token is refused
 	// with 403, so a script or agent can't change the filters the user
-	// sees (#1000). Each save is logged with the user agent.
+	// sees. Each save is logged with the user agent.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -10044,7 +10039,7 @@ type ClientWithResponsesInterface interface {
 	// while the user is still typing in the free-text Title filter.
 	// A signed-in browser session only: a personal API token is refused
 	// with 403, so a script or agent can't change the filters the user
-	// sees (#1000). Each save is logged with the user agent.
+	// sees. Each save is logged with the user agent.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -14336,13 +14331,12 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 // GetMainBranchesWithResponse The CI status of every tracked repository's default branch
 //
 // One row per tracked repository, showing the latest pipeline on its
-// default branch: failed, passed, running or none (#1224). A repository
-// ignored for pull requests is left out, as on the pull requests page
-// (#1337). Every other row is returned, whatever its status, with a
+// default branch: failed, passed, running or none. A repository
+// ignored for pull requests is left out, as on the pull requests page. Every other row is returned, whatever its status, with a
 // count per status, so a client
 // filters and sorts locally and its pill counts always match what each
 // pill lists. Rows come newest commit first (`commit.committedAt`),
-// whatever their status (#1552). A row with no commit time comes after
+// whatever their status. A row with no commit time comes after
 // every dated one; ties and undated rows go by `fullName`, then `forge`.
 //
 // Served from the snapshot the background refresh already holds, so it
@@ -14645,7 +14639,7 @@ func (c *ClientWithResponses) PostPullRequestDependabotActionWithResponse(ctx co
 
 // GetPullRequestDetailsWithResponse Read a pull request's description, comments and reactions, on demand
 //
-// What the pull request dialog shows (#1506): the description, the
+// What the pull request dialog shows: the description, the
 // conversation in order, the thumbs up and thumbs down reactions on each
 // with who gave them, and, for a release pull request, the release
 // notes. Fetched live on every call, never as part of GET
@@ -14757,7 +14751,7 @@ func (c *ClientWithResponses) HidePullRequestWithResponse(ctx context.Context, b
 // the original forge error is returned with `code: unknown`.
 //
 // An empty pull request, whose branch is already on the target, has no
-// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+// `merge` in `allowedActions`. A Merge posted for one anyway
 // gets 409 `already_up_to_date` from this server, which never asks the
 // forge.
 //
@@ -14791,7 +14785,7 @@ func (c *ClientWithResponses) MergePullRequestWithBodyWithResponse(ctx context.C
 // the original forge error is returned with `code: unknown`.
 //
 // An empty pull request, whose branch is already on the target, has no
-// `merge` in `allowedActions` (#1375). A Merge posted for one anyway
+// `merge` in `allowedActions`. A Merge posted for one anyway
 // gets 409 `already_up_to_date` from this server, which never asks the
 // forge.
 //
@@ -15025,7 +15019,7 @@ func (c *ClientWithResponses) UpdatePullRequestBranchWithResponse(ctx context.Co
 // ListQueuedActionsWithResponse List the signed-in user's queued actions, waiting and recently finished
 //
 // Every action the user queued to run when a rate-limited forge
-// resets (#756), oldest first: the ones still `queued`, and the
+// resets, oldest first: the ones still `queued`, and the
 // final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
 // client can show the outcome in its Activity list. The same list
 // rides along on GET /api/dashboard as `queuedActions`.
@@ -15343,7 +15337,7 @@ func (c *ClientWithResponses) PutSettingsWithResponse(ctx context.Context, body 
 // shouldn't provision webhook credentials as a side effect.
 // `{}` for a user who's never saved any filters yet, not a 404.
 // These are the web UI's own state: a signed-in browser session only,
-// and a personal API token is refused with 403 (#1000).
+// and a personal API token is refused with 403.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -15369,7 +15363,7 @@ func (c *ClientWithResponses) GetFilterStateWithResponse(ctx context.Context, re
 // while the user is still typing in the free-text Title filter.
 // A signed-in browser session only: a personal API token is refused
 // with 403, so a script or agent can't change the filters the user
-// sees (#1000). Each save is logged with the user agent.
+// sees. Each save is logged with the user agent.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -15395,7 +15389,7 @@ func (c *ClientWithResponses) SetFilterStateWithBodyWithResponse(ctx context.Con
 // while the user is still typing in the free-text Title filter.
 // A signed-in browser session only: a personal API token is refused
 // with 403, so a script or agent can't change the filters the user
-// sees (#1000). Each save is logged with the user agent.
+// sees. Each save is logged with the user agent.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
