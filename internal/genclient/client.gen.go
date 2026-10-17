@@ -2176,9 +2176,8 @@ type SettingsResponse struct {
 	// dashboard snapshot, or there is no snapshot), never a made-up 0.
 	// Only this viewer's issues are counted. On GET and on the PUT
 	// response alike: a PUT returns the counts for the list it just
-	// saved. Optional until the server emits it; the server
-	// change makes it required.
-	IgnoredTitleCounts *[]*int `json:"ignoredTitleCounts,omitempty"`
+	// saved, worked out from the issues the viewer had before the save.
+	IgnoredTitleCounts []*int `json:"ignoredTitleCounts"`
 
 	// IgnoredTitles Patterns for issue titles to leave out, in the server's own
 	// regular expression syntax (Go RE2: no lookahead and no
