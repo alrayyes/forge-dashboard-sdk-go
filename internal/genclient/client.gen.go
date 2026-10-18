@@ -2050,6 +2050,15 @@ type RepoStatus struct {
 	// user's role. A failed or rate-limited listing doesn't
 	// set it. Absent otherwise.
 	WebhookLockedByConnection *bool `json:"webhookLockedByConnection,omitempty"`
+
+	// WebhookNeedsToken Present and true when canManageWebhooks is false because no
+	// token is saved for the forge. The repos then came from a
+	// username-only listing, which the forge answers as an anonymous
+	// caller, so the permissions it reports say nothing about the
+	// signed-in user's role. Saving a token with the webhook scope in
+	// Settings is the fix. Absent when a token is saved, whatever
+	// role it holds. Set today for Forgejo only.
+	WebhookNeedsToken *bool `json:"webhookNeedsToken,omitempty"`
 }
 
 // RequestLogEntry One outbound request `internal/github` or `internal/forgejo`
