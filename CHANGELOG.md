@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.84.1](https://github.com/alrayyes/forge-dashboard-sdk-go/compare/v1.84.0...v1.84.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **ci:** arm auto-merge on a regeneration pull request whose label arrives after it opens ([#203](https://github.com/alrayyes/forge-dashboard-sdk-go/issues/203)) ([54a6da7](https://github.com/alrayyes/forge-dashboard-sdk-go/commit/54a6da7efd3642338409ac93a3f5c8f5c21cfa26)), closes [#202](https://github.com/alrayyes/forge-dashboard-sdk-go/issues/202)
+
 ## [1.84.0](https://github.com/alrayyes/forge-dashboard-sdk-go/compare/v1.83.0...v1.84.0) (2026-10-19)
 
 
