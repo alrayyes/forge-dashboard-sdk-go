@@ -178,18 +178,21 @@ func (e CIStatus) Valid() bool {
 
 // Defines values for CheckState.
 const (
-	CheckStateCancelled CheckState = "cancelled"
-	CheckStateFailure   CheckState = "failure"
-	CheckStateQueued    CheckState = "queued"
-	CheckStateRunning   CheckState = "running"
-	CheckStateSkipped   CheckState = "skipped"
-	CheckStateSuccess   CheckState = "success"
-	CheckStateTimedOut  CheckState = "timed_out"
+	CheckStateAwaitingApproval CheckState = "awaiting_approval"
+	CheckStateCancelled        CheckState = "cancelled"
+	CheckStateFailure          CheckState = "failure"
+	CheckStateQueued           CheckState = "queued"
+	CheckStateRunning          CheckState = "running"
+	CheckStateSkipped          CheckState = "skipped"
+	CheckStateSuccess          CheckState = "success"
+	CheckStateTimedOut         CheckState = "timed_out"
 )
 
 // Valid indicates whether the value is a known member of the CheckState enum.
 func (e CheckState) Valid() bool {
 	switch e {
+	case CheckStateAwaitingApproval:
+		return true
 	case CheckStateCancelled:
 		return true
 	case CheckStateFailure:
@@ -955,6 +958,10 @@ type Check struct {
 	// State One job/check's own status — the per-job detail CIStatus
 	// deliberately doesn't carry, since CIStatus is the combined result
 	// across every one of them.
+	//
+	// "awaiting_approval" is a GitHub workflow run held until a
+	// maintainer approves it. It has no jobs yet, so it is not queued and
+	// not failed; its `url` is the run's page, where the approve button is.
 	State CheckState `json:"state"`
 
 	// Url That job's own page on the forge that ran it — never the pull request's own page.
@@ -964,6 +971,10 @@ type Check struct {
 // CheckState One job/check's own status — the per-job detail CIStatus
 // deliberately doesn't carry, since CIStatus is the combined result
 // across every one of them.
+//
+// "awaiting_approval" is a GitHub workflow run held until a
+// maintainer approves it. It has no jobs yet, so it is not queued and
+// not failed; its `url` is the run's page, where the approve button is.
 type CheckState string
 
 // Credential A registered passkey's own metadata — never the
@@ -1423,7 +1434,11 @@ type NavIssueCount struct {
 // succeeded. A pull request with no checks counts in `total` only, so
 // the four numbers need not add up. All four are always present.
 type NavPullRequestCount struct {
-	// Failed How many of them have failing CI.
+	// Failed How many of them have failing CI. A pull request whose only
+	// failure is workflow runs held until someone approves them
+	// (`awaitingWorkflowApproval`) is counted in `total` and not here,
+	// as nothing failed; one with a job that really failed beside a
+	// held run still counts.
 	Failed int `json:"failed"`
 
 	// Passed How many of them have CI that succeeded.
@@ -1555,8 +1570,14 @@ type PullRequest struct {
 	// old enough not to report additions/deletions/changed_files on
 	// its list endpoint), never a false positive: a pull request
 	// this never confirms empty just renders as it always has.
-	Empty bool  `json:"empty"`
-	Forge Forge `json:"forge"`
+	Empty bool `json:"empty"`
+
+	// FailingCi True when CI is failing and not only because a workflow run is
+	// held for approval: what the Failing CI quick filter and the status
+	// filter's Failing choice list, and what the menu pill's Failed
+	// number counts. Always present.
+	FailingCi bool  `json:"failingCi"`
+	Forge     Forge `json:"forge"`
 
 	// HeadBranch The branch the pull request comes from. Empty when the forge
 	// didn't say.
