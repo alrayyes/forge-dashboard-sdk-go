@@ -2069,37 +2069,6 @@ type RepoStatus struct {
 	WebhookNeedsToken *bool `json:"webhookNeedsToken,omitempty"`
 }
 
-// RequestLogEntry One outbound request `internal/github` or `internal/forgejo`
-// made, as persisted by the request_log table.
-type RequestLogEntry struct {
-	// Account The display username of the account whose credential made
-	// this request, or omitted when the request was made with no
-	// per-account credential, or when that account has since been
-	// deleted.
-	Account *string `json:"account,omitempty"`
-
-	// Endpoint The request's own path — GraphQL requests all report "/graphql".
-	//
-	// Examples: /repos/alrayyes/forge-dashboard/pulls, /graphql
-	Endpoint string    `json:"endpoint"`
-	Forge    Forge     `json:"forge"`
-	LoggedAt time.Time `json:"loggedAt"`
-
-	// Method Examples: GET, POST
-	Method string `json:"method"`
-
-	// Outcome "success", or the `ForgeErrorKind` the failure was classified as.
-	//
-	// Examples: success, rate_limited
-	Outcome string `json:"outcome"`
-
-	// RateLimit Omitted when the response carried no rate-limit fields.
-	RateLimit *RateLimit `json:"rateLimit,omitempty"`
-
-	// StatusCode Omitted when the request never got a response at all.
-	StatusCode *int `json:"statusCode,omitempty"`
-}
-
 // ReviewState Where a pull request stands on code review. The whole object is
 // omitted when the owning forge couldn't report it (a Forgejo
 // reviews call that failed, a draft Forgejo pull request this
@@ -2468,38 +2437,6 @@ type QueryIncludeDrafts = bool
 // QueryIncludeHidden defines model for QueryIncludeHidden.
 type QueryIncludeHidden = bool
 
-// QueryRequestLogAccount defines model for QueryRequestLogAccount.
-type QueryRequestLogAccount = string
-
-// QueryRequestLogForge defines model for QueryRequestLogForge.
-type QueryRequestLogForge = Forge
-
-// ListRequestsParams defines parameters for ListRequests.
-type ListRequestsParams struct {
-	// Forge Narrow to entries against this forge only. Omitted matches every forge.
-	Forge *QueryRequestLogForge `form:"forge,omitempty" json:"forge,omitempty"`
-
-	// Account Narrow to entries made under this account's own credential only —
-	// the account's `username` (matching RequestLogEntry.account), not
-	// its internal id. An unrecognized username matches nothing rather
-	// than erroring, the same as any other filter with no matches.
-	// Omitted matches every account.
-	Account *QueryRequestLogAccount `form:"account,omitempty" json:"account,omitempty"`
-}
-
-// ExportRequestsParams defines parameters for ExportRequests.
-type ExportRequestsParams struct {
-	// Forge Narrow to entries against this forge only. Omitted matches every forge.
-	Forge *QueryRequestLogForge `form:"forge,omitempty" json:"forge,omitempty"`
-
-	// Account Narrow to entries made under this account's own credential only —
-	// the account's `username` (matching RequestLogEntry.account), not
-	// its internal id. An unrecognized username matches nothing rather
-	// than erroring, the same as any other filter with no matches.
-	// Omitted matches every account.
-	Account *QueryRequestLogAccount `form:"account,omitempty" json:"account,omitempty"`
-}
-
 // FinishAddCredentialParams defines parameters for FinishAddCredential.
 type FinishAddCredentialParams struct {
 	// Label A name the user recognizes, e.g. "MacBook" or "YubiKey",
@@ -2806,26 +2743,6 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/admin/invites/{token}/revoke (the `RevokeInvite` operationId).
 	RevokeInvite(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListRequests List every outbound GitHub/Forgejo request this instance has made
-	//
-	// Every outbound request `internal/github` or `internal/forgejo` has
-	// made, newest first, across every account — an admin's own
-	// credential included, since correlating a shared-credential
-	// problem (like the rate-limit incident that motivated this
-	// endpoint) needs a cross-account view no single account's own
-	// session could give.
-	//
-	// Corresponds with GET /api/admin/requests (the `ListRequests` operationId).
-	ListRequests(ctx context.Context, params *ListRequestsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ExportRequests Export the (filtered) outbound-request log as CSV
-	//
-	// The same rows GET /api/admin/requests would return for the same
-	// filter, as a downloadable CSV file with one header row.
-	//
-	// Corresponds with GET /api/admin/requests/export (the `ExportRequests` operationId).
-	ExportRequests(ctx context.Context, params *ExportRequestsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListUsers List every registered user
 	//
@@ -4267,46 +4184,6 @@ func (c *Client) CreateInvite(ctx context.Context, body CreateInviteJSONRequestB
 // Corresponds with POST /api/admin/invites/{token}/revoke (the `RevokeInvite` operationId).
 func (c *Client) RevokeInvite(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRevokeInviteRequest(c.Server, token)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ListRequests List every outbound GitHub/Forgejo request this instance has made
-//
-// Every outbound request `internal/github` or `internal/forgejo` has
-// made, newest first, across every account — an admin's own
-// credential included, since correlating a shared-credential
-// problem (like the rate-limit incident that motivated this
-// endpoint) needs a cross-account view no single account's own
-// session could give.
-//
-// Corresponds with GET /api/admin/requests (the `ListRequests` operationId).
-func (c *Client) ListRequests(ctx context.Context, params *ListRequestsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListRequestsRequest(c.Server, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ExportRequests Export the (filtered) outbound-request log as CSV
-//
-// The same rows GET /api/admin/requests would return for the same
-// filter, as a downloadable CSV file with one header row.
-//
-// Corresponds with GET /api/admin/requests/export (the `ExportRequests` operationId).
-func (c *Client) ExportRequests(ctx context.Context, params *ExportRequestsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExportRequestsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6637,138 +6514,6 @@ func NewRevokeInviteRequest(server string, token string) (*http.Request, error) 
 	}
 
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListRequestsRequest constructs an http.Request for the ListRequests method
-func NewListRequestsRequest(server string, params *ListRequestsParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/requests")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Forge != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", *params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Account != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "account", *params.Account, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewExportRequestsRequest constructs an http.Request for the ExportRequests method
-func NewExportRequestsRequest(server string, params *ExportRequestsParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/requests/export")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Forge != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", *params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Account != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "account", *params.Account, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -9136,30 +8881,6 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/admin/invites/{token}/revoke (the `RevokeInvite` operationId).
 	RevokeInviteWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*RevokeInviteResponse, error)
 
-	// ListRequestsWithResponse List every outbound GitHub/Forgejo request this instance has made
-	//
-	// Every outbound request `internal/github` or `internal/forgejo` has
-	// made, newest first, across every account — an admin's own
-	// credential included, since correlating a shared-credential
-	// problem (like the rate-limit incident that motivated this
-	// endpoint) needs a cross-account view no single account's own
-	// session could give.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /api/admin/requests (the `ListRequests` operationId).
-	ListRequestsWithResponse(ctx context.Context, params *ListRequestsParams, reqEditors ...RequestEditorFn) (*ListRequestsResponse, error)
-
-	// ExportRequestsWithResponse Export the (filtered) outbound-request log as CSV
-	//
-	// The same rows GET /api/admin/requests would return for the same
-	// filter, as a downloadable CSV file with one header row.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /api/admin/requests/export (the `ExportRequests` operationId).
-	ExportRequestsWithResponse(ctx context.Context, params *ExportRequestsParams, reqEditors ...RequestEditorFn) (*ExportRequestsResponse, error)
-
 	// ListUsersWithResponse List every registered user
 	//
 	// Never includes a passkey or a forge credential — a username,
@@ -10760,109 +10481,6 @@ func (r RevokeInviteResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RevokeInviteResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type ListRequestsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *[]RequestLogEntry
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r ListRequestsResponse) GetJSON200() *[]RequestLogEntry {
-	return r.JSON200
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r ListRequestsResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r ListRequestsResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetBody returns the raw response body bytes
-func (r ListRequestsResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r ListRequestsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListRequestsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListRequestsResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type ExportRequestsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r ExportRequestsResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r ExportRequestsResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetBody returns the raw response body bytes
-func (r ExportRequestsResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r ExportRequestsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ExportRequestsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ExportRequestsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -14172,42 +13790,6 @@ func (c *ClientWithResponses) RevokeInviteWithResponse(ctx context.Context, toke
 	return ParseRevokeInviteResponse(rsp)
 }
 
-// ListRequestsWithResponse List every outbound GitHub/Forgejo request this instance has made
-//
-// Every outbound request `internal/github` or `internal/forgejo` has
-// made, newest first, across every account — an admin's own
-// credential included, since correlating a shared-credential
-// problem (like the rate-limit incident that motivated this
-// endpoint) needs a cross-account view no single account's own
-// session could give.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /api/admin/requests (the `ListRequests` operationId).
-func (c *ClientWithResponses) ListRequestsWithResponse(ctx context.Context, params *ListRequestsParams, reqEditors ...RequestEditorFn) (*ListRequestsResponse, error) {
-	rsp, err := c.ListRequests(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListRequestsResponse(rsp)
-}
-
-// ExportRequestsWithResponse Export the (filtered) outbound-request log as CSV
-//
-// The same rows GET /api/admin/requests would return for the same
-// filter, as a downloadable CSV file with one header row.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /api/admin/requests/export (the `ExportRequests` operationId).
-func (c *ClientWithResponses) ExportRequestsWithResponse(ctx context.Context, params *ExportRequestsParams, reqEditors ...RequestEditorFn) (*ExportRequestsResponse, error) {
-	rsp, err := c.ExportRequests(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseExportRequestsResponse(rsp)
-}
-
 // ListUsersWithResponse List every registered user
 //
 // Never includes a passkey or a forge credential — a username,
@@ -16281,79 +15863,6 @@ func ParseRevokeInviteResponse(rsp *http.Response) (*RevokeInviteResponse, error
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListRequestsResponse parses an HTTP response from a ListRequestsWithResponse call
-func ParseListRequestsResponse(rsp *http.Response) (*ListRequestsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListRequestsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []RequestLogEntry
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseExportRequestsResponse parses an HTTP response from a ExportRequestsWithResponse call
-func ParseExportRequestsResponse(rsp *http.Response) (*ExportRequestsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ExportRequestsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
 
 	}
 
