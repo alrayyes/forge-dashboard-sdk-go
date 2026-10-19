@@ -1533,8 +1533,15 @@ type PullRequest struct {
 	// Ci The combined result across every check reported against the pull
 	// request's head commit. "none" means neither forge reported any
 	// check at all, not that one failed.
-	Ci        CIStatus  `json:"ci"`
-	CreatedAt time.Time `json:"createdAt"`
+	Ci CIStatus `json:"ci"`
+
+	// ConversationComments How many ordinary comments the pull request's conversation has,
+	// apart from `reviewComments`. A review's own body is not a comment.
+	// Always present, and 0 when there are none. On GitHub it comes from
+	// the pull request query, on Forgejo from the pull request itself, so
+	// neither costs a request.
+	ConversationComments int       `json:"conversationComments"`
+	CreatedAt            time.Time `json:"createdAt"`
 
 	// CrossRepository True when the head branch lives in another repository (a fork).
 	// A fork pull request is never part of a stack.
@@ -1638,8 +1645,9 @@ type PullRequest struct {
 	// pull request's updatedAt changes.
 	Review *ReviewState `json:"review,omitempty"`
 
-	// ReviewComments How many review comments the pull request has. Ordinary
-	// conversation comments are not counted. Always present, and 0 when
+	// ReviewComments How many review comments the pull request has, the ones on a
+	// line of code. Ordinary conversation comments are counted apart,
+	// in `conversationComments`. Always present, and 0 when
 	// there are none or the forge can't say (a Forgejo draft or failed
 	// reviews call, GitHub's unauthenticated fallback). On GitHub it is read from
 	// the review threads in the pull request query, first 30 threads; on Forgejo it is the sum
