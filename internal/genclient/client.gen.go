@@ -307,15 +307,18 @@ func (e HealthStatus) Valid() bool {
 
 // Defines values for MainBranchStatus.
 const (
-	MainBranchStatusFailed  MainBranchStatus = "failed"
-	MainBranchStatusNone    MainBranchStatus = "none"
-	MainBranchStatusPassed  MainBranchStatus = "passed"
-	MainBranchStatusRunning MainBranchStatus = "running"
+	MainBranchStatusCancelled MainBranchStatus = "cancelled"
+	MainBranchStatusFailed    MainBranchStatus = "failed"
+	MainBranchStatusNone      MainBranchStatus = "none"
+	MainBranchStatusPassed    MainBranchStatus = "passed"
+	MainBranchStatusRunning   MainBranchStatus = "running"
 )
 
 // Valid indicates whether the value is a known member of the MainBranchStatus enum.
 func (e MainBranchStatus) Valid() bool {
 	switch e {
+	case MainBranchStatusCancelled:
+		return true
 	case MainBranchStatusFailed:
 		return true
 	case MainBranchStatusNone:
@@ -1291,6 +1294,8 @@ type MainBranch struct {
 	// Status The result of the latest pipeline on a default branch's newest
 	// commit, across all its workflows. "failed" when any job failed,
 	// "running" when none failed and some are still queued or running,
+	// "cancelled" when nothing failed and nothing is running but some run
+	// was cancelled (a newer push or a person stopped it, so nothing broke),
 	// "passed" when all finished green, "none" when the commit has no
 	// pipeline at all (or the repository has no commit yet).
 	Status MainBranchStatus `json:"status"`
@@ -1316,18 +1321,21 @@ type MainBranchCommit struct {
 }
 
 // MainBranchCounts How many rows are in each status, the numbers on the filter pills.
-// `total` is every row, so it equals the sum of the other four.
+// `total` is every row, so it equals the sum of the other five.
 type MainBranchCounts struct {
-	Failed  int `json:"failed"`
-	None    int `json:"none"`
-	Passed  int `json:"passed"`
-	Running int `json:"running"`
-	Total   int `json:"total"`
+	Cancelled int `json:"cancelled"`
+	Failed    int `json:"failed"`
+	None      int `json:"none"`
+	Passed    int `json:"passed"`
+	Running   int `json:"running"`
+	Total     int `json:"total"`
 }
 
 // MainBranchStatus The result of the latest pipeline on a default branch's newest
 // commit, across all its workflows. "failed" when any job failed,
 // "running" when none failed and some are still queued or running,
+// "cancelled" when nothing failed and nothing is running but some run
+// was cancelled (a newer push or a person stopped it, so nothing broke),
 // "passed" when all finished green, "none" when the commit has no
 // pipeline at all (or the repository has no commit yet).
 type MainBranchStatus string
@@ -1337,7 +1345,7 @@ type MainBranches struct {
 	Branches []MainBranch `json:"branches"`
 
 	// Counts How many rows are in each status, the numbers on the filter pills.
-	// `total` is every row, so it equals the sum of the other four.
+	// `total` is every row, so it equals the sum of the other five.
 	Counts MainBranchCounts `json:"counts"`
 
 	// GeneratedAt When the snapshot was refreshed, not when it was requested.
@@ -1359,9 +1367,9 @@ type MergeStatus string
 // NavCount The Branches page's numbers: how many default branches
 // it lists and how many of those have a pipeline running, failed and
 // passed, the same four as `NavPullRequestCount`, plus `none`, the ones
-// with no pipeline. Every branch is in exactly one of the four states,
-// so `running`, `failed`, `passed` and `none` add up to `total`. All
-// five are always present.
+// with no pipeline. A branch whose only trouble is a cancelled run
+// counts in `total` only, as a pull request with no checks does, so the
+// parts need not add up. All five are always present.
 type NavCount struct {
 	// Failed How many of them have a failing pipeline.
 	Failed int `json:"failed"`
@@ -1402,9 +1410,9 @@ type NavCounts struct {
 	// Branches The Branches page's numbers: how many default branches
 	// it lists and how many of those have a pipeline running, failed and
 	// passed, the same four as `NavPullRequestCount`, plus `none`, the ones
-	// with no pipeline. Every branch is in exactly one of the four states,
-	// so `running`, `failed`, `passed` and `none` add up to `total`. All
-	// five are always present.
+	// with no pipeline. A branch whose only trouble is a cancelled run
+	// counts in `total` only, as a pull request with no checks does, so the
+	// parts need not add up. All five are always present.
 	Branches NavCount      `json:"branches"`
 	Issues   NavIssueCount `json:"issues"`
 
