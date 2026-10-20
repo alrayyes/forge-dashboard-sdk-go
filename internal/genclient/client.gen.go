@@ -995,6 +995,36 @@ type Check struct {
 	Url string `json:"url"`
 }
 
+// CheckCounts How many of a pull request's checks are in each state, so a client can
+// say how far a pipeline is without opening it. The server tallies
+// them from what it already reads to work out `ci`, so they cost no
+// request. Always present, all zero when there are no checks.
+//
+// `waiting` is a check that has not started: queued, or pending where the
+// forge doesn't tell queued from running. The counts agree with `ci`: a
+// pull request whose `ci` is `pending` has `failed` at 0, and one whose
+// `ci` is `success` has nothing running, waiting or failed. Two kinds of
+// run are therefore in none of the four. A run held for approval:
+// `awaitingWorkflowApproval` says that. A cancelled run: a push or a
+// concurrency group superseded it, and the overall state does not read it
+// as a failure while others still run. A timed-out or stale check counts
+// as `failed`, a skipped, neutral or bare completed one as `passed`.
+//
+// On GitHub the counts come from the same rollup as `ci`; on Forgejo from
+// the statuses of the combined commit status, where nothing is ever
+// `running`. Forgejo answers one page of those statuses, and when its
+// total says there are more than the page holds the counts are all zero
+// rather than an undercount. When GitHub's rollup is of an earlier
+// commit than the head (a push still being processed), the counts are
+// zero too. GitHub's unauthenticated fallback has no such counts, so
+// there they are all zero.
+type CheckCounts struct {
+	Failed  int `json:"failed"`
+	Passed  int `json:"passed"`
+	Running int `json:"running"`
+	Waiting int `json:"waiting"`
+}
+
 // CheckState One job/check's own status — the per-job detail CIStatus
 // deliberately doesn't carry, since CIStatus is the combined result
 // across every one of them.
@@ -1630,6 +1660,31 @@ type PullRequest struct {
 	// account: a server restart forgets it.
 	BotRequest *BotRequest `json:"botRequest,omitempty"`
 
+	// Checks How many of a pull request's checks are in each state, so a client can
+	// say how far a pipeline is without opening it. The server tallies
+	// them from what it already reads to work out `ci`, so they cost no
+	// request. Always present, all zero when there are no checks.
+	//
+	// `waiting` is a check that has not started: queued, or pending where the
+	// forge doesn't tell queued from running. The counts agree with `ci`: a
+	// pull request whose `ci` is `pending` has `failed` at 0, and one whose
+	// `ci` is `success` has nothing running, waiting or failed. Two kinds of
+	// run are therefore in none of the four. A run held for approval:
+	// `awaitingWorkflowApproval` says that. A cancelled run: a push or a
+	// concurrency group superseded it, and the overall state does not read it
+	// as a failure while others still run. A timed-out or stale check counts
+	// as `failed`, a skipped, neutral or bare completed one as `passed`.
+	//
+	// On GitHub the counts come from the same rollup as `ci`; on Forgejo from
+	// the statuses of the combined commit status, where nothing is ever
+	// `running`. Forgejo answers one page of those statuses, and when its
+	// total says there are more than the page holds the counts are all zero
+	// rather than an undercount. When GitHub's rollup is of an earlier
+	// commit than the head (a push still being processed), the counts are
+	// zero too. GitHub's unauthenticated fallback has no such counts, so
+	// there they are all zero.
+	Checks CheckCounts `json:"checks"`
+
 	// Ci The combined result across every check reported against the pull
 	// request's head commit. "none" means neither forge reported any
 	// check at all, not that one failed.
@@ -2186,6 +2241,22 @@ type RepoStatus struct {
 	// requests specifically — its pullRequests entries are
 	// excluded from this same response and from Insights.
 	IgnoredPRs bool `json:"ignoredPRs"`
+
+	// LogoUrl The repository's own logo, only when it has one: a GitHub
+	// repository's custom social preview image, or a Forgejo
+	// repository's own avatar. Absent otherwise, and never the
+	// generated social card GitHub shows for a repository with none,
+	// nor the owner's avatar. Always an https URL, passed through
+	// unchanged and never proxied: on GitHub exactly
+	// repository-images.githubusercontent.com, on Forgejo the
+	// instance's own host. A GitHub custom image is a wide banner,
+	// not a square logo.
+	// Absent for a repository reached through an unauthenticated,
+	// username-only listing, since that listing carries no image.
+	//
+	//
+	// Examples: https://repository-images.githubusercontent.com/123/abc
+	LogoUrl *string `json:"logoUrl,omitempty"`
 
 	// Url The repo's own page on its forge, for linking out.
 	//
@@ -3468,7 +3539,9 @@ type ClientInterface interface {
 	// number. An avatar is the forge's own URL, passed through unchanged
 	// and never proxied; this app sets no Content-Security-Policy today, so
 	// the browser loads it directly. A future policy's `img-src` has to
-	// allow avatars.githubusercontent.com and the Forgejo host.
+	// allow avatars.githubusercontent.com, repository-images.githubusercontent.com
+	// (a GitHub repository's logo, see `logoUrl` on a repo in GET
+	// /api/dashboard) and the Forgejo host.
 	//
 	// The error answers are those of GET /api/pull-requests/checks, with
 	// the same codes. A forge that can't be read is an error, never an
@@ -5314,7 +5387,9 @@ func (c *Client) PostPullRequestDependabotAction(ctx context.Context, body PostP
 // number. An avatar is the forge's own URL, passed through unchanged
 // and never proxied; this app sets no Content-Security-Policy today, so
 // the browser loads it directly. A future policy's `img-src` has to
-// allow avatars.githubusercontent.com and the Forgejo host.
+// allow avatars.githubusercontent.com, repository-images.githubusercontent.com
+// (a GitHub repository's logo, see `logoUrl` on a repo in GET
+// /api/dashboard) and the Forgejo host.
 //
 // The error answers are those of GET /api/pull-requests/checks, with
 // the same codes. A forge that can't be read is an error, never an
@@ -9893,7 +9968,9 @@ type ClientWithResponsesInterface interface {
 	// number. An avatar is the forge's own URL, passed through unchanged
 	// and never proxied; this app sets no Content-Security-Policy today, so
 	// the browser loads it directly. A future policy's `img-src` has to
-	// allow avatars.githubusercontent.com and the Forgejo host.
+	// allow avatars.githubusercontent.com, repository-images.githubusercontent.com
+	// (a GitHub repository's logo, see `logoUrl` on a repo in GET
+	// /api/dashboard) and the Forgejo host.
 	//
 	// The error answers are those of GET /api/pull-requests/checks, with
 	// the same codes. A forge that can't be read is an error, never an
@@ -15232,7 +15309,9 @@ func (c *ClientWithResponses) PostPullRequestDependabotActionWithResponse(ctx co
 // number. An avatar is the forge's own URL, passed through unchanged
 // and never proxied; this app sets no Content-Security-Policy today, so
 // the browser loads it directly. A future policy's `img-src` has to
-// allow avatars.githubusercontent.com and the Forgejo host.
+// allow avatars.githubusercontent.com, repository-images.githubusercontent.com
+// (a GitHub repository's logo, see `logoUrl` on a repo in GET
+// /api/dashboard) and the Forgejo host.
 //
 // The error answers are those of GET /api/pull-requests/checks, with
 // the same codes. A forge that can't be read is an error, never an
