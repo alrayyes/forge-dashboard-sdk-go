@@ -1245,9 +1245,12 @@ type Issue struct {
 	Author string `json:"author"`
 
 	// AuthorAvatarUrl The forge's own avatar URL for whoever filed the issue, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
-	AuthorAvatarUrl string    `json:"authorAvatarUrl"`
-	CreatedAt       time.Time `json:"createdAt"`
-	Forge           Forge     `json:"forge"`
+	AuthorAvatarUrl string `json:"authorAvatarUrl"`
+
+	// AuthorUrl The author's profile page on the forge, built by the server from the forge's own web address. Empty when there is nothing to link to, such as a deleted account.
+	AuthorUrl string    `json:"authorUrl"`
+	CreatedAt time.Time `json:"createdAt"`
+	Forge     Forge     `json:"forge"`
 
 	// Housekeeping True for an issue a bot keeps open and rewrites, Renovate's
 	// "Dependency Dashboard", which is not work for a person. The
@@ -1529,6 +1532,9 @@ type Person struct {
 	// AvatarUrl The forge's own avatar URL, passed through unchanged and never proxied.
 	AvatarUrl string `json:"avatarUrl"`
 	Login     string `json:"login"`
+
+	// Url The person's profile page on the forge, built by the server from the web address of an item the board already holds for that forge. Empty when the board holds none yet, so a client shows the name alone.
+	Url string `json:"url"`
 }
 
 // PullRequest defines model for PullRequest.
@@ -1546,6 +1552,9 @@ type PullRequest struct {
 
 	// AuthorAvatarUrl The forge's own avatar URL for the author, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
 	AuthorAvatarUrl string `json:"authorAvatarUrl"`
+
+	// AuthorUrl The author's profile page on the forge, built by the server from the forge's own web address, so a client needs no rule per forge. A GitHub bot links to its app page. Empty when there is nothing to link to, such as a deleted account.
+	AuthorUrl string `json:"authorUrl"`
 
 	// AutoMerge Where an armed pull request stands, so the row can say why
 	// auto-merge is waiting or stopped in words and not by colour. Present
