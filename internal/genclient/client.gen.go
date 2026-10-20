@@ -1065,28 +1065,40 @@ type Check struct {
 	Url string `json:"url"`
 }
 
-// CheckCounts How many of a pull request's checks are in each state, so a client can
-// say how far a pipeline is without opening it. The server tallies
-// them from what it already reads to work out `ci`, so they cost no
-// request. Always present, all zero when there are no checks.
+// CheckCounts How many checks are in each state, so a client can say how far a
+// pipeline is without opening it. It is on every pull request and on
+// every default branch, for a passed, a failed and a running pipeline
+// alike. The server tallies them from what it already reads to work out
+// the overall state, so they cost no request. Always present, all zero
+// when there are no checks.
 //
 // `waiting` is a check that has not started: queued, or pending where the
-// forge doesn't tell queued from running. The counts agree with `ci`: a
-// pull request whose `ci` is `pending` has `failed` at 0, and one whose
-// `ci` is `success` has nothing running, waiting or failed. Two kinds of
-// run are therefore in none of the four. A run held for approval:
+// forge doesn't tell queued from running. A failed pipeline can still have
+// checks running or waiting, and says so. A pull request's counts agree
+// with its `ci`: one whose `ci` is `pending` has `failed` at 0, and one
+// whose `ci` is `success` has nothing running, waiting or failed. Two
+// kinds of run are therefore in none of the four, as long as something
+// else explains the state. A run held for approval: on a pull request
 // `awaitingWorkflowApproval` says that. A cancelled run: a push or a
 // concurrency group superseded it, and the overall state does not read it
-// as a failure while others still run. A timed-out or stale check counts
-// as `failed`, a skipped, neutral or bare completed one as `passed`.
+// as a failure while others still run. When cancelled runs (and, on a
+// branch, held ones) are the only reason a pipeline reads as failed, they
+// count as `failed` (a held run first, where both are there), so a failed
+// pipeline always has a failed count on GitHub. A branch whose status is
+// `cancelled` has `failed` at 0. A timed-out or stale check counts as `failed`, a skipped,
+// neutral or bare completed one as `passed`.
 //
-// On GitHub the counts come from the same rollup as `ci`; on Forgejo from
+// On GitHub the counts come from the same rollup as the overall state,
+// for a pull request and a branch alike; on Forgejo a pull request counts
 // the statuses of the combined commit status, where nothing is ever
-// `running`. Forgejo answers one page of those statuses, and when its
-// total says there are more than the page holds the counts are all zero
-// rather than an undercount. When GitHub's rollup is of an earlier
-// commit than the head (a push still being processed), the counts are
-// zero too. GitHub's unauthenticated fallback has no such counts, so
+// `running`, and a default branch counts the workflow runs of the newest
+// commit that has one (a job count would cost a request per run), where a
+// running run is `running` and a queued or blocked one `waiting`. Forgejo
+// answers one page of those statuses, and when its total says there are
+// more than the page holds a pull request's counts are all zero rather
+// than an undercount. When GitHub's rollup of a pull request is of an
+// earlier commit than the head (a push still being processed), the counts
+// are zero too. GitHub's unauthenticated fallback has no such counts, so
 // there they are all zero.
 type CheckCounts struct {
 	Failed  int `json:"failed"`
@@ -1463,6 +1475,43 @@ type MainBranch struct {
 	// Branch The repository's default branch. Empty for a repository the forge reports no default branch for.
 	Branch string `json:"branch"`
 
+	// Checks How many checks are in each state, so a client can say how far a
+	// pipeline is without opening it. It is on every pull request and on
+	// every default branch, for a passed, a failed and a running pipeline
+	// alike. The server tallies them from what it already reads to work out
+	// the overall state, so they cost no request. Always present, all zero
+	// when there are no checks.
+	//
+	// `waiting` is a check that has not started: queued, or pending where the
+	// forge doesn't tell queued from running. A failed pipeline can still have
+	// checks running or waiting, and says so. A pull request's counts agree
+	// with its `ci`: one whose `ci` is `pending` has `failed` at 0, and one
+	// whose `ci` is `success` has nothing running, waiting or failed. Two
+	// kinds of run are therefore in none of the four, as long as something
+	// else explains the state. A run held for approval: on a pull request
+	// `awaitingWorkflowApproval` says that. A cancelled run: a push or a
+	// concurrency group superseded it, and the overall state does not read it
+	// as a failure while others still run. When cancelled runs (and, on a
+	// branch, held ones) are the only reason a pipeline reads as failed, they
+	// count as `failed` (a held run first, where both are there), so a failed
+	// pipeline always has a failed count on GitHub. A branch whose status is
+	// `cancelled` has `failed` at 0. A timed-out or stale check counts as `failed`, a skipped,
+	// neutral or bare completed one as `passed`.
+	//
+	// On GitHub the counts come from the same rollup as the overall state,
+	// for a pull request and a branch alike; on Forgejo a pull request counts
+	// the statuses of the combined commit status, where nothing is ever
+	// `running`, and a default branch counts the workflow runs of the newest
+	// commit that has one (a job count would cost a request per run), where a
+	// running run is `running` and a queued or blocked one `waiting`. Forgejo
+	// answers one page of those statuses, and when its total says there are
+	// more than the page holds a pull request's counts are all zero rather
+	// than an undercount. When GitHub's rollup of a pull request is of an
+	// earlier commit than the head (a push still being processed), the counts
+	// are zero too. GitHub's unauthenticated fallback has no such counts, so
+	// there they are all zero.
+	Checks CheckCounts `json:"checks"`
+
 	// Commit The newest commit, or null when the forge reported none (an empty repository, or no run on Forgejo to name one from).
 	Commit *MainBranchCommit `json:"commit"`
 
@@ -1481,6 +1530,13 @@ type MainBranch struct {
 
 	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
 	FullName string `json:"fullName"`
+
+	// LatestRelease The repository's latest published release, for a link to its
+	// notes. Null when the repository has none, when its only releases
+	// are drafts or pre-releases, and for every Forgejo repository,
+	// whose latest release is a separate read per repository that the
+	// refresh does not make.
+	LatestRelease *MainBranchRelease `json:"latestRelease"`
 
 	// RunUrl Where to see the run on the forge: the failed job's page for a
 	// failed pipeline, else the run's, else the commit's. Falls back to
@@ -1536,6 +1592,15 @@ type MainBranchCounts struct {
 	Passed           int `json:"passed"`
 	Running          int `json:"running"`
 	Total            int `json:"total"`
+}
+
+// MainBranchRelease A repository's latest published release.
+type MainBranchRelease struct {
+	// Tag The release's tag, such as "v1.2.3".
+	Tag string `json:"tag"`
+
+	// Url The release's own page on its forge.
+	Url string `json:"url"`
 }
 
 // MainBranchStatus The result of the latest pipeline on a default branch's newest
@@ -1809,28 +1874,40 @@ type PullRequest struct {
 	// account: a server restart forgets it.
 	BotRequest *BotRequest `json:"botRequest,omitempty"`
 
-	// Checks How many of a pull request's checks are in each state, so a client can
-	// say how far a pipeline is without opening it. The server tallies
-	// them from what it already reads to work out `ci`, so they cost no
-	// request. Always present, all zero when there are no checks.
+	// Checks How many checks are in each state, so a client can say how far a
+	// pipeline is without opening it. It is on every pull request and on
+	// every default branch, for a passed, a failed and a running pipeline
+	// alike. The server tallies them from what it already reads to work out
+	// the overall state, so they cost no request. Always present, all zero
+	// when there are no checks.
 	//
 	// `waiting` is a check that has not started: queued, or pending where the
-	// forge doesn't tell queued from running. The counts agree with `ci`: a
-	// pull request whose `ci` is `pending` has `failed` at 0, and one whose
-	// `ci` is `success` has nothing running, waiting or failed. Two kinds of
-	// run are therefore in none of the four. A run held for approval:
+	// forge doesn't tell queued from running. A failed pipeline can still have
+	// checks running or waiting, and says so. A pull request's counts agree
+	// with its `ci`: one whose `ci` is `pending` has `failed` at 0, and one
+	// whose `ci` is `success` has nothing running, waiting or failed. Two
+	// kinds of run are therefore in none of the four, as long as something
+	// else explains the state. A run held for approval: on a pull request
 	// `awaitingWorkflowApproval` says that. A cancelled run: a push or a
 	// concurrency group superseded it, and the overall state does not read it
-	// as a failure while others still run. A timed-out or stale check counts
-	// as `failed`, a skipped, neutral or bare completed one as `passed`.
+	// as a failure while others still run. When cancelled runs (and, on a
+	// branch, held ones) are the only reason a pipeline reads as failed, they
+	// count as `failed` (a held run first, where both are there), so a failed
+	// pipeline always has a failed count on GitHub. A branch whose status is
+	// `cancelled` has `failed` at 0. A timed-out or stale check counts as `failed`, a skipped,
+	// neutral or bare completed one as `passed`.
 	//
-	// On GitHub the counts come from the same rollup as `ci`; on Forgejo from
+	// On GitHub the counts come from the same rollup as the overall state,
+	// for a pull request and a branch alike; on Forgejo a pull request counts
 	// the statuses of the combined commit status, where nothing is ever
-	// `running`. Forgejo answers one page of those statuses, and when its
-	// total says there are more than the page holds the counts are all zero
-	// rather than an undercount. When GitHub's rollup is of an earlier
-	// commit than the head (a push still being processed), the counts are
-	// zero too. GitHub's unauthenticated fallback has no such counts, so
+	// `running`, and a default branch counts the workflow runs of the newest
+	// commit that has one (a job count would cost a request per run), where a
+	// running run is `running` and a queued or blocked one `waiting`. Forgejo
+	// answers one page of those statuses, and when its total says there are
+	// more than the page holds a pull request's counts are all zero rather
+	// than an undercount. When GitHub's rollup of a pull request is of an
+	// earlier commit than the head (a push still being processed), the counts
+	// are zero too. GitHub's unauthenticated fallback has no such counts, so
 	// there they are all zero.
 	Checks CheckCounts `json:"checks"`
 
