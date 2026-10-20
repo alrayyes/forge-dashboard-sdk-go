@@ -1221,9 +1221,12 @@ type HealthStatus string
 
 // Issue defines model for Issue.
 type Issue struct {
-	Author    string    `json:"author"`
-	CreatedAt time.Time `json:"createdAt"`
-	Forge     Forge     `json:"forge"`
+	Author string `json:"author"`
+
+	// AuthorAvatarUrl The forge's own avatar URL for whoever filed the issue, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+	AuthorAvatarUrl string    `json:"authorAvatarUrl"`
+	CreatedAt       time.Time `json:"createdAt"`
+	Forge           Forge     `json:"forge"`
 
 	// Housekeeping True for an issue a bot keeps open and rewrites, Renovate's
 	// "Dependency Dashboard", which is not work for a person. The
