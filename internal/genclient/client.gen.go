@@ -1991,9 +1991,8 @@ type PullRequest struct {
 	Empty bool `json:"empty"`
 
 	// FailingCi True when CI is failing and not only because a workflow run is
-	// held for approval: what the Failing CI quick filter and the status
-	// filter's Failing choice list, and what the menu pill's Failed
-	// number counts. Always present.
+	// held for approval: what the Failing CI quick filter lists, and
+	// what the menu pill's Failed number counts. Always present.
 	FailingCi bool  `json:"failingCi"`
 	Forge     Forge `json:"forge"`
 
