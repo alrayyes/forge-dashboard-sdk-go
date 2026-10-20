@@ -1685,6 +1685,31 @@ type Person struct {
 	Url string `json:"url"`
 }
 
+// PresenceAnswer defines model for PresenceAnswer.
+type PresenceAnswer struct {
+	// HeartbeatSeconds How often a visible tab reports itself visible again.
+	HeartbeatSeconds int `json:"heartbeatSeconds"`
+
+	// IdleAfterSeconds How long a visible tab may go without input before it reports
+	// `visible: false`. 0 means the server's idle mode is off and the
+	// page never needs to.
+	IdleAfterSeconds int `json:"idleAfterSeconds"`
+}
+
+// PresenceReport defines model for PresenceReport.
+type PresenceReport struct {
+	// ViewerId Names one browser tab, chosen by the page when it loads. Not a
+	// user id and not stored beyond the tab's heartbeats.
+	//
+	//
+	// Examples: 3f1c9a52-7d2e-4a6b-9f10-5b8e2c7d1a44
+	ViewerId string `json:"viewerId"`
+
+	// Visible True while the tab is visible and has had input recently. False
+	// once it is hidden or the person has stopped using it.
+	Visible bool `json:"visible"`
+}
+
 // PullRequest defines model for PullRequest.
 type PullRequest struct {
 	// AllowedActions The actions this pull request offers, worked out on the server
@@ -2775,6 +2800,9 @@ type WebhookEnsureRequest struct {
 	FullName string `json:"fullName"`
 }
 
+// HeaderBackgroundRead Examples: true
+type HeaderBackgroundRead = string
+
 // PathTokenID defines model for PathTokenID.
 type PathTokenID = string
 
@@ -2827,6 +2855,12 @@ type GetDashboardParams struct {
 	// Restore, by asking with `true`. The stream and the refresh endpoint
 	// take the same parameter.
 	IncludeHidden *QueryIncludeHidden `form:"includeHidden,omitempty" json:"includeHidden,omitempty"`
+
+	// XBackgroundRead Any value says the read is the page's own timed refresh of its data,
+	// not something a person asked for. Such a read does not count as use
+	// of the dashboard, so a tab nobody is looking at cannot keep the
+	// scheduled refresh running by polling.
+	XBackgroundRead *HeaderBackgroundRead `json:"X-Background-Read,omitempty"`
 }
 
 // RefreshDashboardParams defines parameters for RefreshDashboard.
@@ -2929,6 +2963,9 @@ type BeginRegistrationJSONRequestBody = RegisterBeginRequest
 
 // FinishRegistrationJSONRequestBody defines body for FinishRegistration for application/json ContentType.
 type FinishRegistrationJSONRequestBody = WebAuthnCeremonyOptions
+
+// ReportDashboardPresenceJSONRequestBody defines body for ReportDashboardPresence for application/json ContentType.
+type ReportDashboardPresenceJSONRequestBody = PresenceReport
 
 // EnablePullRequestAutoMergeJSONRequestBody defines body for EnablePullRequestAutoMerge for application/json ContentType.
 type EnablePullRequestAutoMergeJSONRequestBody = PullRequestActionRequest
@@ -3436,6 +3473,66 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/main-branches/checks (the `GetMainBranchChecks` operationId).
 	GetMainBranchChecks(ctx context.Context, params *GetMainBranchChecksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReportDashboardPresenceWithBody Say whether a browser tab of the dashboard is being looked at
+	//
+	// The page calls this when its tab becomes visible or hidden
+	// (`document.visibilityState`), when the person stops or resumes
+	// using it, and on a slow heartbeat while it is visible. While at
+	// least one tab is visible, has had input recently and keeps sending
+	// heartbeats, the dashboard counts as in use and the scheduled
+	// background refresh keeps running. When every tab has said it is
+	// hidden, or has stopped sending heartbeats for three heartbeat
+	// periods (a closed laptop, a crashed browser), the dashboard counts
+	// as unused and, after the idle period, the scheduled refresh rests
+	// (see `IDLE_AFTER`). A tab that becomes visible after the refresh
+	// rested makes it run once.
+	//
+	// This call is the only way the server learns whether a tab is
+	// looked at. An open live stream says nothing about it, and neither
+	// does a read carrying `X-Background-Read`. The call itself is not a
+	// request that counts as use; only a visible report is.
+	//
+	// A browser session only: a personal API token is refused with 403,
+	// so a script cannot hold the refresh active.
+	//
+	// The answer carries the two timings the page follows, so neither
+	// is hard-coded in the browser.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+	ReportDashboardPresenceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReportDashboardPresence Say whether a browser tab of the dashboard is being looked at
+	//
+	// The page calls this when its tab becomes visible or hidden
+	// (`document.visibilityState`), when the person stops or resumes
+	// using it, and on a slow heartbeat while it is visible. While at
+	// least one tab is visible, has had input recently and keeps sending
+	// heartbeats, the dashboard counts as in use and the scheduled
+	// background refresh keeps running. When every tab has said it is
+	// hidden, or has stopped sending heartbeats for three heartbeat
+	// periods (a closed laptop, a crashed browser), the dashboard counts
+	// as unused and, after the idle period, the scheduled refresh rests
+	// (see `IDLE_AFTER`). A tab that becomes visible after the refresh
+	// rested makes it run once.
+	//
+	// This call is the only way the server learns whether a tab is
+	// looked at. An open live stream says nothing about it, and neither
+	// does a read carrying `X-Background-Read`. The call itself is not a
+	// request that counts as use; only a visible report is.
+	//
+	// A browser session only: a personal API token is refused with 403,
+	// so a script cannot hold the refresh active.
+	//
+	// The answer carries the two timings the page follows, so neither
+	// is hard-coded in the browser.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+	ReportDashboardPresence(ctx context.Context, body ReportDashboardPresenceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EnablePullRequestAutoMergeWithBody Arm auto-merge on a pull request, on the signed-in user's behalf
 	//
@@ -5261,6 +5358,86 @@ func (c *Client) GetMainBranches(ctx context.Context, reqEditors ...RequestEdito
 // Corresponds with GET /api/main-branches/checks (the `GetMainBranchChecks` operationId).
 func (c *Client) GetMainBranchChecks(ctx context.Context, params *GetMainBranchChecksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetMainBranchChecksRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReportDashboardPresenceWithBody Say whether a browser tab of the dashboard is being looked at
+//
+// The page calls this when its tab becomes visible or hidden
+// (`document.visibilityState`), when the person stops or resumes
+// using it, and on a slow heartbeat while it is visible. While at
+// least one tab is visible, has had input recently and keeps sending
+// heartbeats, the dashboard counts as in use and the scheduled
+// background refresh keeps running. When every tab has said it is
+// hidden, or has stopped sending heartbeats for three heartbeat
+// periods (a closed laptop, a crashed browser), the dashboard counts
+// as unused and, after the idle period, the scheduled refresh rests
+// (see `IDLE_AFTER`). A tab that becomes visible after the refresh
+// rested makes it run once.
+//
+// This call is the only way the server learns whether a tab is
+// looked at. An open live stream says nothing about it, and neither
+// does a read carrying `X-Background-Read`. The call itself is not a
+// request that counts as use; only a visible report is.
+//
+// A browser session only: a personal API token is refused with 403,
+// so a script cannot hold the refresh active.
+//
+// The answer carries the two timings the page follows, so neither
+// is hard-coded in the browser.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+func (c *Client) ReportDashboardPresenceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReportDashboardPresenceRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReportDashboardPresence Say whether a browser tab of the dashboard is being looked at
+//
+// The page calls this when its tab becomes visible or hidden
+// (`document.visibilityState`), when the person stops or resumes
+// using it, and on a slow heartbeat while it is visible. While at
+// least one tab is visible, has had input recently and keeps sending
+// heartbeats, the dashboard counts as in use and the scheduled
+// background refresh keeps running. When every tab has said it is
+// hidden, or has stopped sending heartbeats for three heartbeat
+// periods (a closed laptop, a crashed browser), the dashboard counts
+// as unused and, after the idle period, the scheduled refresh rests
+// (see `IDLE_AFTER`). A tab that becomes visible after the refresh
+// rested makes it run once.
+//
+// This call is the only way the server learns whether a tab is
+// looked at. An open live stream says nothing about it, and neither
+// does a read carrying `X-Background-Read`. The call itself is not a
+// request that counts as use; only a visible report is.
+//
+// A browser session only: a personal API token is refused with 403,
+// so a script cannot hold the refresh active.
+//
+// The answer carries the two timings the page follows, so neither
+// is hard-coded in the browser.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+func (c *Client) ReportDashboardPresence(ctx context.Context, body ReportDashboardPresenceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReportDashboardPresenceRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7822,6 +7999,21 @@ func NewGetDashboardRequest(server string, params *GetDashboardParams) (*http.Re
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.XBackgroundRead != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Background-Read", *params.XBackgroundRead, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-Background-Read", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -8104,6 +8296,46 @@ func NewGetMainBranchChecksRequest(server string, params *GetMainBranchChecksPar
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewReportDashboardPresenceRequest calls the generic ReportDashboardPresence builder with application/json body
+func NewReportDashboardPresenceRequest(server string, body ReportDashboardPresenceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReportDashboardPresenceRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewReportDashboardPresenceRequestWithBody constructs an http.Request for the ReportDashboardPresence method, with any body, and a specified content type
+func NewReportDashboardPresenceRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/presence")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -10112,6 +10344,66 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/main-branches/checks (the `GetMainBranchChecks` operationId).
 	GetMainBranchChecksWithResponse(ctx context.Context, params *GetMainBranchChecksParams, reqEditors ...RequestEditorFn) (*GetMainBranchChecksResponse, error)
+
+	// ReportDashboardPresenceWithBodyWithResponse Say whether a browser tab of the dashboard is being looked at
+	//
+	// The page calls this when its tab becomes visible or hidden
+	// (`document.visibilityState`), when the person stops or resumes
+	// using it, and on a slow heartbeat while it is visible. While at
+	// least one tab is visible, has had input recently and keeps sending
+	// heartbeats, the dashboard counts as in use and the scheduled
+	// background refresh keeps running. When every tab has said it is
+	// hidden, or has stopped sending heartbeats for three heartbeat
+	// periods (a closed laptop, a crashed browser), the dashboard counts
+	// as unused and, after the idle period, the scheduled refresh rests
+	// (see `IDLE_AFTER`). A tab that becomes visible after the refresh
+	// rested makes it run once.
+	//
+	// This call is the only way the server learns whether a tab is
+	// looked at. An open live stream says nothing about it, and neither
+	// does a read carrying `X-Background-Read`. The call itself is not a
+	// request that counts as use; only a visible report is.
+	//
+	// A browser session only: a personal API token is refused with 403,
+	// so a script cannot hold the refresh active.
+	//
+	// The answer carries the two timings the page follows, so neither
+	// is hard-coded in the browser.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+	ReportDashboardPresenceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReportDashboardPresenceResponse, error)
+
+	// ReportDashboardPresenceWithResponse Say whether a browser tab of the dashboard is being looked at
+	//
+	// The page calls this when its tab becomes visible or hidden
+	// (`document.visibilityState`), when the person stops or resumes
+	// using it, and on a slow heartbeat while it is visible. While at
+	// least one tab is visible, has had input recently and keeps sending
+	// heartbeats, the dashboard counts as in use and the scheduled
+	// background refresh keeps running. When every tab has said it is
+	// hidden, or has stopped sending heartbeats for three heartbeat
+	// periods (a closed laptop, a crashed browser), the dashboard counts
+	// as unused and, after the idle period, the scheduled refresh rests
+	// (see `IDLE_AFTER`). A tab that becomes visible after the refresh
+	// rested makes it run once.
+	//
+	// This call is the only way the server learns whether a tab is
+	// looked at. An open live stream says nothing about it, and neither
+	// does a read carrying `X-Background-Read`. The call itself is not a
+	// request that counts as use; only a visible report is.
+	//
+	// A browser session only: a personal API token is refused with 403,
+	// so a script cannot hold the refresh active.
+	//
+	// The answer carries the two timings the page follows, so neither
+	// is hard-coded in the browser.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+	ReportDashboardPresenceWithResponse(ctx context.Context, body ReportDashboardPresenceJSONRequestBody, reqEditors ...RequestEditorFn) (*ReportDashboardPresenceResponse, error)
 
 	// EnablePullRequestAutoMergeWithBodyWithResponse Arm auto-merge on a pull request, on the signed-in user's behalf
 	//
@@ -12591,6 +12883,68 @@ func (r GetMainBranchChecksResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetMainBranchChecksResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ReportDashboardPresenceResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PresenceAnswer
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ReportDashboardPresenceResponse) GetJSON200() *PresenceAnswer {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ReportDashboardPresenceResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ReportDashboardPresenceResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ReportDashboardPresenceResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r ReportDashboardPresenceResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReportDashboardPresenceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReportDashboardPresenceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReportDashboardPresenceResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -15581,6 +15935,78 @@ func (c *ClientWithResponses) GetMainBranchChecksWithResponse(ctx context.Contex
 	return ParseGetMainBranchChecksResponse(rsp)
 }
 
+// ReportDashboardPresenceWithBodyWithResponse Say whether a browser tab of the dashboard is being looked at
+//
+// The page calls this when its tab becomes visible or hidden
+// (`document.visibilityState`), when the person stops or resumes
+// using it, and on a slow heartbeat while it is visible. While at
+// least one tab is visible, has had input recently and keeps sending
+// heartbeats, the dashboard counts as in use and the scheduled
+// background refresh keeps running. When every tab has said it is
+// hidden, or has stopped sending heartbeats for three heartbeat
+// periods (a closed laptop, a crashed browser), the dashboard counts
+// as unused and, after the idle period, the scheduled refresh rests
+// (see `IDLE_AFTER`). A tab that becomes visible after the refresh
+// rested makes it run once.
+//
+// This call is the only way the server learns whether a tab is
+// looked at. An open live stream says nothing about it, and neither
+// does a read carrying `X-Background-Read`. The call itself is not a
+// request that counts as use; only a visible report is.
+//
+// A browser session only: a personal API token is refused with 403,
+// so a script cannot hold the refresh active.
+//
+// The answer carries the two timings the page follows, so neither
+// is hard-coded in the browser.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+func (c *ClientWithResponses) ReportDashboardPresenceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReportDashboardPresenceResponse, error) {
+	rsp, err := c.ReportDashboardPresenceWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReportDashboardPresenceResponse(rsp)
+}
+
+// ReportDashboardPresenceWithResponse Say whether a browser tab of the dashboard is being looked at
+//
+// The page calls this when its tab becomes visible or hidden
+// (`document.visibilityState`), when the person stops or resumes
+// using it, and on a slow heartbeat while it is visible. While at
+// least one tab is visible, has had input recently and keeps sending
+// heartbeats, the dashboard counts as in use and the scheduled
+// background refresh keeps running. When every tab has said it is
+// hidden, or has stopped sending heartbeats for three heartbeat
+// periods (a closed laptop, a crashed browser), the dashboard counts
+// as unused and, after the idle period, the scheduled refresh rests
+// (see `IDLE_AFTER`). A tab that becomes visible after the refresh
+// rested makes it run once.
+//
+// This call is the only way the server learns whether a tab is
+// looked at. An open live stream says nothing about it, and neither
+// does a read carrying `X-Background-Read`. The call itself is not a
+// request that counts as use; only a visible report is.
+//
+// A browser session only: a personal API token is refused with 403,
+// so a script cannot hold the refresh active.
+//
+// The answer carries the two timings the page follows, so neither
+// is hard-coded in the browser.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+func (c *ClientWithResponses) ReportDashboardPresenceWithResponse(ctx context.Context, body ReportDashboardPresenceJSONRequestBody, reqEditors ...RequestEditorFn) (*ReportDashboardPresenceResponse, error) {
+	rsp, err := c.ReportDashboardPresence(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReportDashboardPresenceResponse(rsp)
+}
+
 // EnablePullRequestAutoMergeWithBodyWithResponse Arm auto-merge on a pull request, on the signed-in user's behalf
 //
 // Forgejo: this app keeps the intent itself and merges the pull
@@ -18124,6 +18550,53 @@ func ParseGetMainBranchChecksResponse(rsp *http.Response) (*GetMainBranchChecksR
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReportDashboardPresenceResponse parses an HTTP response from a ReportDashboardPresenceWithResponse call
+func ParseReportDashboardPresenceResponse(rsp *http.Response) (*ReportDashboardPresenceResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReportDashboardPresenceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PresenceAnswer
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
