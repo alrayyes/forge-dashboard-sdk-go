@@ -98,6 +98,42 @@ func (e AutoMergeStatusState) Valid() bool {
 	}
 }
 
+// Defines values for AutoUpdateSource.
+const (
+	AutoUpdateSourcePullRequest AutoUpdateSource = "pullRequest"
+	AutoUpdateSourceRepo        AutoUpdateSource = "repo"
+)
+
+// Valid indicates whether the value is a known member of the AutoUpdateSource enum.
+func (e AutoUpdateSource) Valid() bool {
+	switch e {
+	case AutoUpdateSourcePullRequest:
+		return true
+	case AutoUpdateSourceRepo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AutoUpdateUnavailableCode.
+const (
+	Draft         AutoUpdateUnavailableCode = "draft"
+	ReleasePlease AutoUpdateUnavailableCode = "release_please"
+)
+
+// Valid indicates whether the value is a known member of the AutoUpdateUnavailableCode enum.
+func (e AutoUpdateUnavailableCode) Valid() bool {
+	switch e {
+	case Draft:
+		return true
+	case ReleasePlease:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BotRequestAction.
 const (
 	BotRequestActionRebase   BotRequestAction = "rebase"
@@ -897,6 +933,40 @@ type AutoMergedPullRequest struct {
 	Number  int    `json:"number"`
 }
 
+// AutoUpdate Whether the dashboard brings this pull request's branch up to date by
+// itself: the pull request's own choice when it has one
+// (`POST /api/pull-requests/auto-update`), else its repo's
+// auto-update setting. Always present.
+type AutoUpdate struct {
+	// Enabled What the background pass does with this pull request. Always
+	// false when `unavailable` is set.
+	Enabled bool `json:"enabled"`
+
+	// Source `repo` when the pull request follows its repo's setting,
+	// `pullRequest` when the user chose for this one.
+	Source AutoUpdateSource `json:"source"`
+
+	// Unavailable Set when the pass skips this pull request however it is switched,
+	// so a client shows the reason instead of a switch that does
+	// nothing. Null otherwise.
+	Unavailable *AutoUpdateUnavailable `json:"unavailable"`
+}
+
+// AutoUpdateSource `repo` when the pull request follows its repo's setting,
+// `pullRequest` when the user chose for this one.
+type AutoUpdateSource string
+
+// AutoUpdateUnavailable defines model for AutoUpdateUnavailable.
+type AutoUpdateUnavailable struct {
+	Code AutoUpdateUnavailableCode `json:"code"`
+
+	// Reason A sentence a client can show as it is.
+	Reason string `json:"reason"`
+}
+
+// AutoUpdateUnavailableCode defines model for AutoUpdateUnavailable.Code.
+type AutoUpdateUnavailableCode string
+
 // BotRequest defines model for BotRequest.
 type BotRequest struct {
 	// AcknowledgedAt When the server first saw Dependabot's thumbs-up on the
@@ -1630,6 +1700,12 @@ type PullRequest struct {
 	// know like an omitted one.
 	AutoMergeHeldBy *string `json:"autoMergeHeldBy,omitempty"`
 
+	// AutoUpdate Whether the dashboard brings this pull request's branch up to date by
+	// itself: the pull request's own choice when it has one
+	// (`POST /api/pull-requests/auto-update`), else its repo's
+	// auto-update setting. Always present.
+	AutoUpdate AutoUpdate `json:"autoUpdate"`
+
 	// AwaitingWorkflowApproval True when GitHub is holding a workflow run on the head commit
 	// until someone approves it: its rollup counts a check run
 	// as ACTION_REQUIRED. Those runs also keep `ci` at failure when
@@ -1911,6 +1987,22 @@ type PullRequestKind string
 // PullRequestActionRequest Which pull request to act on.
 type PullRequestActionRequest struct {
 	Forge Forge `json:"forge"`
+
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	FullName string `json:"fullName"`
+
+	// Number Matching a PullRequest.number from GET /api/dashboard.
+	Number int `json:"number"`
+}
+
+// PullRequestAutoUpdateRequest Which pull request, and whether the dashboard should update its
+// branch automatically.
+type PullRequestAutoUpdateRequest struct {
+	// Enabled `true` to update this pull request automatically, `false` to
+	// leave it alone, whatever its repo says. `null` or absent
+	// returns it to its repo's setting.
+	Enabled *bool `json:"enabled,omitempty"`
+	Forge   Forge `json:"forge"`
 
 	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
 	FullName string `json:"fullName"`
@@ -2796,6 +2888,9 @@ type EnablePullRequestAutoMergeJSONRequestBody = PullRequestActionRequest
 // CancelPullRequestAutoMergeJSONRequestBody defines body for CancelPullRequestAutoMerge for application/json ContentType.
 type CancelPullRequestAutoMergeJSONRequestBody = PullRequestActionRequest
 
+// SetPullRequestAutoUpdateJSONRequestBody defines body for SetPullRequestAutoUpdate for application/json ContentType.
+type SetPullRequestAutoUpdateJSONRequestBody = PullRequestAutoUpdateRequest
+
 // ClosePullRequestJSONRequestBody defines body for ClosePullRequest for application/json ContentType.
 type ClosePullRequestJSONRequestBody = PullRequestActionRequest
 
@@ -3415,6 +3510,46 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 	CancelPullRequestAutoMerge(ctx context.Context, body CancelPullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetPullRequestAutoUpdateWithBody Turn the automatic branch update on or off for one pull request
+	//
+	// A pure local write: nothing is sent to the forge. The choice is kept
+	// only while it differs from the repo's auto-update setting
+	// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+	// the repo is dropped and the pull request follows the repo again, and
+	// a later change to the repo's setting reaches it. With `enabled`
+	// `null` or absent the pull request goes back to its repo's setting.
+	// Idempotent. A draft and a release-please pull request are never
+	// updated automatically, whatever is chosen: `autoUpdate.unavailable`
+	// in GET /api/dashboard says so. The server forgets the choice once
+	// the pull request is no longer open, its repo is no longer tracked, or
+	// the repo's setting changes to match it. A pull request the dashboard
+	// doesn't hold is a 404.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+	SetPullRequestAutoUpdateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetPullRequestAutoUpdate Turn the automatic branch update on or off for one pull request
+	//
+	// A pure local write: nothing is sent to the forge. The choice is kept
+	// only while it differs from the repo's auto-update setting
+	// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+	// the repo is dropped and the pull request follows the repo again, and
+	// a later change to the repo's setting reaches it. With `enabled`
+	// `null` or absent the pull request goes back to its repo's setting.
+	// Idempotent. A draft and a release-please pull request are never
+	// updated automatically, whatever is chosen: `autoUpdate.unavailable`
+	// in GET /api/dashboard says so. The server forgets the choice once
+	// the pull request is no longer open, its repo is no longer tracked, or
+	// the repo's setting changes to match it. A pull request the dashboard
+	// doesn't hold is a 404.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+	SetPullRequestAutoUpdate(ctx context.Context, body SetPullRequestAutoUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetPullRequestChecks List every job/check run against a pull request's head commit, on demand
 	//
@@ -5204,6 +5339,66 @@ func (c *Client) CancelPullRequestAutoMergeWithBody(ctx context.Context, content
 // Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 func (c *Client) CancelPullRequestAutoMerge(ctx context.Context, body CancelPullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCancelPullRequestAutoMergeRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetPullRequestAutoUpdateWithBody Turn the automatic branch update on or off for one pull request
+//
+// A pure local write: nothing is sent to the forge. The choice is kept
+// only while it differs from the repo's auto-update setting
+// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+// the repo is dropped and the pull request follows the repo again, and
+// a later change to the repo's setting reaches it. With `enabled`
+// `null` or absent the pull request goes back to its repo's setting.
+// Idempotent. A draft and a release-please pull request are never
+// updated automatically, whatever is chosen: `autoUpdate.unavailable`
+// in GET /api/dashboard says so. The server forgets the choice once
+// the pull request is no longer open, its repo is no longer tracked, or
+// the repo's setting changes to match it. A pull request the dashboard
+// doesn't hold is a 404.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+func (c *Client) SetPullRequestAutoUpdateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetPullRequestAutoUpdateRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetPullRequestAutoUpdate Turn the automatic branch update on or off for one pull request
+//
+// A pure local write: nothing is sent to the forge. The choice is kept
+// only while it differs from the repo's auto-update setting
+// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+// the repo is dropped and the pull request follows the repo again, and
+// a later change to the repo's setting reaches it. With `enabled`
+// `null` or absent the pull request goes back to its repo's setting.
+// Idempotent. A draft and a release-please pull request are never
+// updated automatically, whatever is chosen: `autoUpdate.unavailable`
+// in GET /api/dashboard says so. The server forgets the choice once
+// the pull request is no longer open, its repo is no longer tracked, or
+// the repo's setting changes to match it. A pull request the dashboard
+// doesn't hold is a 404.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+func (c *Client) SetPullRequestAutoUpdate(ctx context.Context, body SetPullRequestAutoUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetPullRequestAutoUpdateRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7863,6 +8058,46 @@ func NewCancelPullRequestAutoMergeRequestWithBody(server string, contentType str
 	return req, nil
 }
 
+// NewSetPullRequestAutoUpdateRequest calls the generic SetPullRequestAutoUpdate builder with application/json body
+func NewSetPullRequestAutoUpdateRequest(server string, body SetPullRequestAutoUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetPullRequestAutoUpdateRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSetPullRequestAutoUpdateRequestWithBody constructs an http.Request for the SetPullRequestAutoUpdate method, with any body, and a specified content type
+func NewSetPullRequestAutoUpdateRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/pull-requests/auto-update")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetPullRequestChecksRequest constructs an http.Request for the GetPullRequestChecks method
 func NewGetPullRequestChecksRequest(server string, params *GetPullRequestChecksParams) (*http.Request, error) {
 	var err error
@@ -9842,6 +10077,46 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 	CancelPullRequestAutoMergeWithResponse(ctx context.Context, body CancelPullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelPullRequestAutoMergeResponse, error)
+
+	// SetPullRequestAutoUpdateWithBodyWithResponse Turn the automatic branch update on or off for one pull request
+	//
+	// A pure local write: nothing is sent to the forge. The choice is kept
+	// only while it differs from the repo's auto-update setting
+	// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+	// the repo is dropped and the pull request follows the repo again, and
+	// a later change to the repo's setting reaches it. With `enabled`
+	// `null` or absent the pull request goes back to its repo's setting.
+	// Idempotent. A draft and a release-please pull request are never
+	// updated automatically, whatever is chosen: `autoUpdate.unavailable`
+	// in GET /api/dashboard says so. The server forgets the choice once
+	// the pull request is no longer open, its repo is no longer tracked, or
+	// the repo's setting changes to match it. A pull request the dashboard
+	// doesn't hold is a 404.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+	SetPullRequestAutoUpdateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetPullRequestAutoUpdateResponse, error)
+
+	// SetPullRequestAutoUpdateWithResponse Turn the automatic branch update on or off for one pull request
+	//
+	// A pure local write: nothing is sent to the forge. The choice is kept
+	// only while it differs from the repo's auto-update setting
+	// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+	// the repo is dropped and the pull request follows the repo again, and
+	// a later change to the repo's setting reaches it. With `enabled`
+	// `null` or absent the pull request goes back to its repo's setting.
+	// Idempotent. A draft and a release-please pull request are never
+	// updated automatically, whatever is chosen: `autoUpdate.unavailable`
+	// in GET /api/dashboard says so. The server forgets the choice once
+	// the pull request is no longer open, its repo is no longer tracked, or
+	// the repo's setting changes to match it. A pull request the dashboard
+	// doesn't hold is a 404.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+	SetPullRequestAutoUpdateWithResponse(ctx context.Context, body SetPullRequestAutoUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetPullRequestAutoUpdateResponse, error)
 
 	// GetPullRequestChecksWithResponse List every job/check run against a pull request's head commit, on demand
 	//
@@ -12259,6 +12534,61 @@ func (r CancelPullRequestAutoMergeResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CancelPullRequestAutoMergeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SetPullRequestAutoUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r SetPullRequestAutoUpdateResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r SetPullRequestAutoUpdateResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r SetPullRequestAutoUpdateResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r SetPullRequestAutoUpdateResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SetPullRequestAutoUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetPullRequestAutoUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SetPullRequestAutoUpdateResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -15154,6 +15484,58 @@ func (c *ClientWithResponses) CancelPullRequestAutoMergeWithResponse(ctx context
 	return ParseCancelPullRequestAutoMergeResponse(rsp)
 }
 
+// SetPullRequestAutoUpdateWithBodyWithResponse Turn the automatic branch update on or off for one pull request
+//
+// A pure local write: nothing is sent to the forge. The choice is kept
+// only while it differs from the repo's auto-update setting
+// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+// the repo is dropped and the pull request follows the repo again, and
+// a later change to the repo's setting reaches it. With `enabled`
+// `null` or absent the pull request goes back to its repo's setting.
+// Idempotent. A draft and a release-please pull request are never
+// updated automatically, whatever is chosen: `autoUpdate.unavailable`
+// in GET /api/dashboard says so. The server forgets the choice once
+// the pull request is no longer open, its repo is no longer tracked, or
+// the repo's setting changes to match it. A pull request the dashboard
+// doesn't hold is a 404.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+func (c *ClientWithResponses) SetPullRequestAutoUpdateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetPullRequestAutoUpdateResponse, error) {
+	rsp, err := c.SetPullRequestAutoUpdateWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetPullRequestAutoUpdateResponse(rsp)
+}
+
+// SetPullRequestAutoUpdateWithResponse Turn the automatic branch update on or off for one pull request
+//
+// A pure local write: nothing is sent to the forge. The choice is kept
+// only while it differs from the repo's auto-update setting
+// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+// the repo is dropped and the pull request follows the repo again, and
+// a later change to the repo's setting reaches it. With `enabled`
+// `null` or absent the pull request goes back to its repo's setting.
+// Idempotent. A draft and a release-please pull request are never
+// updated automatically, whatever is chosen: `autoUpdate.unavailable`
+// in GET /api/dashboard says so. The server forgets the choice once
+// the pull request is no longer open, its repo is no longer tracked, or
+// the repo's setting changes to match it. A pull request the dashboard
+// doesn't hold is a 404.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+func (c *ClientWithResponses) SetPullRequestAutoUpdateWithResponse(ctx context.Context, body SetPullRequestAutoUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetPullRequestAutoUpdateResponse, error) {
+	rsp, err := c.SetPullRequestAutoUpdate(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetPullRequestAutoUpdateResponse(rsp)
+}
+
 // GetPullRequestChecksWithResponse List every job/check run against a pull request's head commit, on demand
 //
 // Fetched live on every call, never as part of GET /api/dashboard's
@@ -17569,6 +17951,49 @@ func ParseCancelPullRequestAutoMergeResponse(rsp *http.Response) (*CancelPullReq
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetPullRequestAutoUpdateResponse parses an HTTP response from a SetPullRequestAutoUpdateWithResponse call
+func ParseSetPullRequestAutoUpdateResponse(rsp *http.Response) (*SetPullRequestAutoUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetPullRequestAutoUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
