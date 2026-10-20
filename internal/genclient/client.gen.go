@@ -1479,6 +1479,9 @@ type PullRequest struct {
 	AllowedActions []AllowedAction `json:"allowedActions"`
 	Author         string          `json:"author"`
 
+	// AuthorAvatarUrl The forge's own avatar URL for the author, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+	AuthorAvatarUrl string `json:"authorAvatarUrl"`
+
 	// AutoMerge Where an armed pull request stands, so the row can say why
 	// auto-merge is waiting or stopped in words and not by colour. Present
 	// while auto-merge is armed on it: on Forgejo the signed-in user's
