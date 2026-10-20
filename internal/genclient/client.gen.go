@@ -1284,6 +1284,54 @@ type FilterState map[string]interface{}
 // Forge defines model for Forge.
 type Forge string
 
+// ForgeApiBucket defines model for ForgeApiBucket.
+type ForgeApiBucket struct {
+	// Credential The credential the requests were made with, as a label with no secret and no user id.
+	Credential string `json:"credential"`
+	Forge      Forge  `json:"forge"`
+
+	// Graphql GraphQL requests made.
+	Graphql int `json:"graphql"`
+
+	// GraphqlCost The `rateLimit.cost` points the GraphQL requests were charged.
+	GraphqlCost int `json:"graphqlCost"`
+
+	// Kind Why the requests were made. Open-ended, so a new kind is not a breaking change; today `full`, `scoped_webhook`, `ci_poll`, `auto_merge_poll`, `details`, `hook_maintenance`, `user_action` and `unknown`.
+	Kind string `json:"kind"`
+
+	// NotModified Requests answered `304 Not Modified`, which cost nothing.
+	NotModified int `json:"notModified"`
+
+	// Repo The repository as `owner/name`, or empty when the request touched no single repository. `other` collects the repositories past the cap on how many are counted separately.
+	Repo string `json:"repo"`
+
+	// Rest REST requests that were charged against the REST budget.
+	Rest int `json:"rest"`
+}
+
+// ForgeApiBudget defines model for ForgeApiBudget.
+type ForgeApiBudget struct {
+	Forge Forge `json:"forge"`
+
+	// RateLimitGraphQL The forge's GraphQL budget as last reported; absent when it has none.
+	RateLimitGraphQL *RateLimit `json:"rateLimitGraphQL,omitempty"`
+
+	// RateLimitREST The forge's REST budget as last reported; absent when not reported.
+	RateLimitREST *RateLimit `json:"rateLimitREST,omitempty"`
+}
+
+// ForgeApiStats defines model for ForgeApiStats.
+type ForgeApiStats struct {
+	// Buckets One row per forge, credential, kind and repository that made a request, ordered by forge, credential, kind and repo.
+	Buckets []ForgeApiBucket `json:"buckets"`
+
+	// Budgets The rate limits each forge last reported, one row per forge.
+	Budgets []ForgeApiBudget `json:"budgets"`
+
+	// Since When counting began, which is when the server last started.
+	Since time.Time `json:"since"`
+}
+
 // ForgeErrorKind Why a forge is unreachable, or why a write to it was rejected, as
 // coarse as every forge this service talks to can agree on.
 // "unauthorized" covers both a bad token and a forbidden request;
@@ -4337,6 +4385,42 @@ type ClientInterface interface {
 	// Corresponds with PUT /api/sharing/{username} (the `ShareWith` operationId).
 	ShareWith(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetForgeApiStats How many forge API calls the dashboard has spent, and on what
+	//
+	// Counts the forge requests made since the server started, so a change
+	// to what the dashboard refreshes can be shown to have saved budget, and
+	// a rate-limit incident traced to the refresh that caused it. One bucket
+	// per forge, credential, refresh `kind` and repository, each with the
+	// REST calls made, the GraphQL calls made, the GraphQL `rateLimit.cost`
+	// they were charged, and the requests answered `304 Not Modified`. A 304
+	// is not charged against the REST budget, so it is counted on its own and
+	// not as a REST call.
+	//
+	// `kind` says why the request was made: `full` (a whole-account
+	// refresh), `scoped_webhook` (one repository, after a webhook),
+	// `ci_poll` (one repository, waiting on a running check),
+	// `auto_merge_poll` (one repository, waiting on an armed auto-merge),
+	// `details` (a dialog or check list opened), `hook_maintenance`
+	// (checking, adding or upgrading webhooks), `user_action` (a button
+	// pressed, a queued action, or something the dashboard does for you such
+	// as auto-merge) and `unknown` (a request nobody tagged, which is a bug
+	// to report). A request that names no repository, such as listing an
+	// account's repositories, has an empty `repo`.
+	//
+	// The counters live in memory and start from zero on every start;
+	// `since` says when counting began. `credential` names the connected
+	// account or App installation by a label that carries no secret and no
+	// user id (`app:<installation id>`, `token:<short hash>`,
+	// `public:<username>`). Only the buckets of the caller's own
+	// credentials are returned. They are matched to the credentials
+	// the caller has saved, and a GitHub App installation id is a number the
+	// caller types in, so until the dashboard has one user, someone who saves
+	// another account's installation id sees that installation's counts. `budgets` are the rate limits each forge last
+	// reported, the same figures as `forges` on GET /api/dashboard.
+	//
+	// Corresponds with GET /api/stats/forge-api (the `GetForgeApiStats` operationId).
+	GetForgeApiStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAPITokens List the signed-in user's own personal API tokens
 	//
 	// Metadata only, per APIToken's own description — a raw value never reappears once created.
@@ -6645,6 +6729,52 @@ func (c *Client) UnshareWith(ctx context.Context, username PathUsername, reqEdit
 // Corresponds with PUT /api/sharing/{username} (the `ShareWith` operationId).
 func (c *Client) ShareWith(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewShareWithRequest(c.Server, username)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetForgeApiStats How many forge API calls the dashboard has spent, and on what
+//
+// Counts the forge requests made since the server started, so a change
+// to what the dashboard refreshes can be shown to have saved budget, and
+// a rate-limit incident traced to the refresh that caused it. One bucket
+// per forge, credential, refresh `kind` and repository, each with the
+// REST calls made, the GraphQL calls made, the GraphQL `rateLimit.cost`
+// they were charged, and the requests answered `304 Not Modified`. A 304
+// is not charged against the REST budget, so it is counted on its own and
+// not as a REST call.
+//
+// `kind` says why the request was made: `full` (a whole-account
+// refresh), `scoped_webhook` (one repository, after a webhook),
+// `ci_poll` (one repository, waiting on a running check),
+// `auto_merge_poll` (one repository, waiting on an armed auto-merge),
+// `details` (a dialog or check list opened), `hook_maintenance`
+// (checking, adding or upgrading webhooks), `user_action` (a button
+// pressed, a queued action, or something the dashboard does for you such
+// as auto-merge) and `unknown` (a request nobody tagged, which is a bug
+// to report). A request that names no repository, such as listing an
+// account's repositories, has an empty `repo`.
+//
+// The counters live in memory and start from zero on every start;
+// `since` says when counting began. `credential` names the connected
+// account or App installation by a label that carries no secret and no
+// user id (`app:<installation id>`, `token:<short hash>`,
+// `public:<username>`). Only the buckets of the caller's own
+// credentials are returned. They are matched to the credentials
+// the caller has saved, and a GitHub App installation id is a number the
+// caller types in, so until the dashboard has one user, someone who saves
+// another account's installation id sees that installation's counts. `budgets` are the rate limits each forge last
+// reported, the same figures as `forges` on GET /api/dashboard.
+//
+// Corresponds with GET /api/stats/forge-api (the `GetForgeApiStats` operationId).
+func (c *Client) GetForgeApiStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetForgeApiStatsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -9201,6 +9331,33 @@ func NewShareWithRequest(server string, username PathUsername) (*http.Request, e
 	return req, nil
 }
 
+// NewGetForgeApiStatsRequest constructs an http.Request for the GetForgeApiStats method
+func NewGetForgeApiStatsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/stats/forge-api")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListAPITokensRequest constructs an http.Request for the ListAPITokens method
 func NewListAPITokensRequest(server string) (*http.Request, error) {
 	var err error
@@ -10927,6 +11084,44 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /api/sharing/{username} (the `ShareWith` operationId).
 	ShareWithWithResponse(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*ShareWithResponse, error)
+
+	// GetForgeApiStatsWithResponse How many forge API calls the dashboard has spent, and on what
+	//
+	// Counts the forge requests made since the server started, so a change
+	// to what the dashboard refreshes can be shown to have saved budget, and
+	// a rate-limit incident traced to the refresh that caused it. One bucket
+	// per forge, credential, refresh `kind` and repository, each with the
+	// REST calls made, the GraphQL calls made, the GraphQL `rateLimit.cost`
+	// they were charged, and the requests answered `304 Not Modified`. A 304
+	// is not charged against the REST budget, so it is counted on its own and
+	// not as a REST call.
+	//
+	// `kind` says why the request was made: `full` (a whole-account
+	// refresh), `scoped_webhook` (one repository, after a webhook),
+	// `ci_poll` (one repository, waiting on a running check),
+	// `auto_merge_poll` (one repository, waiting on an armed auto-merge),
+	// `details` (a dialog or check list opened), `hook_maintenance`
+	// (checking, adding or upgrading webhooks), `user_action` (a button
+	// pressed, a queued action, or something the dashboard does for you such
+	// as auto-merge) and `unknown` (a request nobody tagged, which is a bug
+	// to report). A request that names no repository, such as listing an
+	// account's repositories, has an empty `repo`.
+	//
+	// The counters live in memory and start from zero on every start;
+	// `since` says when counting began. `credential` names the connected
+	// account or App installation by a label that carries no secret and no
+	// user id (`app:<installation id>`, `token:<short hash>`,
+	// `public:<username>`). Only the buckets of the caller's own
+	// credentials are returned. They are matched to the credentials
+	// the caller has saved, and a GitHub App installation id is a number the
+	// caller types in, so until the dashboard has one user, someone who saves
+	// another account's installation id sees that installation's counts. `budgets` are the rate limits each forge last
+	// reported, the same figures as `forges` on GET /api/dashboard.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/stats/forge-api (the `GetForgeApiStats` operationId).
+	GetForgeApiStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetForgeApiStatsResponse, error)
 
 	// ListAPITokensWithResponse List the signed-in user's own personal API tokens
 	//
@@ -14323,6 +14518,54 @@ func (r ShareWithResponse) ContentType() string {
 	return ""
 }
 
+type GetForgeApiStatsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ForgeApiStats
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetForgeApiStatsResponse) GetJSON200() *ForgeApiStats {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetForgeApiStatsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetForgeApiStatsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetForgeApiStatsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetForgeApiStatsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetForgeApiStatsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListAPITokensResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -16620,6 +16863,50 @@ func (c *ClientWithResponses) ShareWithWithResponse(ctx context.Context, usernam
 		return nil, err
 	}
 	return ParseShareWithResponse(rsp)
+}
+
+// GetForgeApiStatsWithResponse How many forge API calls the dashboard has spent, and on what
+//
+// Counts the forge requests made since the server started, so a change
+// to what the dashboard refreshes can be shown to have saved budget, and
+// a rate-limit incident traced to the refresh that caused it. One bucket
+// per forge, credential, refresh `kind` and repository, each with the
+// REST calls made, the GraphQL calls made, the GraphQL `rateLimit.cost`
+// they were charged, and the requests answered `304 Not Modified`. A 304
+// is not charged against the REST budget, so it is counted on its own and
+// not as a REST call.
+//
+// `kind` says why the request was made: `full` (a whole-account
+// refresh), `scoped_webhook` (one repository, after a webhook),
+// `ci_poll` (one repository, waiting on a running check),
+// `auto_merge_poll` (one repository, waiting on an armed auto-merge),
+// `details` (a dialog or check list opened), `hook_maintenance`
+// (checking, adding or upgrading webhooks), `user_action` (a button
+// pressed, a queued action, or something the dashboard does for you such
+// as auto-merge) and `unknown` (a request nobody tagged, which is a bug
+// to report). A request that names no repository, such as listing an
+// account's repositories, has an empty `repo`.
+//
+// The counters live in memory and start from zero on every start;
+// `since` says when counting began. `credential` names the connected
+// account or App installation by a label that carries no secret and no
+// user id (`app:<installation id>`, `token:<short hash>`,
+// `public:<username>`). Only the buckets of the caller's own
+// credentials are returned. They are matched to the credentials
+// the caller has saved, and a GitHub App installation id is a number the
+// caller types in, so until the dashboard has one user, someone who saves
+// another account's installation id sees that installation's counts. `budgets` are the rate limits each forge last
+// reported, the same figures as `forges` on GET /api/dashboard.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/stats/forge-api (the `GetForgeApiStats` operationId).
+func (c *ClientWithResponses) GetForgeApiStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetForgeApiStatsResponse, error) {
+	rsp, err := c.GetForgeApiStats(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetForgeApiStatsResponse(rsp)
 }
 
 // ListAPITokensWithResponse List the signed-in user's own personal API tokens
@@ -19338,6 +19625,39 @@ func ParseShareWithResponse(rsp *http.Response) (*ShareWithResponse, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetForgeApiStatsResponse parses an HTTP response from a GetForgeApiStatsWithResponse call
+func ParseGetForgeApiStatsResponse(rsp *http.Response) (*GetForgeApiStatsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetForgeApiStatsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ForgeApiStats
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	}
 
