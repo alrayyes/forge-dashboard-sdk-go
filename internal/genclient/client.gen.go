@@ -1230,6 +1230,21 @@ type Issue struct {
 	Url string `json:"url"`
 }
 
+// IssueDetails What the issue dialog shows.
+type IssueDetails struct {
+	// CommentCount How many comments the forge has on the issue.
+	CommentCount int `json:"commentCount"`
+
+	// Comments The conversation, oldest first, at most the first 50.
+	Comments []DetailsComment `json:"comments"`
+
+	// CommentsTruncated True when `commentCount` is more than the comments returned.
+	CommentsTruncated bool `json:"commentsTruncated"`
+
+	// Description A pull request's description, or the release notes of a release pull request.
+	Description DetailsBody `json:"description"`
+}
+
 // Label defines model for Label.
 type Label struct {
 	// Color The label's colour as a hex string with no leading "#",
@@ -2554,6 +2569,17 @@ type StreamDashboardParams struct {
 	IncludeHidden *QueryIncludeHidden `form:"includeHidden,omitempty" json:"includeHidden,omitempty"`
 }
 
+// GetIssueDetailsParams defines parameters for GetIssueDetails.
+type GetIssueDetailsParams struct {
+	Forge Forge `form:"forge" json:"forge"`
+
+	// FullName "owner/repo", matching an Issue.repo from GET /api/dashboard.
+	FullName string `form:"fullName" json:"fullName"`
+
+	// Number Matching an Issue.number from GET /api/dashboard.
+	Number int `form:"number" json:"number"`
+}
+
 // GetMainBranchChecksParams defines parameters for GetMainBranchChecks.
 type GetMainBranchChecksParams struct {
 	Forge Forge `form:"forge" json:"forge"`
@@ -3025,6 +3051,35 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetIssueDetails Read an issue's description, comments and reactions, on demand
+	//
+	// What the issue dialog shows: the description, the conversation in
+	// order, and the thumbs up and thumbs down reactions on each with who
+	// gave them. The same shape and rules as GET /api/pull-requests/details
+	// without the release notes, which only a pull request has. Fetched live
+	// on every call, never as part of GET /api/dashboard's snapshot.
+	//
+	// GitHub answers with one GraphQL query. Forgejo costs one call for the
+	// issue, one for its comments, one for the description's reactions and
+	// one for each comment's reactions (up to 50), so the reaction calls run
+	// at most eight at a time and stop at the first rate limit.
+	//
+	// Every text is Markdown exactly as the forge stores it (`format` is
+	// always `markdown`). The server neither converts nor sanitises it, so a
+	// client must render it with raw HTML disabled. Each text is cut at
+	// 20,000 characters (`truncated`), the conversation keeps its first 50
+	// comments (`commentsTruncated`, with the full `commentCount`), and a
+	// reaction names at most its first 10 people while `count` is the full
+	// number. An avatar is the forge's own URL, passed through unchanged and
+	// never proxied.
+	//
+	// The error answers are those of GET /api/pull-requests/details, with
+	// the same codes. An issue that doesn't exist is a 404, and a forge that
+	// can't be read is an error, never an empty thread.
+	//
+	// Corresponds with GET /api/issues/details (the `GetIssueDetails` operationId).
+	GetIssueDetails(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetMainBranches The CI status of every tracked repository's default branch
 	//
@@ -4713,6 +4768,45 @@ func (c *Client) RefreshDashboard(ctx context.Context, params *RefreshDashboardP
 // Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStreamDashboardRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetIssueDetails Read an issue's description, comments and reactions, on demand
+//
+// What the issue dialog shows: the description, the conversation in
+// order, and the thumbs up and thumbs down reactions on each with who
+// gave them. The same shape and rules as GET /api/pull-requests/details
+// without the release notes, which only a pull request has. Fetched live
+// on every call, never as part of GET /api/dashboard's snapshot.
+//
+// GitHub answers with one GraphQL query. Forgejo costs one call for the
+// issue, one for its comments, one for the description's reactions and
+// one for each comment's reactions (up to 50), so the reaction calls run
+// at most eight at a time and stop at the first rate limit.
+//
+// Every text is Markdown exactly as the forge stores it (`format` is
+// always `markdown`). The server neither converts nor sanitises it, so a
+// client must render it with raw HTML disabled. Each text is cut at
+// 20,000 characters (`truncated`), the conversation keeps its first 50
+// comments (`commentsTruncated`, with the full `commentCount`), and a
+// reaction names at most its first 10 people while `count` is the full
+// number. An avatar is the forge's own URL, passed through unchanged and
+// never proxied.
+//
+// The error answers are those of GET /api/pull-requests/details, with
+// the same codes. An issue that doesn't exist is a 404, and a forge that
+// can't be read is an error, never an empty thread.
+//
+// Corresponds with GET /api/issues/details (the `GetIssueDetails` operationId).
+func (c *Client) GetIssueDetails(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetIssueDetailsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7378,6 +7472,72 @@ func NewStreamDashboardRequest(server string, params *StreamDashboardParams) (*h
 	return req, nil
 }
 
+// NewGetIssueDetailsRequest constructs an http.Request for the GetIssueDetails method
+func NewGetIssueDetailsRequest(server string, params *GetIssueDetailsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/issues/details")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "fullName", params.FullName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "number", params.Number, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetMainBranchesRequest constructs an http.Request for the GetMainBranches method
 func NewGetMainBranchesRequest(server string) (*http.Request, error) {
 	var err error
@@ -9308,6 +9468,37 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboardWithResponse(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*StreamDashboardResponse, error)
+
+	// GetIssueDetailsWithResponse Read an issue's description, comments and reactions, on demand
+	//
+	// What the issue dialog shows: the description, the conversation in
+	// order, and the thumbs up and thumbs down reactions on each with who
+	// gave them. The same shape and rules as GET /api/pull-requests/details
+	// without the release notes, which only a pull request has. Fetched live
+	// on every call, never as part of GET /api/dashboard's snapshot.
+	//
+	// GitHub answers with one GraphQL query. Forgejo costs one call for the
+	// issue, one for its comments, one for the description's reactions and
+	// one for each comment's reactions (up to 50), so the reaction calls run
+	// at most eight at a time and stop at the first rate limit.
+	//
+	// Every text is Markdown exactly as the forge stores it (`format` is
+	// always `markdown`). The server neither converts nor sanitises it, so a
+	// client must render it with raw HTML disabled. Each text is cut at
+	// 20,000 characters (`truncated`), the conversation keeps its first 50
+	// comments (`commentsTruncated`, with the full `commentCount`), and a
+	// reaction names at most its first 10 people while `count` is the full
+	// number. An avatar is the forge's own URL, passed through unchanged and
+	// never proxied.
+	//
+	// The error answers are those of GET /api/pull-requests/details, with
+	// the same codes. An issue that doesn't exist is a 404, and a forge that
+	// can't be read is an error, never an empty thread.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/issues/details (the `GetIssueDetails` operationId).
+	GetIssueDetailsWithResponse(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*GetIssueDetailsResponse, error)
 
 	// GetMainBranchesWithResponse The CI status of every tracked repository's default branch
 	//
@@ -11554,6 +11745,89 @@ func (r StreamDashboardResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r StreamDashboardResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetIssueDetailsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *IssueDetails
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetIssueDetailsResponse) GetJSON200() *IssueDetails {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetIssueDetailsResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetIssueDetailsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetIssueDetailsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetIssueDetailsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r GetIssueDetailsResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r GetIssueDetailsResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r GetIssueDetailsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetIssueDetailsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetIssueDetailsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetIssueDetailsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -14462,6 +14736,43 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 	return ParseStreamDashboardResponse(rsp)
 }
 
+// GetIssueDetailsWithResponse Read an issue's description, comments and reactions, on demand
+//
+// What the issue dialog shows: the description, the conversation in
+// order, and the thumbs up and thumbs down reactions on each with who
+// gave them. The same shape and rules as GET /api/pull-requests/details
+// without the release notes, which only a pull request has. Fetched live
+// on every call, never as part of GET /api/dashboard's snapshot.
+//
+// GitHub answers with one GraphQL query. Forgejo costs one call for the
+// issue, one for its comments, one for the description's reactions and
+// one for each comment's reactions (up to 50), so the reaction calls run
+// at most eight at a time and stop at the first rate limit.
+//
+// Every text is Markdown exactly as the forge stores it (`format` is
+// always `markdown`). The server neither converts nor sanitises it, so a
+// client must render it with raw HTML disabled. Each text is cut at
+// 20,000 characters (`truncated`), the conversation keeps its first 50
+// comments (`commentsTruncated`, with the full `commentCount`), and a
+// reaction names at most its first 10 people while `count` is the full
+// number. An avatar is the forge's own URL, passed through unchanged and
+// never proxied.
+//
+// The error answers are those of GET /api/pull-requests/details, with
+// the same codes. An issue that doesn't exist is a 404, and a forge that
+// can't be read is an error, never an empty thread.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/issues/details (the `GetIssueDetails` operationId).
+func (c *ClientWithResponses) GetIssueDetailsWithResponse(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*GetIssueDetailsResponse, error) {
+	rsp, err := c.GetIssueDetails(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetIssueDetailsResponse(rsp)
+}
+
 // GetMainBranchesWithResponse The CI status of every tracked repository's default branch
 //
 // One row per tracked repository, showing the latest pipeline on its
@@ -16811,6 +17122,74 @@ func ParseStreamDashboardResponse(rsp *http.Response) (*StreamDashboardResponse,
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetIssueDetailsResponse parses an HTTP response from a GetIssueDetailsWithResponse call
+func ParseGetIssueDetailsResponse(rsp *http.Response) (*GetIssueDetailsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetIssueDetailsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest IssueDetails
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
