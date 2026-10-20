@@ -1426,7 +1426,17 @@ type Issue struct {
 	// the server leaves it out of `issues` as well.
 	Housekeeping bool    `json:"housekeeping"`
 	Labels       []Label `json:"labels"`
-	Number       int     `json:"number"`
+
+	// LinkedPullRequests The open pull requests that will close the issue when they merge,
+	// the other side of a pull request's `closesIssues`, ordered by
+	// repository and number. Always present, and empty when there are
+	// none. The server joins the pull requests it already holds, so it
+	// costs the forge no request. It counts every open pull request the
+	// user could see, including a draft and one they hid, but not one in
+	// a repository whose pull requests they ignore. A pull request that
+	// merged or closed is gone from the list on the next refresh.
+	LinkedPullRequests []LinkedPullRequest `json:"linkedPullRequests"`
+	Number             int                 `json:"number"`
 
 	// Repo Examples: alrayyes/hush-hush
 	Repo      string    `json:"repo"`
@@ -1463,6 +1473,26 @@ type Label struct {
 
 	// Name Examples: kind/bug
 	Name string `json:"name"`
+}
+
+// LinkedPullRequest One open pull request that will close an issue when it merges.
+type LinkedPullRequest struct {
+	// Draft True while the pull request is a draft. Otherwise it is open.
+	Draft  bool  `json:"draft"`
+	Forge  Forge `json:"forge"`
+	Number int   `json:"number"`
+
+	// PageUrl The address on this dashboard that opens the page listing the pull
+	// request, with its pop-up open: `/pull-requests.html`, `/releases.html`
+	// or `/bots.html`, whichever page lists that kind of pull request, then
+	// `?pr=` and `forge/owner/name/number`. A relative address.
+	//
+	//
+	// Examples: /pull-requests.html?pr=github/alrayyes/hush-hush/12
+	PageUrl string `json:"pageUrl"`
+
+	// Repo The pull request's repository as `owner/name`, which is not always the issue's own.
+	Repo string `json:"repo"`
 }
 
 // LoginBeginRequest defines model for LoginBeginRequest.
