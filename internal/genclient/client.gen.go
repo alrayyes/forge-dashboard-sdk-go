@@ -1821,9 +1821,19 @@ type PullRequestHideRequest struct {
 }
 
 // PullRequestStatus Why a pull request is waiting on something or can't be merged, in one
-// place for a client to show. Same shape as
-// `AllowedAction.blocked`.
+// place for a client to show. Same fields as
+// `AllowedAction.blocked`, plus `action`.
 type PullRequestStatus struct {
+	// Action The `allowedActions[].action` that clears this status, set only
+	// when `code` is `behind`: `update_branch`, or the bot's own rebase
+	// on a Dependabot or Renovate pull request. A client draws that
+	// action's button inside the status line and nowhere else on the
+	// row. Absent when no action clears it (a conflict, a check still
+	// running, a draft) and when the action is locked, such as a
+	// Renovate rebase already waiting. Same action as the entry marked
+	// `primary`, so a client that ignores this field still has it.
+	Action *string `json:"action,omitempty"`
+
 	// Code The same codes as `AllowedAction.blocked.code`. The server may
 	// learn more, so a client should show `message` for a code it
 	// doesn't know. Declared with `x-extensible-enum`.
