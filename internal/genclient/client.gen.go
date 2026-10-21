@@ -1295,8 +1295,7 @@ type Dashboard struct {
 	// QueuedActions The signed-in user's queued actions, waiting and finished in the
 	// last 24 hours (GET /api/queued-actions), so a client lists them in
 	// its Activity panel and learns an outcome from the stream it
-	// already reads. Always present, empty when there are none, and
-	// always empty on another user's shared dashboard.
+	// already reads. Always present, empty when there are none.
 	QueuedActions []QueuedAction `json:"queuedActions"`
 
 	// ReadIntervalSeconds How often, in seconds, a client should re-read GET
@@ -2953,21 +2952,6 @@ type SettingsSummary struct {
 // SettingsSummaryTheme defines model for SettingsSummary.Theme.
 type SettingsSummaryTheme string
 
-// SharedUser defines model for SharedUser.
-type SharedUser struct {
-	DisplayName string `json:"displayName"`
-	Username    string `json:"username"`
-}
-
-// SharingResponse defines model for SharingResponse.
-type SharingResponse struct {
-	// SharedWith Users the signed-in user has shared their own dashboard with.
-	SharedWith []SharedUser `json:"sharedWith"`
-
-	// SharedWithMe Users who have shared their dashboard with the signed-in user.
-	SharedWithMe []SharedUser `json:"sharedWithMe"`
-}
-
 // StackPosition defines model for StackPosition.
 type StackPosition struct {
 	// Position 1 for the pull request at the bottom of the stack (the one
@@ -3099,9 +3083,6 @@ type FinishRegistrationParams struct {
 
 // GetDashboardParams defines parameters for GetDashboard.
 type GetDashboardParams struct {
-	// Owner A username that has shared their dashboard with the caller. Defaults to the caller's own.
-	Owner *string `form:"owner,omitempty" json:"owner,omitempty"`
-
 	// IncludeDrafts Whether draft pull requests are in `pullRequests`. Defaults to
 	// `false`: nothing can be merged, auto-merged or updated on a draft,
 	// so a draft is left out and counted in the response's `hiddenDrafts`
@@ -3590,14 +3571,10 @@ type ClientInterface interface {
 	// blocks on a live call to either forge, so it answers instantly even
 	// when a forge is slow or unreachable.
 	//
-	// Omitting `owner` returns the signed-in user's own dashboard. Passing
-	// it returns that user's dashboard instead — allowed only when they've
-	// shared it with the caller (or the caller is viewing their own
-	// username), and refused with a 403 otherwise.
+	// Always the signed-in user's own dashboard.
 	//
-	// Draft pull requests are left out unless `includeDrafts=true`. With
-	// `owner`, the same rule applies to that user's dashboard, and
-	// `hiddenDrafts` counts only the drafts in repos that user hasn't
+	// Draft pull requests are left out unless `includeDrafts=true`, and
+	// `hiddenDrafts` counts only the drafts in repos the user hasn't
 	// ignored, the same repos whose other pull requests show.
 	//
 	// Corresponds with GET /api/dashboard (the `GetDashboard` operationId).
@@ -3610,12 +3587,6 @@ type ClientInterface interface {
 	// snapshot — for retrying right away after a forge was only
 	// briefly unreachable, instead of waiting for the next scheduled
 	// background refresh.
-	//
-	// Doesn't support `owner` the way GET /api/dashboard does — only
-	// ever the signed-in user's own dashboard, never a shared one, so
-	// a user with shared access to someone else's dashboard can never
-	// spend that owner's own forge rate-limit budget on their own
-	// schedule.
 	//
 	// The server holds a five-second cooldown per user, so this can't
 	// be used to hammer a forge's API budget. A call inside that
@@ -3637,8 +3608,6 @@ type ClientInterface interface {
 	// one, which is what turns that into a live update instead of
 	// something only the next scheduled refresh picks up.
 	//
-	// Doesn't support `owner` the way GET /api/dashboard does — only
-	// ever the signed-in user's own dashboard, never a shared one.
 	// The frontend's own 30-second poll against GET /api/dashboard
 	// keeps running unconditionally, connected or not — a browser or
 	// proxy that can't hold an SSE connection open just never
@@ -3702,7 +3671,7 @@ type ClientInterface interface {
 	// `stale` with `staleSince`, the same carry-over `forges[].staleSince`
 	// on GET /api/dashboard reports. A forge whose rate-limit budget is
 	// spent is skipped until it resets and its rows are kept the same way.
-	// Only the signed-in user's own repositories, so there is no `owner`.
+	// Only the signed-in user's own repositories.
 	//
 	// A repository with no default branch yet (empty) or no pipeline has
 	// status `none`. Unauthenticated GitHub access (a username with no
@@ -4770,32 +4739,6 @@ type ClientInterface interface {
 	// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
 	SetTimezone(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetSharing The signed-in user's sharing relationships
-	//
-	// Both directions at once: who the signed-in user has shared their
-	// own dashboard with, and whose dashboards have been shared with
-	// them.
-	//
-	// Corresponds with GET /api/sharing (the `GetSharing` operationId).
-	GetSharing(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UnshareWith Stop sharing the signed-in user's dashboard with username
-	//
-	// Idempotent — removing a username that was never shared with changes nothing.
-	//
-	// Corresponds with DELETE /api/sharing/{username} (the `UnshareWith` operationId).
-	UnshareWith(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ShareWith Share the signed-in user's dashboard with username
-	//
-	// Idempotent — sharing with a username already on the list changes
-	// nothing. username needs no tokens of their own configured to view
-	// the shared dashboard; they see the owner's aggregated data exactly
-	// as the owner sees it.
-	//
-	// Corresponds with PUT /api/sharing/{username} (the `ShareWith` operationId).
-	ShareWith(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetForgeApiStats How many forge API calls the dashboard has spent, and on what
 	//
 	// Counts the forge requests made since the server started, so a change
@@ -4859,7 +4802,7 @@ type ClientInterface interface {
 	// Stops the token authenticating immediately. Idempotent — deleting
 	// an id that's already gone (or never belonged to the signed-in
 	// user) still answers 204, the same as any other delete-by-id
-	// endpoint here (compare DELETE /api/sharing/{username}), so a
+	// endpoint here (compare DELETE /api/admin/users/{username}), so a
 	// double-click or a retried request isn't an error.
 	//
 	// Corresponds with DELETE /api/tokens/{id} (the `DeleteAPIToken` operationId).
@@ -5475,14 +5418,10 @@ func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) 
 // blocks on a live call to either forge, so it answers instantly even
 // when a forge is slow or unreachable.
 //
-// Omitting `owner` returns the signed-in user's own dashboard. Passing
-// it returns that user's dashboard instead — allowed only when they've
-// shared it with the caller (or the caller is viewing their own
-// username), and refused with a 403 otherwise.
+// Always the signed-in user's own dashboard.
 //
-// Draft pull requests are left out unless `includeDrafts=true`. With
-// `owner`, the same rule applies to that user's dashboard, and
-// `hiddenDrafts` counts only the drafts in repos that user hasn't
+// Draft pull requests are left out unless `includeDrafts=true`, and
+// `hiddenDrafts` counts only the drafts in repos the user hasn't
 // ignored, the same repos whose other pull requests show.
 //
 // Corresponds with GET /api/dashboard (the `GetDashboard` operationId).
@@ -5505,12 +5444,6 @@ func (c *Client) GetDashboard(ctx context.Context, params *GetDashboardParams, r
 // snapshot — for retrying right away after a forge was only
 // briefly unreachable, instead of waiting for the next scheduled
 // background refresh.
-//
-// Doesn't support `owner` the way GET /api/dashboard does — only
-// ever the signed-in user's own dashboard, never a shared one, so
-// a user with shared access to someone else's dashboard can never
-// spend that owner's own forge rate-limit budget on their own
-// schedule.
 //
 // The server holds a five-second cooldown per user, so this can't
 // be used to hammer a forge's API budget. A call inside that
@@ -5542,8 +5475,6 @@ func (c *Client) RefreshDashboard(ctx context.Context, params *RefreshDashboardP
 // one, which is what turns that into a live update instead of
 // something only the next scheduled refresh picks up.
 //
-// Doesn't support `owner` the way GET /api/dashboard does — only
-// ever the signed-in user's own dashboard, never a shared one.
 // The frontend's own 30-second poll against GET /api/dashboard
 // keeps running unconditionally, connected or not — a browser or
 // proxy that can't hold an SSE connection open just never
@@ -5627,7 +5558,7 @@ func (c *Client) GetIssueDetails(ctx context.Context, params *GetIssueDetailsPar
 // `stale` with `staleSince`, the same carry-over `forges[].staleSince`
 // on GET /api/dashboard reports. A forge whose rate-limit budget is
 // spent is skipped until it resets and its rows are kept the same way.
-// Only the signed-in user's own repositories, so there is no `owner`.
+// Only the signed-in user's own repositories.
 //
 // A repository with no default branch yet (empty) or no pipeline has
 // status `none`. Unauthenticated GitHub access (a username with no
@@ -7245,62 +7176,6 @@ func (c *Client) SetTimezone(ctx context.Context, body SetTimezoneJSONRequestBod
 	return c.Client.Do(req)
 }
 
-// GetSharing The signed-in user's sharing relationships
-//
-// Both directions at once: who the signed-in user has shared their
-// own dashboard with, and whose dashboards have been shared with
-// them.
-//
-// Corresponds with GET /api/sharing (the `GetSharing` operationId).
-func (c *Client) GetSharing(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetSharingRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// UnshareWith Stop sharing the signed-in user's dashboard with username
-//
-// Idempotent — removing a username that was never shared with changes nothing.
-//
-// Corresponds with DELETE /api/sharing/{username} (the `UnshareWith` operationId).
-func (c *Client) UnshareWith(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUnshareWithRequest(c.Server, username)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ShareWith Share the signed-in user's dashboard with username
-//
-// Idempotent — sharing with a username already on the list changes
-// nothing. username needs no tokens of their own configured to view
-// the shared dashboard; they see the owner's aggregated data exactly
-// as the owner sees it.
-//
-// Corresponds with PUT /api/sharing/{username} (the `ShareWith` operationId).
-func (c *Client) ShareWith(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewShareWithRequest(c.Server, username)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // GetForgeApiStats How many forge API calls the dashboard has spent, and on what
 //
 // Counts the forge requests made since the server started, so a change
@@ -7404,7 +7279,7 @@ func (c *Client) CreateAPIToken(ctx context.Context, body CreateAPITokenJSONRequ
 // Stops the token authenticating immediately. Idempotent — deleting
 // an id that's already gone (or never belonged to the signed-in
 // user) still answers 204, the same as any other delete-by-id
-// endpoint here (compare DELETE /api/sharing/{username}), so a
+// endpoint here (compare DELETE /api/admin/users/{username}), so a
 // double-click or a retried request isn't an error.
 //
 // Corresponds with DELETE /api/tokens/{id} (the `DeleteAPIToken` operationId).
@@ -8337,18 +8212,6 @@ func NewGetDashboardRequest(server string, params *GetDashboardParams) (*http.Re
 		// styled parameters, preserving literal commas as delimiters
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
-
-		if params.Owner != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "owner", *params.Owner, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
 
 		if params.IncludeDrafts != nil {
 
@@ -9894,101 +9757,6 @@ func NewSetTimezoneRequestWithBody(server string, contentType string, body io.Re
 	return req, nil
 }
 
-// NewGetSharingRequest constructs an http.Request for the GetSharing method
-func NewGetSharingRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/sharing")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUnshareWithRequest constructs an http.Request for the UnshareWith method
-func NewUnshareWithRequest(server string, username PathUsername) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "username", username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/sharing/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewShareWithRequest constructs an http.Request for the ShareWith method
-func NewShareWithRequest(server string, username PathUsername) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "username", username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/sharing/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetForgeApiStatsRequest constructs an http.Request for the GetForgeApiStats method
 func NewGetForgeApiStatsRequest(server string) (*http.Request, error) {
 	var err error
@@ -10611,14 +10379,10 @@ type ClientWithResponsesInterface interface {
 	// blocks on a live call to either forge, so it answers instantly even
 	// when a forge is slow or unreachable.
 	//
-	// Omitting `owner` returns the signed-in user's own dashboard. Passing
-	// it returns that user's dashboard instead — allowed only when they've
-	// shared it with the caller (or the caller is viewing their own
-	// username), and refused with a 403 otherwise.
+	// Always the signed-in user's own dashboard.
 	//
-	// Draft pull requests are left out unless `includeDrafts=true`. With
-	// `owner`, the same rule applies to that user's dashboard, and
-	// `hiddenDrafts` counts only the drafts in repos that user hasn't
+	// Draft pull requests are left out unless `includeDrafts=true`, and
+	// `hiddenDrafts` counts only the drafts in repos the user hasn't
 	// ignored, the same repos whose other pull requests show.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -10633,12 +10397,6 @@ type ClientWithResponsesInterface interface {
 	// snapshot — for retrying right away after a forge was only
 	// briefly unreachable, instead of waiting for the next scheduled
 	// background refresh.
-	//
-	// Doesn't support `owner` the way GET /api/dashboard does — only
-	// ever the signed-in user's own dashboard, never a shared one, so
-	// a user with shared access to someone else's dashboard can never
-	// spend that owner's own forge rate-limit budget on their own
-	// schedule.
 	//
 	// The server holds a five-second cooldown per user, so this can't
 	// be used to hammer a forge's API budget. A call inside that
@@ -10662,8 +10420,6 @@ type ClientWithResponsesInterface interface {
 	// one, which is what turns that into a live update instead of
 	// something only the next scheduled refresh picks up.
 	//
-	// Doesn't support `owner` the way GET /api/dashboard does — only
-	// ever the signed-in user's own dashboard, never a shared one.
 	// The frontend's own 30-second poll against GET /api/dashboard
 	// keeps running unconditionally, connected or not — a browser or
 	// proxy that can't hold an SSE connection open just never
@@ -10731,7 +10487,7 @@ type ClientWithResponsesInterface interface {
 	// `stale` with `staleSince`, the same carry-over `forges[].staleSince`
 	// on GET /api/dashboard reports. A forge whose rate-limit budget is
 	// spent is skipped until it resets and its rows are kept the same way.
-	// Only the signed-in user's own repositories, so there is no `owner`.
+	// Only the signed-in user's own repositories.
 	//
 	// A repository with no default branch yet (empty) or no pipeline has
 	// status `none`. Unauthenticated GitHub access (a username with no
@@ -11821,38 +11577,6 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
 	SetTimezoneWithResponse(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*SetTimezoneResponse, error)
 
-	// GetSharingWithResponse The signed-in user's sharing relationships
-	//
-	// Both directions at once: who the signed-in user has shared their
-	// own dashboard with, and whose dashboards have been shared with
-	// them.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /api/sharing (the `GetSharing` operationId).
-	GetSharingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSharingResponse, error)
-
-	// UnshareWithWithResponse Stop sharing the signed-in user's dashboard with username
-	//
-	// Idempotent — removing a username that was never shared with changes nothing.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with DELETE /api/sharing/{username} (the `UnshareWith` operationId).
-	UnshareWithWithResponse(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*UnshareWithResponse, error)
-
-	// ShareWithWithResponse Share the signed-in user's dashboard with username
-	//
-	// Idempotent — sharing with a username already on the list changes
-	// nothing. username needs no tokens of their own configured to view
-	// the shared dashboard; they see the owner's aggregated data exactly
-	// as the owner sees it.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with PUT /api/sharing/{username} (the `ShareWith` operationId).
-	ShareWithWithResponse(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*ShareWithResponse, error)
-
 	// GetForgeApiStatsWithResponse How many forge API calls the dashboard has spent, and on what
 	//
 	// Counts the forge requests made since the server started, so a change
@@ -11920,7 +11644,7 @@ type ClientWithResponsesInterface interface {
 	// Stops the token authenticating immediately. Idempotent — deleting
 	// an id that's already gone (or never belonged to the signed-in
 	// user) still answers 204, the same as any other delete-by-id
-	// endpoint here (compare DELETE /api/sharing/{username}), so a
+	// endpoint here (compare DELETE /api/admin/users/{username}), so a
 	// double-click or a retried request isn't an error.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -12994,10 +12718,6 @@ type GetDashboardResponse struct {
 	JSON200 *Dashboard
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -13008,16 +12728,6 @@ func (r GetDashboardResponse) GetJSON200() *Dashboard {
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r GetDashboardResponse) GetJSON401() *Error {
 	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r GetDashboardResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r GetDashboardResponse) GetJSON404() *Error {
-	return r.JSON404
 }
 
 // GetBody returns the raw response body bytes
@@ -15295,150 +15005,6 @@ func (r SetTimezoneResponse) ContentType() string {
 	return ""
 }
 
-type GetSharingResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *SharingResponse
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r GetSharingResponse) GetJSON200() *SharingResponse {
-	return r.JSON200
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r GetSharingResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetBody returns the raw response body bytes
-func (r GetSharingResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r GetSharingResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetSharingResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetSharingResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type UnshareWithResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r UnshareWithResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetBody returns the raw response body bytes
-func (r UnshareWithResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r UnshareWithResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UnshareWithResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UnshareWithResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type ShareWithResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *Error
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r ShareWithResponse) GetJSON400() *Error {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r ShareWithResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r ShareWithResponse) GetJSON404() *Error {
-	return r.JSON404
-}
-
-// GetBody returns the raw response body bytes
-func (r ShareWithResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r ShareWithResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ShareWithResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ShareWithResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type GetForgeApiStatsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -16306,14 +15872,10 @@ func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEdi
 // blocks on a live call to either forge, so it answers instantly even
 // when a forge is slow or unreachable.
 //
-// Omitting `owner` returns the signed-in user's own dashboard. Passing
-// it returns that user's dashboard instead — allowed only when they've
-// shared it with the caller (or the caller is viewing their own
-// username), and refused with a 403 otherwise.
+// Always the signed-in user's own dashboard.
 //
-// Draft pull requests are left out unless `includeDrafts=true`. With
-// `owner`, the same rule applies to that user's dashboard, and
-// `hiddenDrafts` counts only the drafts in repos that user hasn't
+// Draft pull requests are left out unless `includeDrafts=true`, and
+// `hiddenDrafts` counts only the drafts in repos the user hasn't
 // ignored, the same repos whose other pull requests show.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -16334,12 +15896,6 @@ func (c *ClientWithResponses) GetDashboardWithResponse(ctx context.Context, para
 // snapshot — for retrying right away after a forge was only
 // briefly unreachable, instead of waiting for the next scheduled
 // background refresh.
-//
-// Doesn't support `owner` the way GET /api/dashboard does — only
-// ever the signed-in user's own dashboard, never a shared one, so
-// a user with shared access to someone else's dashboard can never
-// spend that owner's own forge rate-limit budget on their own
-// schedule.
 //
 // The server holds a five-second cooldown per user, so this can't
 // be used to hammer a forge's API budget. A call inside that
@@ -16369,8 +15925,6 @@ func (c *ClientWithResponses) RefreshDashboardWithResponse(ctx context.Context, 
 // one, which is what turns that into a live update instead of
 // something only the next scheduled refresh picks up.
 //
-// Doesn't support `owner` the way GET /api/dashboard does — only
-// ever the signed-in user's own dashboard, never a shared one.
 // The frontend's own 30-second poll against GET /api/dashboard
 // keeps running unconditionally, connected or not — a browser or
 // proxy that can't hold an SSE connection open just never
@@ -16450,7 +16004,7 @@ func (c *ClientWithResponses) GetIssueDetailsWithResponse(ctx context.Context, p
 // `stale` with `staleSince`, the same carry-over `forges[].staleSince`
 // on GET /api/dashboard reports. A forge whose rate-limit budget is
 // spent is skipped until it resets and its rows are kept the same way.
-// Only the signed-in user's own repositories, so there is no `owner`.
+// Only the signed-in user's own repositories.
 //
 // A repository with no default branch yet (empty) or no pipeline has
 // status `none`. Unauthenticated GitHub access (a username with no
@@ -17870,56 +17424,6 @@ func (c *ClientWithResponses) SetTimezoneWithResponse(ctx context.Context, body 
 	return ParseSetTimezoneResponse(rsp)
 }
 
-// GetSharingWithResponse The signed-in user's sharing relationships
-//
-// Both directions at once: who the signed-in user has shared their
-// own dashboard with, and whose dashboards have been shared with
-// them.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /api/sharing (the `GetSharing` operationId).
-func (c *ClientWithResponses) GetSharingWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSharingResponse, error) {
-	rsp, err := c.GetSharing(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetSharingResponse(rsp)
-}
-
-// UnshareWithWithResponse Stop sharing the signed-in user's dashboard with username
-//
-// Idempotent — removing a username that was never shared with changes nothing.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with DELETE /api/sharing/{username} (the `UnshareWith` operationId).
-func (c *ClientWithResponses) UnshareWithWithResponse(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*UnshareWithResponse, error) {
-	rsp, err := c.UnshareWith(ctx, username, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUnshareWithResponse(rsp)
-}
-
-// ShareWithWithResponse Share the signed-in user's dashboard with username
-//
-// Idempotent — sharing with a username already on the list changes
-// nothing. username needs no tokens of their own configured to view
-// the shared dashboard; they see the owner's aggregated data exactly
-// as the owner sees it.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with PUT /api/sharing/{username} (the `ShareWith` operationId).
-func (c *ClientWithResponses) ShareWithWithResponse(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*ShareWithResponse, error) {
-	rsp, err := c.ShareWith(ctx, username, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseShareWithResponse(rsp)
-}
-
 // GetForgeApiStatsWithResponse How many forge API calls the dashboard has spent, and on what
 //
 // Counts the forge requests made since the server started, so a change
@@ -18011,7 +17515,7 @@ func (c *ClientWithResponses) CreateAPITokenWithResponse(ctx context.Context, bo
 // Stops the token authenticating immediately. Idempotent — deleting
 // an id that's already gone (or never belonged to the signed-in
 // user) still answers 204, the same as any other delete-by-id
-// endpoint here (compare DELETE /api/sharing/{username}), so a
+// endpoint here (compare DELETE /api/admin/users/{username}), so a
 // double-click or a retried request isn't an error.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -18918,20 +18422,6 @@ func ParseGetDashboardResponse(rsp *http.Response) (*GetDashboardResponse, error
 			return nil, err
 		}
 		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
 
 	}
 
@@ -20701,111 +20191,6 @@ func ParseSetTimezoneResponse(rsp *http.Response) (*SetTimezoneResponse, error) 
 			return nil, err
 		}
 		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetSharingResponse parses an HTTP response from a GetSharingWithResponse call
-func ParseGetSharingResponse(rsp *http.Response) (*GetSharingResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetSharingResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SharingResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUnshareWithResponse parses an HTTP response from a UnshareWithWithResponse call
-func ParseUnshareWithResponse(rsp *http.Response) (*UnshareWithResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UnshareWithResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseShareWithResponse parses an HTTP response from a ShareWithWithResponse call
-func ParseShareWithResponse(rsp *http.Response) (*ShareWithResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ShareWithResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
 
 	}
 
