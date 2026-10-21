@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.106.0](https://github.com/alrayyes/forge-dashboard-sdk-go/compare/v1.105.0...v1.106.0) (2026-10-21)
+
+
+### Features
+
+* **spec:** regenerate client from forge-dashboard openapi.yaml ([#250](https://github.com/alrayyes/forge-dashboard-sdk-go/issues/250)) ([7bdb7f2](https://github.com/alrayyes/forge-dashboard-sdk-go/commit/7bdb7f294d47d884361d867529fc05fc41cefd6d))
+
 ## [1.105.0](https://github.com/alrayyes/forge-dashboard-sdk-go/compare/v1.104.0...v1.105.0) (2026-10-21)
 
 
