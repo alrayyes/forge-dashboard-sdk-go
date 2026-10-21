@@ -1086,7 +1086,7 @@ type Check struct {
 // count as `failed` (a held run first, where both are there), so a failed
 // pipeline always has a failed count on GitHub. A branch whose status is
 // `cancelled` has `failed` at 0. A timed-out or stale check counts as `failed`, a skipped,
-// neutral or bare completed one as `passed`.
+// neutral or bare completed one as `passed`, on Forgejo too.
 //
 // On GitHub the counts come from the same rollup as the overall state,
 // for a pull request and a branch alike; on Forgejo a pull request counts
@@ -1119,6 +1119,18 @@ type CheckState string
 // ClosingIssue One issue a pull request will close when it merges.
 type ClosingIssue struct {
 	Number int `json:"number"`
+
+	// PageUrl The address on this dashboard that opens the Issues page with this
+	// issue's pop-up open: `/issues.html?issue=` and
+	// `forge/owner/name/number`, on the pull request's own forge. A
+	// relative address. When the issue is closed, hidden by the user's
+	// settings or in a repo the dashboard does not track, the page opens
+	// no pop-up and shows a plain note over the list. The note has no
+	// forge link, since the dashboard knows nothing else about the issue.
+	//
+	//
+	// Examples: /issues.html?issue=github/alrayyes/hush-hush/12
+	PageUrl string `json:"pageUrl"`
 
 	// Repo The issue's repository as `owner/name`, which is not always the pull request's own.
 	Repo string `json:"repo"`
@@ -1532,7 +1544,7 @@ type MainBranch struct {
 	// count as `failed` (a held run first, where both are there), so a failed
 	// pipeline always has a failed count on GitHub. A branch whose status is
 	// `cancelled` has `failed` at 0. A timed-out or stale check counts as `failed`, a skipped,
-	// neutral or bare completed one as `passed`.
+	// neutral or bare completed one as `passed`, on Forgejo too.
 	//
 	// On GitHub the counts come from the same rollup as the overall state,
 	// for a pull request and a branch alike; on Forgejo a pull request counts
@@ -1931,7 +1943,7 @@ type PullRequest struct {
 	// count as `failed` (a held run first, where both are there), so a failed
 	// pipeline always has a failed count on GitHub. A branch whose status is
 	// `cancelled` has `failed` at 0. A timed-out or stale check counts as `failed`, a skipped,
-	// neutral or bare completed one as `passed`.
+	// neutral or bare completed one as `passed`, on Forgejo too.
 	//
 	// On GitHub the counts come from the same rollup as the overall state,
 	// for a pull request and a branch alike; on Forgejo a pull request counts
