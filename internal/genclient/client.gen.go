@@ -12721,6 +12721,8 @@ type FinishRegistrationResponse struct {
 	JSON200 *SessionUser
 	// JSON400 the response for an HTTP 400 `application/json` response
 	JSON400 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -12731,6 +12733,11 @@ func (r FinishRegistrationResponse) GetJSON200() *SessionUser {
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
 func (r FinishRegistrationResponse) GetJSON400() *Error {
 	return r.JSON400
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r FinishRegistrationResponse) GetJSON403() *Error {
+	return r.JSON403
 }
 
 // GetBody returns the raw response body bytes
@@ -18682,6 +18689,13 @@ func ParseFinishRegistrationResponse(rsp *http.Response) (*FinishRegistrationRes
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
