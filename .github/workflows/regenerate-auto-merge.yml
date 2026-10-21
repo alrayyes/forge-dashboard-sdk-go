@@ -25,6 +25,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  checks: read
+  statuses: read
 
 jobs:
   auto-merge:
@@ -38,8 +40,11 @@ jobs:
       # produces a commit GitHub won't re-trigger workflows on, which
       # would leave this repo's own release.yml never firing after an
       # auto-merged regeneration lands on main.
-      - name: Enable auto-merge
-        run: gh pr merge --auto --squash "$PR_URL"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Enable auto-merge, or merge now when nothing is left to wait for
+        run: ./scripts/merge-pr.sh
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
