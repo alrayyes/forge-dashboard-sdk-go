@@ -83,6 +83,48 @@ func (e ActionErrorCode) Valid() bool {
 	}
 }
 
+// Defines values for AdvisorySeverity.
+const (
+	AdvisorySeverityCritical AdvisorySeverity = "critical"
+	AdvisorySeverityHigh     AdvisorySeverity = "high"
+	AdvisorySeverityLow      AdvisorySeverity = "low"
+	AdvisorySeverityMedium   AdvisorySeverity = "medium"
+)
+
+// Valid indicates whether the value is a known member of the AdvisorySeverity enum.
+func (e AdvisorySeverity) Valid() bool {
+	switch e {
+	case AdvisorySeverityCritical:
+		return true
+	case AdvisorySeverityHigh:
+		return true
+	case AdvisorySeverityLow:
+		return true
+	case AdvisorySeverityMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdvisoryState.
+const (
+	AdvisoryStateKnown   AdvisoryState = "known"
+	AdvisoryStateUnknown AdvisoryState = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the AdvisoryState enum.
+func (e AdvisoryState) Valid() bool {
+	switch e {
+	case AdvisoryStateKnown:
+		return true
+	case AdvisoryStateUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AutoMergeStatusState.
 const (
 	Stopped AutoMergeStatusState = "stopped"
@@ -850,6 +892,34 @@ type AdminUser struct {
 	Username    string    `json:"username"`
 }
 
+// Advisories The open dependency advisories on a repository's default branch, read
+// from the forge's own source (GitHub's Dependabot alerts). Absent from
+// the row when no source reads them for its forge. A source that can't
+// answer, such as alerts switched off or a token without the
+// `security_events` scope, gives `state` "unknown", never a count of
+// zero.
+type Advisories struct {
+	// Count How many advisories are open. Only meaningful when `state` is "known".
+	Count int `json:"count"`
+
+	// Highest The worst severity among the open advisories. Absent when there are none.
+	Highest *AdvisorySeverity `json:"highest,omitempty"`
+
+	// State "known" is an answer the forge gave. "unknown" is no answer, and must
+	// never be shown as zero.
+	State AdvisoryState `json:"state"`
+
+	// Url Where to see the advisories on the forge. Absent when there are none or the state is unknown.
+	Url *string `json:"url,omitempty"`
+}
+
+// AdvisorySeverity The worst severity among the open advisories. Absent when there are none.
+type AdvisorySeverity string
+
+// AdvisoryState "known" is an answer the forge gave. "unknown" is no answer, and must
+// never be shown as zero.
+type AdvisoryState string
+
 // AllowedAction defines model for AllowedAction.
 type AllowedAction struct {
 	// Action One of the values below today, and the server may learn more.
@@ -1337,7 +1407,7 @@ type ForgeApiBucket struct {
 	// GraphqlCost The `rateLimit.cost` points the GraphQL requests were charged.
 	GraphqlCost int `json:"graphqlCost"`
 
-	// Kind Why the requests were made. Open-ended, so a new kind is not a breaking change; today `full`, `scoped_webhook`, `ci_poll`, `auto_merge_poll`, `details`, `hook_maintenance`, `user_action` and `unknown`.
+	// Kind Why the requests were made. Open-ended, so a new kind is not a breaking change; today `full`, `scoped_webhook`, `ci_poll`, `auto_merge_poll`, `details`, `hook_maintenance`, `advisories`, `user_action` and `unknown`.
 	Kind string `json:"kind"`
 
 	// NotModified Requests answered `304 Not Modified`, which cost nothing.
@@ -1579,6 +1649,14 @@ type LoginBeginRequest struct {
 
 // MainBranch One tracked repository and the CI status of its default branch.
 type MainBranch struct {
+	// Advisories The open dependency advisories on a repository's default branch, read
+	// from the forge's own source (GitHub's Dependabot alerts). Absent from
+	// the row when no source reads them for its forge. A source that can't
+	// answer, such as alerts switched off or a token without the
+	// `security_events` scope, gives `state` "unknown", never a count of
+	// zero.
+	Advisories *Advisories `json:"advisories,omitempty"`
+
 	// Branch The repository's default branch. Empty for a repository the forge reports no default branch for.
 	Branch string `json:"branch"`
 
@@ -4734,7 +4812,8 @@ type ClientInterface interface {
 	// `ci_poll` (one repository, waiting on a running check),
 	// `auto_merge_poll` (one repository, waiting on an armed auto-merge),
 	// `details` (a dialog or check list opened), `hook_maintenance`
-	// (checking, adding or upgrading webhooks), `user_action` (a button
+	// (checking, adding or upgrading webhooks), `advisories` (reading a
+	// repository's open Dependabot alerts), `user_action` (a button
 	// pressed, a queued action, or something the dashboard does for you such
 	// as auto-merge) and `unknown` (a request nobody tagged, which is a bug
 	// to report). A request that names no repository, such as listing an
@@ -7238,7 +7317,8 @@ func (c *Client) ShareWith(ctx context.Context, username PathUsername, reqEditor
 // `ci_poll` (one repository, waiting on a running check),
 // `auto_merge_poll` (one repository, waiting on an armed auto-merge),
 // `details` (a dialog or check list opened), `hook_maintenance`
-// (checking, adding or upgrading webhooks), `user_action` (a button
+// (checking, adding or upgrading webhooks), `advisories` (reading a
+// repository's open Dependabot alerts), `user_action` (a button
 // pressed, a queued action, or something the dashboard does for you such
 // as auto-merge) and `unknown` (a request nobody tagged, which is a bug
 // to report). A request that names no repository, such as listing an
@@ -11789,7 +11869,8 @@ type ClientWithResponsesInterface interface {
 	// `ci_poll` (one repository, waiting on a running check),
 	// `auto_merge_poll` (one repository, waiting on an armed auto-merge),
 	// `details` (a dialog or check list opened), `hook_maintenance`
-	// (checking, adding or upgrading webhooks), `user_action` (a button
+	// (checking, adding or upgrading webhooks), `advisories` (reading a
+	// repository's open Dependabot alerts), `user_action` (a button
 	// pressed, a queued action, or something the dashboard does for you such
 	// as auto-merge) and `unknown` (a request nobody tagged, which is a bug
 	// to report). A request that names no repository, such as listing an
@@ -17855,7 +17936,8 @@ func (c *ClientWithResponses) ShareWithWithResponse(ctx context.Context, usernam
 // `ci_poll` (one repository, waiting on a running check),
 // `auto_merge_poll` (one repository, waiting on an armed auto-merge),
 // `details` (a dialog or check list opened), `hook_maintenance`
-// (checking, adding or upgrading webhooks), `user_action` (a button
+// (checking, adding or upgrading webhooks), `advisories` (reading a
+// repository's open Dependabot alerts), `user_action` (a button
 // pressed, a queued action, or something the dashboard does for you such
 // as auto-merge) and `unknown` (a request nobody tagged, which is a bug
 // to report). A request that names no repository, such as listing an
