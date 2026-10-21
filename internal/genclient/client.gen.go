@@ -2633,6 +2633,22 @@ type RegistrationStatus struct {
 	Open bool `json:"open"`
 }
 
+// ReleaseDetails What the release dialog shows for a published release.
+type ReleaseDetails struct {
+	// Name The release's title. Empty when the forge has none, and then the tag is the title.
+	Name string `json:"name"`
+
+	// Notes A pull request's description, or the release notes of a release pull request.
+	Notes DetailsBody `json:"notes"`
+
+	// PublishedAt When it was published, RFC 3339. Empty when the forge didn't say.
+	PublishedAt string `json:"publishedAt"`
+	Tag         string `json:"tag"`
+
+	// Url The release's page on the forge.
+	Url string `json:"url"`
+}
+
 // RepoIgnoreRequest Which repo to ignore, and in which scope(s). At least one
 // of prs/issues must be true — a request with both false is
 // rejected with 400 rather than silently doing nothing; use POST
@@ -3221,6 +3237,17 @@ type GetPullRequestDetailsParams struct {
 
 	// Number Matching a PullRequest.number from GET /api/dashboard.
 	Number int `form:"number" json:"number"`
+}
+
+// GetReleaseDetailsParams defines parameters for GetReleaseDetails.
+type GetReleaseDetailsParams struct {
+	Forge Forge `form:"forge" json:"forge"`
+
+	// FullName "owner/repo", matching a MainBranch.fullName from GET /api/main-branches.
+	FullName string `form:"fullName" json:"fullName"`
+
+	// Tag Matching a MainBranchRelease.tag from GET /api/main-branches.
+	Tag string `form:"tag" json:"tag"`
 }
 
 // ReceiveForgejoWebhookJSONBody defines parameters for ReceiveForgejoWebhook.
@@ -4497,6 +4524,29 @@ type ClientInterface interface {
 	//
 	// Corresponds with DELETE /api/queued-actions/{id} (the `CancelQueuedAction` operationId).
 	CancelQueuedAction(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetReleaseDetails Read a published release's title and notes, on demand
+	//
+	// What the release dialog on the Main branches page shows for a
+	// repository's latest published release: its title, when it was
+	// published, its notes and the thumbs reactions on them. Fetched live on
+	// every call, never as part of GET /api/main-branches' snapshot, so a
+	// release nobody opens costs no budget.
+	//
+	// GitHub answers with one GraphQL query. Only GitHub rows carry a latest
+	// release today, so a Forgejo repository is a 400.
+	//
+	// The notes are Markdown exactly as the forge stores them (`format` is
+	// always `markdown`). The server neither converts nor sanitises them, so
+	// a client must render them with raw HTML disabled. They are cut at
+	// 20,000 characters (`truncated`), and a reaction names at most its
+	// first 10 people while `count` is the full number.
+	//
+	// The error answers are those of GET /api/pull-requests/details, with
+	// the same codes. A tag that has no published release is a 404.
+	//
+	// Corresponds with GET /api/releases/details (the `GetReleaseDetails` operationId).
+	GetReleaseDetails(ctx context.Context, params *GetReleaseDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DisableAutoUpdateBranchWithBody Turn off automatic branch updates for one tracked repo
 	//
@@ -6715,6 +6765,39 @@ func (c *Client) QueueAction(ctx context.Context, body QueueActionJSONRequestBod
 // Corresponds with DELETE /api/queued-actions/{id} (the `CancelQueuedAction` operationId).
 func (c *Client) CancelQueuedAction(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCancelQueuedActionRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetReleaseDetails Read a published release's title and notes, on demand
+//
+// What the release dialog on the Main branches page shows for a
+// repository's latest published release: its title, when it was
+// published, its notes and the thumbs reactions on them. Fetched live on
+// every call, never as part of GET /api/main-branches' snapshot, so a
+// release nobody opens costs no budget.
+//
+// GitHub answers with one GraphQL query. Only GitHub rows carry a latest
+// release today, so a Forgejo repository is a 400.
+//
+// The notes are Markdown exactly as the forge stores them (`format` is
+// always `markdown`). The server neither converts nor sanitises them, so
+// a client must render them with raw HTML disabled. They are cut at
+// 20,000 characters (`truncated`), and a reaction names at most its
+// first 10 people while `count` is the full number.
+//
+// The error answers are those of GET /api/pull-requests/details, with
+// the same codes. A tag that has no published release is a 404.
+//
+// Corresponds with GET /api/releases/details (the `GetReleaseDetails` operationId).
+func (c *Client) GetReleaseDetails(ctx context.Context, params *GetReleaseDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetReleaseDetailsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -9343,6 +9426,72 @@ func NewCancelQueuedActionRequest(server string, id string) (*http.Request, erro
 	return req, nil
 }
 
+// NewGetReleaseDetailsRequest constructs an http.Request for the GetReleaseDetails method
+func NewGetReleaseDetailsRequest(server string, params *GetReleaseDetailsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/releases/details")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "fullName", params.FullName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "tag", params.Tag, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDisableAutoUpdateBranchRequest calls the generic DisableAutoUpdateBranch builder with application/json body
 func NewDisableAutoUpdateBranchRequest(server string, body DisableAutoUpdateBranchJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -11325,6 +11474,31 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with DELETE /api/queued-actions/{id} (the `CancelQueuedAction` operationId).
 	CancelQueuedActionWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CancelQueuedActionResponse, error)
+
+	// GetReleaseDetailsWithResponse Read a published release's title and notes, on demand
+	//
+	// What the release dialog on the Main branches page shows for a
+	// repository's latest published release: its title, when it was
+	// published, its notes and the thumbs reactions on them. Fetched live on
+	// every call, never as part of GET /api/main-branches' snapshot, so a
+	// release nobody opens costs no budget.
+	//
+	// GitHub answers with one GraphQL query. Only GitHub rows carry a latest
+	// release today, so a Forgejo repository is a 400.
+	//
+	// The notes are Markdown exactly as the forge stores them (`format` is
+	// always `markdown`). The server neither converts nor sanitises them, so
+	// a client must render them with raw HTML disabled. They are cut at
+	// 20,000 characters (`truncated`), and a reaction names at most its
+	// first 10 people while `count` is the full number.
+	//
+	// The error answers are those of GET /api/pull-requests/details, with
+	// the same codes. A tag that has no published release is a 404.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/releases/details (the `GetReleaseDetails` operationId).
+	GetReleaseDetailsWithResponse(ctx context.Context, params *GetReleaseDetailsParams, reqEditors ...RequestEditorFn) (*GetReleaseDetailsResponse, error)
 
 	// DisableAutoUpdateBranchWithBodyWithResponse Turn off automatic branch updates for one tracked repo
 	//
@@ -14387,6 +14561,89 @@ func (r CancelQueuedActionResponse) ContentType() string {
 	return ""
 }
 
+type GetReleaseDetailsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ReleaseDetails
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetReleaseDetailsResponse) GetJSON200() *ReleaseDetails {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetReleaseDetailsResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetReleaseDetailsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetReleaseDetailsResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetReleaseDetailsResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r GetReleaseDetailsResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r GetReleaseDetailsResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r GetReleaseDetailsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetReleaseDetailsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetReleaseDetailsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetReleaseDetailsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type DisableAutoUpdateBranchResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -17045,6 +17302,37 @@ func (c *ClientWithResponses) CancelQueuedActionWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseCancelQueuedActionResponse(rsp)
+}
+
+// GetReleaseDetailsWithResponse Read a published release's title and notes, on demand
+//
+// What the release dialog on the Main branches page shows for a
+// repository's latest published release: its title, when it was
+// published, its notes and the thumbs reactions on them. Fetched live on
+// every call, never as part of GET /api/main-branches' snapshot, so a
+// release nobody opens costs no budget.
+//
+// GitHub answers with one GraphQL query. Only GitHub rows carry a latest
+// release today, so a Forgejo repository is a 400.
+//
+// The notes are Markdown exactly as the forge stores them (`format` is
+// always `markdown`). The server neither converts nor sanitises them, so
+// a client must render them with raw HTML disabled. They are cut at
+// 20,000 characters (`truncated`), and a reaction names at most its
+// first 10 people while `count` is the full number.
+//
+// The error answers are those of GET /api/pull-requests/details, with
+// the same codes. A tag that has no published release is a 404.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/releases/details (the `GetReleaseDetails` operationId).
+func (c *ClientWithResponses) GetReleaseDetailsWithResponse(ctx context.Context, params *GetReleaseDetailsParams, reqEditors ...RequestEditorFn) (*GetReleaseDetailsResponse, error) {
+	rsp, err := c.GetReleaseDetails(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetReleaseDetailsResponse(rsp)
 }
 
 // DisableAutoUpdateBranchWithBodyWithResponse Turn off automatic branch updates for one tracked repo
@@ -19753,6 +20041,74 @@ func ParseCancelQueuedActionResponse(rsp *http.Response) (*CancelQueuedActionRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetReleaseDetailsResponse parses an HTTP response from a GetReleaseDetailsWithResponse call
+func ParseGetReleaseDetailsResponse(rsp *http.Response) (*GetReleaseDetailsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetReleaseDetailsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ReleaseDetails
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
