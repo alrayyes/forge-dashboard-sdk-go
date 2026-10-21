@@ -24,6 +24,8 @@ jobs:
           -race -coverprofile=coverage.out ./..."
       - name: Reports assemble into the published layout
         run: ./scripts/build-reports.test.sh
+      - name: Auto-merge script arms, merges now, or fails
+        run: ./scripts/merge-pr.test.sh
       - name: Upload coverage/test-result reports
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
