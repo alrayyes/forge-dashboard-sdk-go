@@ -1182,10 +1182,12 @@ type Check struct {
 //
 // On GitHub the counts come from the same rollup as the overall state,
 // for a pull request and a branch alike; on Forgejo a pull request counts
-// the statuses of the combined commit status, where nothing is ever
-// `running`, and a default branch counts the workflow runs of the newest
-// commit that has one (a job count would cost a request per run), where a
-// running run is `running` and a queued or blocked one `waiting`. Forgejo
+// the statuses of the combined commit status, which only say pending, and
+// takes the running ones out of the pending count by reading the jobs of
+// the commit's runs that are still going, and a default branch counts the
+// jobs of the workflow runs of the newest commit that has one, where a
+// running job is `running` and a queued or blocked one `waiting`. A run
+// whose jobs can't be read counts as one check by its own status. Forgejo
 // answers one page of those statuses, and when its total says there are
 // more than the page holds a pull request's counts are all zero rather
 // than an undercount. When GitHub's rollup of a pull request is of an
@@ -1627,10 +1629,12 @@ type LinkedPullRequest struct {
 	//
 	// On GitHub the counts come from the same rollup as the overall state,
 	// for a pull request and a branch alike; on Forgejo a pull request counts
-	// the statuses of the combined commit status, where nothing is ever
-	// `running`, and a default branch counts the workflow runs of the newest
-	// commit that has one (a job count would cost a request per run), where a
-	// running run is `running` and a queued or blocked one `waiting`. Forgejo
+	// the statuses of the combined commit status, which only say pending, and
+	// takes the running ones out of the pending count by reading the jobs of
+	// the commit's runs that are still going, and a default branch counts the
+	// jobs of the workflow runs of the newest commit that has one, where a
+	// running job is `running` and a queued or blocked one `waiting`. A run
+	// whose jobs can't be read counts as one check by its own status. Forgejo
 	// answers one page of those statuses, and when its total says there are
 	// more than the page holds a pull request's counts are all zero rather
 	// than an undercount. When GitHub's rollup of a pull request is of an
@@ -1722,10 +1726,12 @@ type MainBranch struct {
 	//
 	// On GitHub the counts come from the same rollup as the overall state,
 	// for a pull request and a branch alike; on Forgejo a pull request counts
-	// the statuses of the combined commit status, where nothing is ever
-	// `running`, and a default branch counts the workflow runs of the newest
-	// commit that has one (a job count would cost a request per run), where a
-	// running run is `running` and a queued or blocked one `waiting`. Forgejo
+	// the statuses of the combined commit status, which only say pending, and
+	// takes the running ones out of the pending count by reading the jobs of
+	// the commit's runs that are still going, and a default branch counts the
+	// jobs of the workflow runs of the newest commit that has one, where a
+	// running job is `running` and a queued or blocked one `waiting`. A run
+	// whose jobs can't be read counts as one check by its own status. Forgejo
 	// answers one page of those statuses, and when its total says there are
 	// more than the page holds a pull request's counts are all zero rather
 	// than an undercount. When GitHub's rollup of a pull request is of an
@@ -2132,10 +2138,12 @@ type PullRequest struct {
 	//
 	// On GitHub the counts come from the same rollup as the overall state,
 	// for a pull request and a branch alike; on Forgejo a pull request counts
-	// the statuses of the combined commit status, where nothing is ever
-	// `running`, and a default branch counts the workflow runs of the newest
-	// commit that has one (a job count would cost a request per run), where a
-	// running run is `running` and a queued or blocked one `waiting`. Forgejo
+	// the statuses of the combined commit status, which only say pending, and
+	// takes the running ones out of the pending count by reading the jobs of
+	// the commit's runs that are still going, and a default branch counts the
+	// jobs of the workflow runs of the newest commit that has one, where a
+	// running job is `running` and a queued or blocked one `waiting`. A run
+	// whose jobs can't be read counts as one check by its own status. Forgejo
 	// answers one page of those statuses, and when its total says there are
 	// more than the page holds a pull request's counts are all zero rather
 	// than an undercount. When GitHub's rollup of a pull request is of an
