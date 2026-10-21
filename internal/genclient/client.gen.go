@@ -4547,7 +4547,8 @@ type ClientInterface interface {
 	// first 10 people while `count` is the full number.
 	//
 	// The error answers are those of GET /api/pull-requests/details, with
-	// the same codes. A tag that has no published release is a 404.
+	// the same codes. A tag that has no published release is a 404, and so is a draft,
+	// a pre-release or a release with no publish date.
 	//
 	// Corresponds with GET /api/releases/details (the `GetReleaseDetails` operationId).
 	GetReleaseDetails(ctx context.Context, params *GetReleaseDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -6797,7 +6798,8 @@ func (c *Client) CancelQueuedAction(ctx context.Context, id string, reqEditors .
 // first 10 people while `count` is the full number.
 //
 // The error answers are those of GET /api/pull-requests/details, with
-// the same codes. A tag that has no published release is a 404.
+// the same codes. A tag that has no published release is a 404, and so is a draft,
+// a pre-release or a release with no publish date.
 //
 // Corresponds with GET /api/releases/details (the `GetReleaseDetails` operationId).
 func (c *Client) GetReleaseDetails(ctx context.Context, params *GetReleaseDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -11497,7 +11499,8 @@ type ClientWithResponsesInterface interface {
 	// first 10 people while `count` is the full number.
 	//
 	// The error answers are those of GET /api/pull-requests/details, with
-	// the same codes. A tag that has no published release is a 404.
+	// the same codes. A tag that has no published release is a 404, and so is a draft,
+	// a pre-release or a release with no publish date.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -17326,7 +17329,8 @@ func (c *ClientWithResponses) CancelQueuedActionWithResponse(ctx context.Context
 // first 10 people while `count` is the full number.
 //
 // The error answers are those of GET /api/pull-requests/details, with
-// the same codes. A tag that has no published release is a 404.
+// the same codes. A tag that has no published release is a 404, and so is a draft,
+// a pre-release or a release with no publish date.
 //
 // Returns a wrapper object for the known response body format(s).
 //
