@@ -1175,9 +1175,10 @@ type Check struct {
 // and the four states still add up to the checks the pipeline lists. The
 // server always sends it; a client that may talk to an older server
 // reads a missing one as none. A neutral or bare completed check is passed without
-// being skipped. A client that draws it shows it as detail on the passed
-// count, and a pipeline where every passed check was skipped can read as
-// skipped.
+// being skipped. A client that draws the two side by side must subtract
+// `skipped` from `passed` for the passed figure, or a skipped check is
+// counted twice, and a pipeline where every passed check was skipped can
+// read as skipped.
 //
 // On GitHub the counts come from the same rollup as the overall state,
 // for a pull request and a branch alike; on Forgejo a pull request counts
@@ -1619,9 +1620,10 @@ type LinkedPullRequest struct {
 	// and the four states still add up to the checks the pipeline lists. The
 	// server always sends it; a client that may talk to an older server
 	// reads a missing one as none. A neutral or bare completed check is passed without
-	// being skipped. A client that draws it shows it as detail on the passed
-	// count, and a pipeline where every passed check was skipped can read as
-	// skipped.
+	// being skipped. A client that draws the two side by side must subtract
+	// `skipped` from `passed` for the passed figure, or a skipped check is
+	// counted twice, and a pipeline where every passed check was skipped can
+	// read as skipped.
 	//
 	// On GitHub the counts come from the same rollup as the overall state,
 	// for a pull request and a branch alike; on Forgejo a pull request counts
@@ -1713,9 +1715,10 @@ type MainBranch struct {
 	// and the four states still add up to the checks the pipeline lists. The
 	// server always sends it; a client that may talk to an older server
 	// reads a missing one as none. A neutral or bare completed check is passed without
-	// being skipped. A client that draws it shows it as detail on the passed
-	// count, and a pipeline where every passed check was skipped can read as
-	// skipped.
+	// being skipped. A client that draws the two side by side must subtract
+	// `skipped` from `passed` for the passed figure, or a skipped check is
+	// counted twice, and a pipeline where every passed check was skipped can
+	// read as skipped.
 	//
 	// On GitHub the counts come from the same rollup as the overall state,
 	// for a pull request and a branch alike; on Forgejo a pull request counts
@@ -2122,9 +2125,10 @@ type PullRequest struct {
 	// and the four states still add up to the checks the pipeline lists. The
 	// server always sends it; a client that may talk to an older server
 	// reads a missing one as none. A neutral or bare completed check is passed without
-	// being skipped. A client that draws it shows it as detail on the passed
-	// count, and a pipeline where every passed check was skipped can read as
-	// skipped.
+	// being skipped. A client that draws the two side by side must subtract
+	// `skipped` from `passed` for the passed figure, or a skipped check is
+	// counted twice, and a pipeline where every passed check was skipped can
+	// read as skipped.
 	//
 	// On GitHub the counts come from the same rollup as the overall state,
 	// for a pull request and a branch alike; on Forgejo a pull request counts
@@ -2645,7 +2649,7 @@ type ReleaseDetails struct {
 	// Notes A pull request's description, or the release notes of a release pull request.
 	Notes DetailsBody `json:"notes"`
 
-	// PublishedAt When it was published, RFC 3339. Empty when the forge didn't say.
+	// PublishedAt When it was published, RFC 3339. Always set, since a release with no publish date is a 404 instead.
 	PublishedAt string `json:"publishedAt"`
 	Tag         string `json:"tag"`
 
