@@ -32,6 +32,7 @@ const (
 	ActionErrorCodeNotMergeable        ActionErrorCode = "not_mergeable"
 	ActionErrorCodeNotOpen             ActionErrorCode = "not_open"
 	ActionErrorCodeNotRateLimited      ActionErrorCode = "not_rate_limited"
+	ActionErrorCodeNotReopenable       ActionErrorCode = "not_reopenable"
 	ActionErrorCodePermission          ActionErrorCode = "permission"
 	ActionErrorCodeRateLimited         ActionErrorCode = "rate_limited"
 	ActionErrorCodeReadyToMerge        ActionErrorCode = "ready_to_merge"
@@ -66,6 +67,8 @@ func (e ActionErrorCode) Valid() bool {
 	case ActionErrorCodeNotOpen:
 		return true
 	case ActionErrorCodeNotRateLimited:
+		return true
+	case ActionErrorCodeNotReopenable:
 		return true
 	case ActionErrorCodePermission:
 		return true
@@ -723,6 +726,10 @@ type ActionError struct {
 	// mean the dashboard's row was stale: the pull request has
 	// nothing left to merge.
 	//
+	// `not_reopenable` belongs to Reopen: the pull request is still
+	// closed and the forge won't reopen it, usually because its
+	// branch was deleted or rewritten after the close.
+	//
 	// `forge_error` means the forge failed on its own side (a 5xx):
 	// nothing is wrong with the request, so asking again may work.
 	// `upstreamStatus` and `requestId` then say what the forge
@@ -771,6 +778,10 @@ type ActionError struct {
 // request's real state. `already_merged` and `already_closed`
 // mean the dashboard's row was stale: the pull request has
 // nothing left to merge.
+//
+// `not_reopenable` belongs to Reopen: the pull request is still
+// closed and the forge won't reopen it, usually because its
+// branch was deleted or rewritten after the close.
 //
 // `forge_error` means the forge failed on its own side (a 5xx):
 // nothing is wrong with the request, so asking again may work.
@@ -3115,6 +3126,9 @@ type MergePullRequestJSONRequestBody = PullRequestActionRequest
 // PostPullRequestRenovateRebaseJSONRequestBody defines body for PostPullRequestRenovateRebase for application/json ContentType.
 type PostPullRequestRenovateRebaseJSONRequestBody = PullRequestActionRequest
 
+// ReopenPullRequestJSONRequestBody defines body for ReopenPullRequest for application/json ContentType.
+type ReopenPullRequestJSONRequestBody = PullRequestActionRequest
+
 // RerunPullRequestChecksJSONRequestBody defines body for RerunPullRequestChecks for application/json ContentType.
 type RerunPullRequestChecksJSONRequestBody = PullRequestActionRequest
 
@@ -4105,6 +4119,56 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 	PostPullRequestRenovateRebase(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReopenPullRequestWithBody Reopen one pull request that was closed without merging, on the signed-in user's behalf
+	//
+	// Reopens the named pull request: the undo for Close, offered in the
+	// pull request's dialog right after a close. It does not offer a
+	// reopen for a merged pull request, because the forge doesn't allow
+	// one.
+	//
+	// A closed pull request is not on the board, so no `allowedActions`
+	// entry says in advance whether the forge will accept this. The call
+	// is made and the forge decides. When it refuses, the server re-reads
+	// the pull request and answers an `ActionError` (see Merge):
+	// `already_merged` when it was merged in the meantime, and
+	// `not_reopenable` when it is still closed and the forge won't
+	// reopen it, usually because its branch was deleted or rewritten
+	// after the close. Both are a 409 with a plain-words `message` that
+	// says what to do next.
+	//
+	// On success the pull request is listed on the board again from the
+	// next refresh.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+	ReopenPullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReopenPullRequest Reopen one pull request that was closed without merging, on the signed-in user's behalf
+	//
+	// Reopens the named pull request: the undo for Close, offered in the
+	// pull request's dialog right after a close. It does not offer a
+	// reopen for a merged pull request, because the forge doesn't allow
+	// one.
+	//
+	// A closed pull request is not on the board, so no `allowedActions`
+	// entry says in advance whether the forge will accept this. The call
+	// is made and the forge decides. When it refuses, the server re-reads
+	// the pull request and answers an `ActionError` (see Merge):
+	// `already_merged` when it was merged in the meantime, and
+	// `not_reopenable` when it is still closed and the forge won't
+	// reopen it, usually because its branch was deleted or rewritten
+	// after the close. Both are a 409 with a plain-words `message` that
+	// says what to do next.
+	//
+	// On success the pull request is listed on the board again from the
+	// next refresh.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+	ReopenPullRequest(ctx context.Context, body ReopenPullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RerunPullRequestChecksWithBody Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
 	//
@@ -6190,6 +6254,76 @@ func (c *Client) PostPullRequestRenovateRebaseWithBody(ctx context.Context, cont
 // Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 func (c *Client) PostPullRequestRenovateRebase(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostPullRequestRenovateRebaseRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReopenPullRequestWithBody Reopen one pull request that was closed without merging, on the signed-in user's behalf
+//
+// Reopens the named pull request: the undo for Close, offered in the
+// pull request's dialog right after a close. It does not offer a
+// reopen for a merged pull request, because the forge doesn't allow
+// one.
+//
+// A closed pull request is not on the board, so no `allowedActions`
+// entry says in advance whether the forge will accept this. The call
+// is made and the forge decides. When it refuses, the server re-reads
+// the pull request and answers an `ActionError` (see Merge):
+// `already_merged` when it was merged in the meantime, and
+// `not_reopenable` when it is still closed and the forge won't
+// reopen it, usually because its branch was deleted or rewritten
+// after the close. Both are a 409 with a plain-words `message` that
+// says what to do next.
+//
+// On success the pull request is listed on the board again from the
+// next refresh.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+func (c *Client) ReopenPullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReopenPullRequestRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReopenPullRequest Reopen one pull request that was closed without merging, on the signed-in user's behalf
+//
+// Reopens the named pull request: the undo for Close, offered in the
+// pull request's dialog right after a close. It does not offer a
+// reopen for a merged pull request, because the forge doesn't allow
+// one.
+//
+// A closed pull request is not on the board, so no `allowedActions`
+// entry says in advance whether the forge will accept this. The call
+// is made and the forge decides. When it refuses, the server re-reads
+// the pull request and answers an `ActionError` (see Merge):
+// `already_merged` when it was merged in the meantime, and
+// `not_reopenable` when it is still closed and the forge won't
+// reopen it, usually because its branch was deleted or rewritten
+// after the close. Both are a 409 with a plain-words `message` that
+// says what to do next.
+//
+// On success the pull request is listed on the board again from the
+// next refresh.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+func (c *Client) ReopenPullRequest(ctx context.Context, body ReopenPullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReopenPullRequestRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8916,6 +9050,46 @@ func NewPostPullRequestRenovateRebaseRequestWithBody(server string, contentType 
 	return req, nil
 }
 
+// NewReopenPullRequestRequest calls the generic ReopenPullRequest builder with application/json body
+func NewReopenPullRequestRequest(server string, body ReopenPullRequestJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReopenPullRequestRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewReopenPullRequestRequestWithBody constructs an http.Request for the ReopenPullRequest method, with any body, and a specified content type
+func NewReopenPullRequestRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/pull-requests/reopen")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewRerunPullRequestChecksRequest calls the generic RerunPullRequestChecks builder with application/json body
 func NewRerunPullRequestChecksRequest(server string, body RerunPullRequestChecksJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -10980,6 +11154,56 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 	PostPullRequestRenovateRebaseWithResponse(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPullRequestRenovateRebaseResponse, error)
+
+	// ReopenPullRequestWithBodyWithResponse Reopen one pull request that was closed without merging, on the signed-in user's behalf
+	//
+	// Reopens the named pull request: the undo for Close, offered in the
+	// pull request's dialog right after a close. It does not offer a
+	// reopen for a merged pull request, because the forge doesn't allow
+	// one.
+	//
+	// A closed pull request is not on the board, so no `allowedActions`
+	// entry says in advance whether the forge will accept this. The call
+	// is made and the forge decides. When it refuses, the server re-reads
+	// the pull request and answers an `ActionError` (see Merge):
+	// `already_merged` when it was merged in the meantime, and
+	// `not_reopenable` when it is still closed and the forge won't
+	// reopen it, usually because its branch was deleted or rewritten
+	// after the close. Both are a 409 with a plain-words `message` that
+	// says what to do next.
+	//
+	// On success the pull request is listed on the board again from the
+	// next refresh.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+	ReopenPullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReopenPullRequestResponse, error)
+
+	// ReopenPullRequestWithResponse Reopen one pull request that was closed without merging, on the signed-in user's behalf
+	//
+	// Reopens the named pull request: the undo for Close, offered in the
+	// pull request's dialog right after a close. It does not offer a
+	// reopen for a merged pull request, because the forge doesn't allow
+	// one.
+	//
+	// A closed pull request is not on the board, so no `allowedActions`
+	// entry says in advance whether the forge will accept this. The call
+	// is made and the forge decides. When it refuses, the server re-reads
+	// the pull request and answers an `ActionError` (see Merge):
+	// `already_merged` when it was merged in the meantime, and
+	// `not_reopenable` when it is still closed and the forge won't
+	// reopen it, usually because its branch was deleted or rewritten
+	// after the close. Both are a 409 with a plain-words `message` that
+	// says what to do next.
+	//
+	// On success the pull request is listed on the board again from the
+	// next refresh.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+	ReopenPullRequestWithResponse(ctx context.Context, body ReopenPullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*ReopenPullRequestResponse, error)
 
 	// RerunPullRequestChecksWithBodyWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
 	//
@@ -13801,6 +14025,89 @@ func (r PostPullRequestRenovateRebaseResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PostPullRequestRenovateRebaseResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ReopenPullRequestResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *ActionError
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *ActionError
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *ActionError
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *ActionError
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *ActionError
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ReopenPullRequestResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ReopenPullRequestResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ReopenPullRequestResponse) GetJSON403() *ActionError {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ReopenPullRequestResponse) GetJSON404() *ActionError {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ReopenPullRequestResponse) GetJSON409() *ActionError {
+	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r ReopenPullRequestResponse) GetJSON429() *ActionError {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r ReopenPullRequestResponse) GetJSON502() *ActionError {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r ReopenPullRequestResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReopenPullRequestResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReopenPullRequestResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReopenPullRequestResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -16691,6 +16998,68 @@ func (c *ClientWithResponses) PostPullRequestRenovateRebaseWithResponse(ctx cont
 	return ParsePostPullRequestRenovateRebaseResponse(rsp)
 }
 
+// ReopenPullRequestWithBodyWithResponse Reopen one pull request that was closed without merging, on the signed-in user's behalf
+//
+// Reopens the named pull request: the undo for Close, offered in the
+// pull request's dialog right after a close. It does not offer a
+// reopen for a merged pull request, because the forge doesn't allow
+// one.
+//
+// A closed pull request is not on the board, so no `allowedActions`
+// entry says in advance whether the forge will accept this. The call
+// is made and the forge decides. When it refuses, the server re-reads
+// the pull request and answers an `ActionError` (see Merge):
+// `already_merged` when it was merged in the meantime, and
+// `not_reopenable` when it is still closed and the forge won't
+// reopen it, usually because its branch was deleted or rewritten
+// after the close. Both are a 409 with a plain-words `message` that
+// says what to do next.
+//
+// On success the pull request is listed on the board again from the
+// next refresh.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+func (c *ClientWithResponses) ReopenPullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReopenPullRequestResponse, error) {
+	rsp, err := c.ReopenPullRequestWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReopenPullRequestResponse(rsp)
+}
+
+// ReopenPullRequestWithResponse Reopen one pull request that was closed without merging, on the signed-in user's behalf
+//
+// Reopens the named pull request: the undo for Close, offered in the
+// pull request's dialog right after a close. It does not offer a
+// reopen for a merged pull request, because the forge doesn't allow
+// one.
+//
+// A closed pull request is not on the board, so no `allowedActions`
+// entry says in advance whether the forge will accept this. The call
+// is made and the forge decides. When it refuses, the server re-reads
+// the pull request and answers an `ActionError` (see Merge):
+// `already_merged` when it was merged in the meantime, and
+// `not_reopenable` when it is still closed and the forge won't
+// reopen it, usually because its branch was deleted or rewritten
+// after the close. Both are a 409 with a plain-words `message` that
+// says what to do next.
+//
+// On success the pull request is listed on the board again from the
+// next refresh.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+func (c *ClientWithResponses) ReopenPullRequestWithResponse(ctx context.Context, body ReopenPullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*ReopenPullRequestResponse, error) {
+	rsp, err := c.ReopenPullRequest(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReopenPullRequestResponse(rsp)
+}
+
 // RerunPullRequestChecksWithBodyWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
 //
 // Asks the forge to rerun the failed jobs of the Actions workflow
@@ -19271,6 +19640,77 @@ func ParsePostPullRequestRenovateRebaseResponse(rsp *http.Response) (*PostPullRe
 	}
 
 	response := &PostPullRequestRenovateRebaseResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReopenPullRequestResponse parses an HTTP response from a ReopenPullRequestWithResponse call
+func ParseReopenPullRequestResponse(rsp *http.Response) (*ReopenPullRequestResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReopenPullRequestResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
