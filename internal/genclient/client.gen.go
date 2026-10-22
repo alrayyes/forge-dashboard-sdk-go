@@ -1529,13 +1529,23 @@ type ForgeHealth struct {
 	// RepoCount Repositories with write access this forge reported.
 	RepoCount int `json:"repoCount"`
 
-	// StaleSince Present when the last refresh against this forge failed and the
-	// pull requests, issues and repos in the response are the last good
-	// ones, fetched at this time, instead of none. Absent when the data
+	// StaleSince Present when the last refresh against this forge failed, or the
+	// forge has not been asked yet since the app started (see
+	// starting), and the pull requests, issues and repos in the
+	// response are the last good ones, fetched at this time, instead of
+	// none. Absent when the data
 	// is current, and for a forge that has never fetched successfully,
 	// which has nothing to show. A client can say "unreachable, showing
 	// data from 3 minutes ago".
 	StaleSince *time.Time `json:"staleSince,omitempty"`
+
+	// Starting True while the rows shown for this forge are the ones the last run
+	// saved and no refresh has asked the forge since the app started.
+	// The forge is then neither reachable nor in error (errorKind is
+	// absent); it has not been checked yet. The first refresh that
+	// reaches it replaces this entry. A client says "starting up,
+	// showing data from 3 minutes ago", and never "unreachable".
+	Starting *bool `json:"starting,omitempty"`
 }
 
 // Health defines model for Health.
