@@ -3709,6 +3709,11 @@ type ClientInterface interface {
 	// leave the row stale. Only a call that actually fetched answers
 	// without the header.
 	//
+	// The same goes for a call made while the first refresh since the
+	// server started is still running: it answers at once with the
+	// current snapshot and `Retry-After`, instead of waiting for that
+	// refresh to finish.
+	//
 	// Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
 	RefreshDashboard(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5510,6 +5515,11 @@ func (c *Client) GetDashboard(ctx context.Context, params *GetDashboardParams, r
 // or branch update to show the result, and a refusal there would
 // leave the row stale. Only a call that actually fetched answers
 // without the header.
+//
+// The same goes for a call made while the first refresh since the
+// server started is still running: it answers at once with the
+// current snapshot and `Retry-After`, instead of waiting for that
+// refresh to finish.
 //
 // Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
 func (c *Client) RefreshDashboard(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -10466,6 +10476,11 @@ type ClientWithResponsesInterface interface {
 	// or branch update to show the result, and a refusal there would
 	// leave the row stale. Only a call that actually fetched answers
 	// without the header.
+	//
+	// The same goes for a call made while the first refresh since the
+	// server started is still running: it answers at once with the
+	// current snapshot and `Retry-After`, instead of waiting for that
+	// refresh to finish.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -15819,6 +15834,11 @@ func (c *ClientWithResponses) GetDashboardWithResponse(ctx context.Context, para
 // or branch update to show the result, and a refusal there would
 // leave the row stale. Only a call that actually fetched answers
 // without the header.
+//
+// The same goes for a call made while the first refresh since the
+// server started is still running: it answers at once with the
+// current snapshot and `Retry-After`, instead of waiting for that
+// refresh to finish.
 //
 // Returns a wrapper object for the known response body format(s).
 //
