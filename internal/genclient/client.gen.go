@@ -419,6 +419,24 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Defines values for IssueDetailsState.
+const (
+	Closed IssueDetailsState = "closed"
+	Open   IssueDetailsState = "open"
+)
+
+// Valid indicates whether the value is a known member of the IssueDetailsState enum.
+func (e IssueDetailsState) Valid() bool {
+	switch e {
+	case Closed:
+		return true
+	case Open:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MainBranchStatus.
 const (
 	MainBranchStatusAwaitingApproval MainBranchStatus = "awaiting_approval"
@@ -1610,7 +1628,17 @@ type IssueDetails struct {
 
 	// Description A pull request's description, or the release notes of a release pull request.
 	Description DetailsBody `json:"description"`
+
+	// State Whether the forge has the issue open or closed right now. The
+	// dialog draws its status from this, so an issue closed or reopened
+	// while the dialog is open shows the change.
+	State IssueDetailsState `json:"state"`
 }
+
+// IssueDetailsState Whether the forge has the issue open or closed right now. The
+// dialog draws its status from this, so an issue closed or reopened
+// while the dialog is open shows the change.
+type IssueDetailsState string
 
 // Label defines model for Label.
 type Label struct {
