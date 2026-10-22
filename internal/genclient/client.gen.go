@@ -86,6 +86,7 @@ func (e ActionErrorCode) Valid() bool {
 // Defines values for AdvisoryReason.
 const (
 	AdvisoryReasonFailed      AdvisoryReason = "failed"
+	AdvisoryReasonNotEnabled  AdvisoryReason = "not_enabled"
 	AdvisoryReasonRefused     AdvisoryReason = "refused"
 	AdvisoryReasonSwitchedOff AdvisoryReason = "switched_off"
 	AdvisoryReasonThrottled   AdvisoryReason = "throttled"
@@ -96,6 +97,8 @@ const (
 func (e AdvisoryReason) Valid() bool {
 	switch e {
 	case AdvisoryReasonFailed:
+		return true
+	case AdvisoryReasonNotEnabled:
 		return true
 	case AdvisoryReasonRefused:
 		return true
@@ -872,8 +875,10 @@ type ActionError struct {
 type ActionErrorCode string
 
 // Advisories The open dependency advisories on a repository's default branch, read
-// from the forge's own source (GitHub's Dependabot alerts). Absent from
-// the row when no source reads them for its forge. A source that can't
+// from GitHub's Dependabot alerts, or for a Forgejo repository from the
+// packages in its lockfiles matched against OSV, when the operator has
+// switched that on. Absent from the row when no source reads them for its
+// forge. A source that can't
 // answer, such as alerts switched off or a token without the
 // `security_events` scope, gives `state` "unknown", never a count of
 // zero.
@@ -889,14 +894,18 @@ type Advisories struct {
 	// Dependabot alerts permission. "switched_off" is a 404: alerts are off
 	// for the repository. "throttled" is a rate limit, which clears by
 	// itself. "failed" is any other error reading the alerts. "too_many" is
-	// a repository with more open alerts than one read pages through.
+	// a repository with more open alerts than one read pages through. On a
+	// Forgejo repository, "not_enabled" is the operator not having switched
+	// on lockfile checking (it is off by default, since it sends package
+	// names to a third party), absent when it has no lockfile the dashboard
+	// reads, and "failed" when one is too big or doesn't parse.
 	Reason *AdvisoryReason `json:"reason,omitempty"`
 
 	// State "known" is an answer the forge gave. "unknown" is no answer, and must
 	// never be shown as zero.
 	State AdvisoryState `json:"state"`
 
-	// Url Where to see the advisories on the forge. Absent when there are none or the state is unknown.
+	// Url Where to see the advisories on the forge. Absent when there are none or the state is unknown, and for Forgejo, which has no page for them.
 	Url *string `json:"url,omitempty"`
 }
 
@@ -905,7 +914,11 @@ type Advisories struct {
 // Dependabot alerts permission. "switched_off" is a 404: alerts are off
 // for the repository. "throttled" is a rate limit, which clears by
 // itself. "failed" is any other error reading the alerts. "too_many" is
-// a repository with more open alerts than one read pages through.
+// a repository with more open alerts than one read pages through. On a
+// Forgejo repository, "not_enabled" is the operator not having switched
+// on lockfile checking (it is off by default, since it sends package
+// names to a third party), absent when it has no lockfile the dashboard
+// reads, and "failed" when one is too big or doesn't parse.
 type AdvisoryReason string
 
 // AdvisorySeverity The worst severity among the open advisories. Absent when there are none.
@@ -1110,8 +1123,10 @@ type Check struct {
 	// with per-line timestamps and colour codes removed, at most 2,000
 	// characters. Never markup, and a client must render it as text.
 	// Whatever the forge already masks stays masked. Absent when the
-	// log can't be read or has expired. GitHub only: for Forgejo the
-	// whole output is read through GET /api/checks/log.
+	// log can't be read or has expired. Both forges fill it for at
+	// most five failed jobs of a list: on GitHub the first five in the
+	// list's order, on Forgejo up to five, newest first. The whole output is read
+	// through GET /api/checks/log.
 	Excerpt *string `json:"excerpt,omitempty"`
 
 	// FailedStep The name of the step of a failed job that broke. Absent when
@@ -1131,6 +1146,12 @@ type Check struct {
 	// token that can't read protection, or a check that can't be
 	// mapped to a protection entry. Absent is not the same as false.
 	Required *bool `json:"required,omitempty"`
+
+	// RunAttempt Which attempt of its workflow run the job belongs to. Forgejo
+	// only: it keeps a job's id and page when a run is retried, so this
+	// is what tells a retry's output from the first attempt's. Absent
+	// when the forge doesn't number attempts.
+	RunAttempt *int `json:"runAttempt,omitempty"`
 
 	// State One job/check's own status — the per-job detail CIStatus
 	// deliberately doesn't carry, since CIStatus is the combined result
@@ -1404,14 +1425,15 @@ type Error struct {
 // whatever the frontend's `$lib/filters` `loadState`/`saveState` already produce
 // client-side (shared forge/repo/label/author/title/created/
 // updated/groupBy, plus the two board-owned extras with no
-// equivalent on the other entity type). `shared.label` is one
-// lowercase label, or several lowercase labels separated by a
-// newline: the Label filter matches an item carrying any of
-// them, and a single label saved before it took several still
-// reads as a list of one. At most 20 labels and 1000 characters in
-// all, with no control character other than the separator; a
-// save over either is refused. This server stores and
-// returns it verbatim, byte for byte, and apart from the label limits never parses or
+// equivalent on the other entity type). `shared.label`,
+// `shared.repo` (forge-qualified, `forge:owner/name`) and
+// `shared.author` are each one lowercase value, or several separated
+// by a newline: the filter matches an item with any of them, and a
+// single value saved before they took several still reads as a list
+// of one. At most 20 values and 1000 characters in each, with no
+// control character other than the separator; a save over either is
+// refused. This server stores and
+// returns it verbatim, byte for byte, and apart from those limits never parses or
 // validates its shape — the same "opaque blob, not this layer's
 // concern" treatment WebAuthnCeremonyOptions above gets, so a
 // client-side shape change here never needs a matching spec change.
@@ -1688,8 +1710,10 @@ type LoginBeginRequest struct {
 // MainBranch One tracked repository and the CI status of its default branch.
 type MainBranch struct {
 	// Advisories The open dependency advisories on a repository's default branch, read
-	// from the forge's own source (GitHub's Dependabot alerts). Absent from
-	// the row when no source reads them for its forge. A source that can't
+	// from GitHub's Dependabot alerts, or for a Forgejo repository from the
+	// packages in its lockfiles matched against OSV, when the operator has
+	// switched that on. Absent from the row when no source reads them for its
+	// forge. A source that can't
 	// answer, such as alerts switched off or a token without the
 	// `security_events` scope, gives `state` "unknown", never a count of
 	// zero.
@@ -4866,7 +4890,7 @@ type ClientInterface interface {
 	// `auto_merge_poll` (one repository, waiting on an armed auto-merge),
 	// `details` (a dialog or check list opened), `hook_maintenance`
 	// (checking, adding or upgrading webhooks), `advisories` (reading a
-	// repository's open Dependabot alerts), `user_action` (a button
+	// repository's open Dependabot alerts, or a Forgejo repository's lockfiles), `user_action` (a button
 	// pressed, a queued action, or something the dashboard does for you such
 	// as auto-merge) and `unknown` (a request nobody tagged, which is a bug
 	// to report). A request that names no repository, such as listing an
@@ -7278,7 +7302,7 @@ func (c *Client) SetTimezone(ctx context.Context, body SetTimezoneJSONRequestBod
 // `auto_merge_poll` (one repository, waiting on an armed auto-merge),
 // `details` (a dialog or check list opened), `hook_maintenance`
 // (checking, adding or upgrading webhooks), `advisories` (reading a
-// repository's open Dependabot alerts), `user_action` (a button
+// repository's open Dependabot alerts, or a Forgejo repository's lockfiles), `user_action` (a button
 // pressed, a queued action, or something the dashboard does for you such
 // as auto-merge) and `unknown` (a request nobody tagged, which is a bug
 // to report). A request that names no repository, such as listing an
@@ -11654,7 +11678,7 @@ type ClientWithResponsesInterface interface {
 	// `auto_merge_poll` (one repository, waiting on an armed auto-merge),
 	// `details` (a dialog or check list opened), `hook_maintenance`
 	// (checking, adding or upgrading webhooks), `advisories` (reading a
-	// repository's open Dependabot alerts), `user_action` (a button
+	// repository's open Dependabot alerts, or a Forgejo repository's lockfiles), `user_action` (a button
 	// pressed, a queued action, or something the dashboard does for you such
 	// as auto-merge) and `unknown` (a request nobody tagged, which is a bug
 	// to report). A request that names no repository, such as listing an
@@ -17373,7 +17397,7 @@ func (c *ClientWithResponses) SetTimezoneWithResponse(ctx context.Context, body 
 // `auto_merge_poll` (one repository, waiting on an armed auto-merge),
 // `details` (a dialog or check list opened), `hook_maintenance`
 // (checking, adding or upgrading webhooks), `advisories` (reading a
-// repository's open Dependabot alerts), `user_action` (a button
+// repository's open Dependabot alerts, or a Forgejo repository's lockfiles), `user_action` (a button
 // pressed, a queued action, or something the dashboard does for you such
 // as auto-merge) and `unknown` (a request nobody tagged, which is a bug
 // to report). A request that names no repository, such as listing an
