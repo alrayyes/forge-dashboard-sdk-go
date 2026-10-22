@@ -2671,8 +2671,15 @@ type RepoStatus struct {
 	// despite this having said true. For a GitHub App connection
 	// there is no user role to read, so this is true when listing
 	// the repo's webhooks worked on the last refresh.
-	CanManageWebhooks bool  `json:"canManageWebhooks"`
-	Forge             Forge `json:"forge"`
+	CanManageWebhooks bool `json:"canManageWebhooks"`
+
+	// FailingSince Present when the last fetch of this repository failed, and the
+	// time of the first failure in the run it is still part of. Its
+	// pull requests and issues are then the last good ones. Absent
+	// when the repository is fetching fine. It is not saved, so it
+	// restarts from the first failure after a restart.
+	FailingSince *time.Time `json:"failingSince,omitempty"`
+	Forge        Forge      `json:"forge"`
 
 	// FullName Examples: alrayyes/forge-dashboard
 	FullName string `json:"fullName"`
