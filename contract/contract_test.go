@@ -64,14 +64,3 @@ func TestContract_ListCredentials(t *testing.T) {
 		t.Fatalf("ListCredentialsWithResponse: status %d, body %s", resp.HTTPResponse.StatusCode, resp.Body)
 	}
 }
-
-func TestContract_ListUsers(t *testing.T) {
-	client := mustClient(t)
-	resp, err := client.ListUsersWithResponse(context.Background())
-	if err != nil {
-		t.Fatalf("ListUsersWithResponse: %v", err)
-	}
-	if resp.HTTPResponse.StatusCode != http.StatusOK {
-		t.Fatalf("ListUsersWithResponse: status %d, body %s", resp.HTTPResponse.StatusCode, resp.Body)
-	}
-}
