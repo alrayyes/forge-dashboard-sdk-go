@@ -1866,6 +1866,9 @@ type MainBranches struct {
 	// `total` is every row, so it equals the sum of the other six.
 	Counts MainBranchCounts `json:"counts"`
 
+	// Forges Each forge's health as of the last refresh, the same as the dashboard's. A client uses it to hold back an action that a forge which can't be reached, or whose rate limit is spent, would probably refuse. The budget can run out between refreshes, so the forge still has the final say.
+	Forges []ForgeHealth `json:"forges"`
+
 	// GeneratedAt When the snapshot was refreshed, not when it was requested.
 	GeneratedAt time.Time `json:"generatedAt"`
 }
