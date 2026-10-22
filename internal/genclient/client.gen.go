@@ -844,54 +844,6 @@ type ActionError struct {
 // auto-merge: already clean, use Merge).
 type ActionErrorCode string
 
-// AdminInvite An outstanding (unconsumed, unexpired) invite's own metadata —
-// never the raw token, which only AdminInviteCreateResponse ever
-// carries, once, at creation time.
-type AdminInvite struct {
-	DisplayName string    `json:"displayName"`
-	ExpiresAt   time.Time `json:"expiresAt"`
-
-	// Id The invite's own stable identifier — pass this back to POST
-	// /api/admin/invites/{token}/revoke, not the raw token an
-	// invitee registers with.
-	Id       string `json:"id"`
-	Username string `json:"username"`
-}
-
-// AdminInviteCreateRequest defines model for AdminInviteCreateRequest.
-type AdminInviteCreateRequest struct {
-	// DisplayName Examples: Alex
-	DisplayName string `json:"displayName"`
-
-	// Username Surrounding whitespace is trimmed by the server, and what is
-	// left must not be empty. Clients may check the same pattern for
-	// quick feedback; the server decides.
-	//
-	//
-	// Examples: alex
-	Username string `json:"username"`
-}
-
-// AdminInviteCreateResponse The one and only response that ever carries the raw invite token
-// — shown to the admin once, at creation time, for them to copy
-// into a `/login?invite=<token>` link and hand to the invitee out
-// of band. Only its hash is stored, so it can't be recovered from
-// here again.
-type AdminInviteCreateResponse struct {
-	DisplayName string    `json:"displayName"`
-	ExpiresAt   time.Time `json:"expiresAt"`
-	Token       string    `json:"token"`
-	Username    string    `json:"username"`
-}
-
-// AdminUser defines model for AdminUser.
-type AdminUser struct {
-	CreatedAt   time.Time `json:"createdAt"`
-	DisplayName string    `json:"displayName"`
-	IsAdmin     bool      `json:"isAdmin"`
-	Username    string    `json:"username"`
-}
-
 // Advisories The open dependency advisories on a repository's default branch, read
 // from the forge's own source (GitHub's Dependabot alerts). Absent from
 // the row when no source reads them for its forge. A source that can't
@@ -2619,20 +2571,8 @@ type ReadyStatus string
 
 // RegisterBeginRequest defines model for RegisterBeginRequest.
 type RegisterBeginRequest struct {
-	// DisplayName Ignored once an invite is required (any account already
-	// exists) — the invite's own displayName (set by the admin who
-	// issued it) is what's actually used. Only the very first,
-	// bootstrap registration on a fresh instance takes this value.
-	//
-	//
-	// Examples: Ryan
+	// DisplayName Examples: Ryan
 	DisplayName string `json:"displayName"`
-
-	// InviteToken Required once any account already exists (see GET
-	// /api/auth/registration-status) — a single-use token from POST
-	// /api/admin/invites, issued for exactly this username. Omitted
-	// or ignored for the very first, bootstrap registration.
-	InviteToken *string `json:"inviteToken,omitempty"`
 
 	// Username Surrounding whitespace is trimmed by the server, and what is
 	// left must not be empty. Clients may check the same pattern for
@@ -2820,7 +2760,6 @@ type ReviewStateDecision string
 // SessionUser defines model for SessionUser.
 type SessionUser struct {
 	DisplayName string `json:"displayName"`
-	IsAdmin     bool   `json:"isAdmin"`
 	Username    string `json:"username"`
 }
 
@@ -3124,9 +3063,6 @@ type HeaderBackgroundRead = string
 // PathTokenID defines model for PathTokenID.
 type PathTokenID = string
 
-// PathUsername defines model for PathUsername.
-type PathUsername = string
-
 // PathWebhookToken defines model for PathWebhookToken.
 type PathWebhookToken = string
 
@@ -3271,9 +3207,6 @@ type ReceiveForgejoWebhookJSONBody = map[string]interface{}
 
 // ReceiveGitHubWebhookJSONBody defines parameters for ReceiveGitHubWebhook.
 type ReceiveGitHubWebhookJSONBody = map[string]interface{}
-
-// CreateInviteJSONRequestBody defines body for CreateInvite for application/json ContentType.
-type CreateInviteJSONRequestBody = AdminInviteCreateRequest
 
 // FinishAddCredentialJSONRequestBody defines body for FinishAddCredential for application/json ContentType.
 type FinishAddCredentialJSONRequestBody = WebAuthnCeremonyOptions
@@ -3442,77 +3375,6 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
-	// ListInvites List outstanding registration invites
-	//
-	// Every invite that's neither consumed nor expired — never the raw
-	// token, only its own stable id (see AdminInvite).
-	//
-	// Corresponds with GET /api/admin/invites (the `ListInvites` operationId).
-	ListInvites(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateInviteWithBody Generate a new single-use registration invite
-	//
-	// The admin picks the username and display name up front — the
-	// invitee only completes the WebAuthn ceremony at the link this
-	// returns (`/login?invite=<token>`, built client-side). Valid for
-	// one hour, fixed.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
-	CreateInviteWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateInvite Generate a new single-use registration invite
-	//
-	// The admin picks the username and display name up front — the
-	// invitee only completes the WebAuthn ceremony at the link this
-	// returns (`/login?invite=<token>`, built client-side). Valid for
-	// one hour, fixed.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
-	CreateInvite(ctx context.Context, body CreateInviteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RevokeInvite Revoke an outstanding invite
-	//
-	// Stops the invite's token from ever completing a registration.
-	// `token` here is an invite's own `id` (from AdminInvite's own
-	// listing), never the raw secret an invitee would use to register —
-	// that's AdminInviteCreateResponse's own `token` field, and it's
-	// never listed again after creation.
-	//
-	// Corresponds with POST /api/admin/invites/{token}/revoke (the `RevokeInvite` operationId).
-	RevokeInvite(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListUsers List every registered user
-	//
-	// Never includes a passkey or a forge credential — a username,
-	// display name, admin flag and registration timestamp per user.
-	//
-	// Corresponds with GET /api/admin/users (the `ListUsers` operationId).
-	ListUsers(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteUser Remove a user outright
-	//
-	// Deletes the account, every session, every registered passkey, and
-	// every saved forge credential — irreversible. Their username
-	// becomes available for a fresh registration.
-	//
-	// Corresponds with DELETE /api/admin/users/{username} (the `DeleteUser` operationId).
-	DeleteUser(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RevokeUser Revoke a user's passkeys and sessions
-	//
-	// Deletes every session and every registered passkey for this user —
-	// they're signed out everywhere immediately, and have to register a
-	// new passkey from scratch to get back in. Their saved forge
-	// credentials are untouched; use the delete endpoint to remove the
-	// account itself.
-	//
-	// Corresponds with POST /api/admin/users/{username}/revoke (the `RevokeUser` operationId).
-	RevokeUser(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListCredentials List the signed-in user's own passkeys
 	//
 	// Every passkey on the account, oldest first — not just the
@@ -3589,13 +3451,10 @@ type ClientInterface interface {
 
 	// BeginRegistrationWithBody Start a passkey registration ceremony
 	//
-	// The very first registration on a fresh instance (zero registered
-	// users — see GET /api/auth/registration-status) needs no
-	// `inviteToken` and bootstraps that account as admin. Every
-	// registration after that requires a valid, unexpired, unconsumed
-	// `inviteToken` issued by an admin (POST /api/admin/invites) for
-	// exactly this `username` — the invite's own `displayName` is what's
-	// actually used, not this request's.
+	// An instance has one user. The first registration on a fresh
+	// instance (see GET /api/auth/registration-status) creates that
+	// user. Once any account holds a passkey, this answers 403 whatever
+	// username it carries.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -3604,13 +3463,10 @@ type ClientInterface interface {
 
 	// BeginRegistration Start a passkey registration ceremony
 	//
-	// The very first registration on a fresh instance (zero registered
-	// users — see GET /api/auth/registration-status) needs no
-	// `inviteToken` and bootstraps that account as admin. Every
-	// registration after that requires a valid, unexpired, unconsumed
-	// `inviteToken` issued by an admin (POST /api/admin/invites) for
-	// exactly this `username` — the invite's own `displayName` is what's
-	// actually used, not this request's.
+	// An instance has one user. The first registration on a fresh
+	// instance (see GET /api/auth/registration-status) creates that
+	// user. Once any account holds a passkey, this answers 403 whatever
+	// username it carries.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -3636,9 +3492,9 @@ type ClientInterface interface {
 	// Unauthenticated — a visitor deciding whether to show the login
 	// page's own "Register a new passkey instead" button has no session
 	// yet by definition. `open` is true only on a fresh instance with
-	// zero registered users; once any account exists, self-registration
-	// is closed and every registration after that requires a valid
-	// `inviteToken` (see POST /api/auth/register/begin).
+	// zero registered users; once any account holds a passkey,
+	// registration is closed for good. More passkeys for that account are
+	// added from Settings.
 	//
 	// Corresponds with GET /api/auth/registration-status (the `GetRegistrationStatus` operationId).
 	GetRegistrationStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4910,8 +4766,8 @@ type ClientInterface interface {
 	// Stops the token authenticating immediately. Idempotent — deleting
 	// an id that's already gone (or never belonged to the signed-in
 	// user) still answers 204, the same as any other delete-by-id
-	// endpoint here (compare DELETE /api/admin/users/{username}), so a
-	// double-click or a retried request isn't an error.
+	// endpoint here, so a double-click or a retried request isn't an
+	// error.
 	//
 	// Corresponds with DELETE /api/tokens/{id} (the `DeleteAPIToken` operationId).
 	DeleteAPIToken(ctx context.Context, id PathTokenID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5081,147 +4937,6 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /readyz (the `Ready` operationId).
 	Ready(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-}
-
-// ListInvites List outstanding registration invites
-//
-// Every invite that's neither consumed nor expired — never the raw
-// token, only its own stable id (see AdminInvite).
-//
-// Corresponds with GET /api/admin/invites (the `ListInvites` operationId).
-func (c *Client) ListInvites(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListInvitesRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// CreateInviteWithBody Generate a new single-use registration invite
-//
-// The admin picks the username and display name up front — the
-// invitee only completes the WebAuthn ceremony at the link this
-// returns (`/login?invite=<token>`, built client-side). Valid for
-// one hour, fixed.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
-func (c *Client) CreateInviteWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateInviteRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// CreateInvite Generate a new single-use registration invite
-//
-// The admin picks the username and display name up front — the
-// invitee only completes the WebAuthn ceremony at the link this
-// returns (`/login?invite=<token>`, built client-side). Valid for
-// one hour, fixed.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
-func (c *Client) CreateInvite(ctx context.Context, body CreateInviteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateInviteRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RevokeInvite Revoke an outstanding invite
-//
-// Stops the invite's token from ever completing a registration.
-// `token` here is an invite's own `id` (from AdminInvite's own
-// listing), never the raw secret an invitee would use to register —
-// that's AdminInviteCreateResponse's own `token` field, and it's
-// never listed again after creation.
-//
-// Corresponds with POST /api/admin/invites/{token}/revoke (the `RevokeInvite` operationId).
-func (c *Client) RevokeInvite(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRevokeInviteRequest(c.Server, token)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ListUsers List every registered user
-//
-// Never includes a passkey or a forge credential — a username,
-// display name, admin flag and registration timestamp per user.
-//
-// Corresponds with GET /api/admin/users (the `ListUsers` operationId).
-func (c *Client) ListUsers(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListUsersRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// DeleteUser Remove a user outright
-//
-// Deletes the account, every session, every registered passkey, and
-// every saved forge credential — irreversible. Their username
-// becomes available for a fresh registration.
-//
-// Corresponds with DELETE /api/admin/users/{username} (the `DeleteUser` operationId).
-func (c *Client) DeleteUser(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteUserRequest(c.Server, username)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RevokeUser Revoke a user's passkeys and sessions
-//
-// Deletes every session and every registered passkey for this user —
-// they're signed out everywhere immediately, and have to register a
-// new passkey from scratch to get back in. Their saved forge
-// credentials are untouched; use the delete endpoint to remove the
-// account itself.
-//
-// Corresponds with POST /api/admin/users/{username}/revoke (the `RevokeUser` operationId).
-func (c *Client) RevokeUser(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRevokeUserRequest(c.Server, username)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
 }
 
 // ListCredentials List the signed-in user's own passkeys
@@ -5400,13 +5115,10 @@ func (c *Client) Logout(ctx context.Context, reqEditors ...RequestEditorFn) (*ht
 
 // BeginRegistrationWithBody Start a passkey registration ceremony
 //
-// The very first registration on a fresh instance (zero registered
-// users — see GET /api/auth/registration-status) needs no
-// `inviteToken` and bootstraps that account as admin. Every
-// registration after that requires a valid, unexpired, unconsumed
-// `inviteToken` issued by an admin (POST /api/admin/invites) for
-// exactly this `username` — the invite's own `displayName` is what's
-// actually used, not this request's.
+// An instance has one user. The first registration on a fresh
+// instance (see GET /api/auth/registration-status) creates that
+// user. Once any account holds a passkey, this answers 403 whatever
+// username it carries.
 //
 // Takes any type of body and a specified content type.
 //
@@ -5425,13 +5137,10 @@ func (c *Client) BeginRegistrationWithBody(ctx context.Context, contentType stri
 
 // BeginRegistration Start a passkey registration ceremony
 //
-// The very first registration on a fresh instance (zero registered
-// users — see GET /api/auth/registration-status) needs no
-// `inviteToken` and bootstraps that account as admin. Every
-// registration after that requires a valid, unexpired, unconsumed
-// `inviteToken` issued by an admin (POST /api/admin/invites) for
-// exactly this `username` — the invite's own `displayName` is what's
-// actually used, not this request's.
+// An instance has one user. The first registration on a fresh
+// instance (see GET /api/auth/registration-status) creates that
+// user. Once any account holds a passkey, this answers 403 whatever
+// username it carries.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -5487,9 +5196,9 @@ func (c *Client) FinishRegistration(ctx context.Context, params *FinishRegistrat
 // Unauthenticated — a visitor deciding whether to show the login
 // page's own "Register a new passkey instead" button has no session
 // yet by definition. `open` is true only on a fresh instance with
-// zero registered users; once any account exists, self-registration
-// is closed and every registration after that requires a valid
-// `inviteToken` (see POST /api/auth/register/begin).
+// zero registered users; once any account holds a passkey,
+// registration is closed for good. More passkeys for that account are
+// added from Settings.
 //
 // Corresponds with GET /api/auth/registration-status (the `GetRegistrationStatus` operationId).
 func (c *Client) GetRegistrationStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -7421,8 +7130,8 @@ func (c *Client) CreateAPIToken(ctx context.Context, body CreateAPITokenJSONRequ
 // Stops the token authenticating immediately. Idempotent — deleting
 // an id that's already gone (or never belonged to the signed-in
 // user) still answers 204, the same as any other delete-by-id
-// endpoint here (compare DELETE /api/admin/users/{username}), so a
-// double-click or a retried request isn't an error.
+// endpoint here, so a double-click or a retried request isn't an
+// error.
 //
 // Corresponds with DELETE /api/tokens/{id} (the `DeleteAPIToken` operationId).
 func (c *Client) DeleteAPIToken(ctx context.Context, id PathTokenID, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -7691,202 +7400,6 @@ func (c *Client) Ready(ctx context.Context, reqEditors ...RequestEditorFn) (*htt
 		return nil, err
 	}
 	return c.Client.Do(req)
-}
-
-// NewListInvitesRequest constructs an http.Request for the ListInvites method
-func NewListInvitesRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/invites")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateInviteRequest calls the generic CreateInvite builder with application/json body
-func NewCreateInviteRequest(server string, body CreateInviteJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateInviteRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewCreateInviteRequestWithBody constructs an http.Request for the CreateInvite method, with any body, and a specified content type
-func NewCreateInviteRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/invites")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewRevokeInviteRequest constructs an http.Request for the RevokeInvite method
-func NewRevokeInviteRequest(server string, token string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "token", token, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/invites/%s/revoke", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListUsersRequest constructs an http.Request for the ListUsers method
-func NewListUsersRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/users")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewDeleteUserRequest constructs an http.Request for the DeleteUser method
-func NewDeleteUserRequest(server string, username PathUsername) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "username", username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/users/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewRevokeUserRequest constructs an http.Request for the RevokeUser method
-func NewRevokeUserRequest(server string, username PathUsername) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "username", username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/users/%s/revoke", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
 }
 
 // NewListCredentialsRequest constructs an http.Request for the ListCredentials method
@@ -10352,87 +9865,6 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
-	// ListInvitesWithResponse List outstanding registration invites
-	//
-	// Every invite that's neither consumed nor expired — never the raw
-	// token, only its own stable id (see AdminInvite).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /api/admin/invites (the `ListInvites` operationId).
-	ListInvitesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListInvitesResponse, error)
-
-	// CreateInviteWithBodyWithResponse Generate a new single-use registration invite
-	//
-	// The admin picks the username and display name up front — the
-	// invitee only completes the WebAuthn ceremony at the link this
-	// returns (`/login?invite=<token>`, built client-side). Valid for
-	// one hour, fixed.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
-	CreateInviteWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInviteResponse, error)
-
-	// CreateInviteWithResponse Generate a new single-use registration invite
-	//
-	// The admin picks the username and display name up front — the
-	// invitee only completes the WebAuthn ceremony at the link this
-	// returns (`/login?invite=<token>`, built client-side). Valid for
-	// one hour, fixed.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
-	CreateInviteWithResponse(ctx context.Context, body CreateInviteJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInviteResponse, error)
-
-	// RevokeInviteWithResponse Revoke an outstanding invite
-	//
-	// Stops the invite's token from ever completing a registration.
-	// `token` here is an invite's own `id` (from AdminInvite's own
-	// listing), never the raw secret an invitee would use to register —
-	// that's AdminInviteCreateResponse's own `token` field, and it's
-	// never listed again after creation.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/admin/invites/{token}/revoke (the `RevokeInvite` operationId).
-	RevokeInviteWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*RevokeInviteResponse, error)
-
-	// ListUsersWithResponse List every registered user
-	//
-	// Never includes a passkey or a forge credential — a username,
-	// display name, admin flag and registration timestamp per user.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /api/admin/users (the `ListUsers` operationId).
-	ListUsersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListUsersResponse, error)
-
-	// DeleteUserWithResponse Remove a user outright
-	//
-	// Deletes the account, every session, every registered passkey, and
-	// every saved forge credential — irreversible. Their username
-	// becomes available for a fresh registration.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with DELETE /api/admin/users/{username} (the `DeleteUser` operationId).
-	DeleteUserWithResponse(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*DeleteUserResponse, error)
-
-	// RevokeUserWithResponse Revoke a user's passkeys and sessions
-	//
-	// Deletes every session and every registered passkey for this user —
-	// they're signed out everywhere immediately, and have to register a
-	// new passkey from scratch to get back in. Their saved forge
-	// credentials are untouched; use the delete endpoint to remove the
-	// account itself.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/admin/users/{username}/revoke (the `RevokeUser` operationId).
-	RevokeUserWithResponse(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*RevokeUserResponse, error)
-
 	// ListCredentialsWithResponse List the signed-in user's own passkeys
 	//
 	// Every passkey on the account, oldest first — not just the
@@ -10517,13 +9949,10 @@ type ClientWithResponsesInterface interface {
 
 	// BeginRegistrationWithBodyWithResponse Start a passkey registration ceremony
 	//
-	// The very first registration on a fresh instance (zero registered
-	// users — see GET /api/auth/registration-status) needs no
-	// `inviteToken` and bootstraps that account as admin. Every
-	// registration after that requires a valid, unexpired, unconsumed
-	// `inviteToken` issued by an admin (POST /api/admin/invites) for
-	// exactly this `username` — the invite's own `displayName` is what's
-	// actually used, not this request's.
+	// An instance has one user. The first registration on a fresh
+	// instance (see GET /api/auth/registration-status) creates that
+	// user. Once any account holds a passkey, this answers 403 whatever
+	// username it carries.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -10532,13 +9961,10 @@ type ClientWithResponsesInterface interface {
 
 	// BeginRegistrationWithResponse Start a passkey registration ceremony
 	//
-	// The very first registration on a fresh instance (zero registered
-	// users — see GET /api/auth/registration-status) needs no
-	// `inviteToken` and bootstraps that account as admin. Every
-	// registration after that requires a valid, unexpired, unconsumed
-	// `inviteToken` issued by an admin (POST /api/admin/invites) for
-	// exactly this `username` — the invite's own `displayName` is what's
-	// actually used, not this request's.
+	// An instance has one user. The first registration on a fresh
+	// instance (see GET /api/auth/registration-status) creates that
+	// user. Once any account holds a passkey, this answers 403 whatever
+	// username it carries.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -10564,9 +9990,9 @@ type ClientWithResponsesInterface interface {
 	// Unauthenticated — a visitor deciding whether to show the login
 	// page's own "Register a new passkey instead" button has no session
 	// yet by definition. `open` is true only on a fresh instance with
-	// zero registered users; once any account exists, self-registration
-	// is closed and every registration after that requires a valid
-	// `inviteToken` (see POST /api/auth/register/begin).
+	// zero registered users; once any account holds a passkey,
+	// registration is closed for good. More passkeys for that account are
+	// added from Settings.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -11878,8 +11304,8 @@ type ClientWithResponsesInterface interface {
 	// Stops the token authenticating immediately. Idempotent — deleting
 	// an id that's already gone (or never belonged to the signed-in
 	// user) still answers 204, the same as any other delete-by-id
-	// endpoint here (compare DELETE /api/admin/users/{username}), so a
-	// double-click or a retried request isn't an error.
+	// endpoint here, so a double-click or a retried request isn't an
+	// error.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -12057,364 +11483,6 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /readyz (the `Ready` operationId).
 	ReadyWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadyResponse, error)
-}
-
-type ListInvitesResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *[]AdminInvite
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r ListInvitesResponse) GetJSON200() *[]AdminInvite {
-	return r.JSON200
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r ListInvitesResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r ListInvitesResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetBody returns the raw response body bytes
-func (r ListInvitesResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r ListInvitesResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListInvitesResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListInvitesResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type CreateInviteResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *AdminInviteCreateResponse
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *Error
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Error
-}
-
-// GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r CreateInviteResponse) GetJSON201() *AdminInviteCreateResponse {
-	return r.JSON201
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r CreateInviteResponse) GetJSON400() *Error {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r CreateInviteResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r CreateInviteResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r CreateInviteResponse) GetJSON409() *Error {
-	return r.JSON409
-}
-
-// GetBody returns the raw response body bytes
-func (r CreateInviteResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateInviteResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateInviteResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CreateInviteResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type RevokeInviteResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r RevokeInviteResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r RevokeInviteResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r RevokeInviteResponse) GetJSON404() *Error {
-	return r.JSON404
-}
-
-// GetBody returns the raw response body bytes
-func (r RevokeInviteResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r RevokeInviteResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RevokeInviteResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r RevokeInviteResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type ListUsersResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *[]AdminUser
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r ListUsersResponse) GetJSON200() *[]AdminUser {
-	return r.JSON200
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r ListUsersResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r ListUsersResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetBody returns the raw response body bytes
-func (r ListUsersResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r ListUsersResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListUsersResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListUsersResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type DeleteUserResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *Error
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r DeleteUserResponse) GetJSON400() *Error {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r DeleteUserResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r DeleteUserResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r DeleteUserResponse) GetJSON404() *Error {
-	return r.JSON404
-}
-
-// GetBody returns the raw response body bytes
-func (r DeleteUserResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteUserResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteUserResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r DeleteUserResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type RevokeUserResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *Error
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r RevokeUserResponse) GetJSON400() *Error {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r RevokeUserResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r RevokeUserResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r RevokeUserResponse) GetJSON404() *Error {
-	return r.JSON404
-}
-
-// GetBody returns the raw response body bytes
-func (r RevokeUserResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r RevokeUserResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RevokeUserResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r RevokeUserResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
 }
 
 type ListCredentialsResponse struct {
@@ -12753,8 +11821,6 @@ type BeginRegistrationResponse struct {
 	JSON200 *WebAuthnCeremonyOptions
 	// JSON403 the response for an HTTP 403 `application/json` response
 	JSON403 *Error
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Error
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -12765,11 +11831,6 @@ func (r BeginRegistrationResponse) GetJSON200() *WebAuthnCeremonyOptions {
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
 func (r BeginRegistrationResponse) GetJSON403() *Error {
 	return r.JSON403
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r BeginRegistrationResponse) GetJSON409() *Error {
-	return r.JSON409
 }
 
 // GetBody returns the raw response body bytes
@@ -15816,129 +14877,6 @@ func (r ReadyResponse) ContentType() string {
 	return ""
 }
 
-// ListInvitesWithResponse List outstanding registration invites
-//
-// Every invite that's neither consumed nor expired — never the raw
-// token, only its own stable id (see AdminInvite).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /api/admin/invites (the `ListInvites` operationId).
-func (c *ClientWithResponses) ListInvitesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListInvitesResponse, error) {
-	rsp, err := c.ListInvites(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListInvitesResponse(rsp)
-}
-
-// CreateInviteWithBodyWithResponse Generate a new single-use registration invite
-//
-// The admin picks the username and display name up front — the
-// invitee only completes the WebAuthn ceremony at the link this
-// returns (`/login?invite=<token>`, built client-side). Valid for
-// one hour, fixed.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
-func (c *ClientWithResponses) CreateInviteWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateInviteResponse, error) {
-	rsp, err := c.CreateInviteWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateInviteResponse(rsp)
-}
-
-// CreateInviteWithResponse Generate a new single-use registration invite
-//
-// The admin picks the username and display name up front — the
-// invitee only completes the WebAuthn ceremony at the link this
-// returns (`/login?invite=<token>`, built client-side). Valid for
-// one hour, fixed.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/admin/invites (the `CreateInvite` operationId).
-func (c *ClientWithResponses) CreateInviteWithResponse(ctx context.Context, body CreateInviteJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateInviteResponse, error) {
-	rsp, err := c.CreateInvite(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateInviteResponse(rsp)
-}
-
-// RevokeInviteWithResponse Revoke an outstanding invite
-//
-// Stops the invite's token from ever completing a registration.
-// `token` here is an invite's own `id` (from AdminInvite's own
-// listing), never the raw secret an invitee would use to register —
-// that's AdminInviteCreateResponse's own `token` field, and it's
-// never listed again after creation.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/admin/invites/{token}/revoke (the `RevokeInvite` operationId).
-func (c *ClientWithResponses) RevokeInviteWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*RevokeInviteResponse, error) {
-	rsp, err := c.RevokeInvite(ctx, token, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRevokeInviteResponse(rsp)
-}
-
-// ListUsersWithResponse List every registered user
-//
-// Never includes a passkey or a forge credential — a username,
-// display name, admin flag and registration timestamp per user.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /api/admin/users (the `ListUsers` operationId).
-func (c *ClientWithResponses) ListUsersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListUsersResponse, error) {
-	rsp, err := c.ListUsers(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListUsersResponse(rsp)
-}
-
-// DeleteUserWithResponse Remove a user outright
-//
-// Deletes the account, every session, every registered passkey, and
-// every saved forge credential — irreversible. Their username
-// becomes available for a fresh registration.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with DELETE /api/admin/users/{username} (the `DeleteUser` operationId).
-func (c *ClientWithResponses) DeleteUserWithResponse(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*DeleteUserResponse, error) {
-	rsp, err := c.DeleteUser(ctx, username, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteUserResponse(rsp)
-}
-
-// RevokeUserWithResponse Revoke a user's passkeys and sessions
-//
-// Deletes every session and every registered passkey for this user —
-// they're signed out everywhere immediately, and have to register a
-// new passkey from scratch to get back in. Their saved forge
-// credentials are untouched; use the delete endpoint to remove the
-// account itself.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/admin/users/{username}/revoke (the `RevokeUser` operationId).
-func (c *ClientWithResponses) RevokeUserWithResponse(ctx context.Context, username PathUsername, reqEditors ...RequestEditorFn) (*RevokeUserResponse, error) {
-	rsp, err := c.RevokeUser(ctx, username, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRevokeUserResponse(rsp)
-}
-
 // ListCredentialsWithResponse List the signed-in user's own passkeys
 //
 // Every passkey on the account, oldest first — not just the
@@ -16083,13 +15021,10 @@ func (c *ClientWithResponses) LogoutWithResponse(ctx context.Context, reqEditors
 
 // BeginRegistrationWithBodyWithResponse Start a passkey registration ceremony
 //
-// The very first registration on a fresh instance (zero registered
-// users — see GET /api/auth/registration-status) needs no
-// `inviteToken` and bootstraps that account as admin. Every
-// registration after that requires a valid, unexpired, unconsumed
-// `inviteToken` issued by an admin (POST /api/admin/invites) for
-// exactly this `username` — the invite's own `displayName` is what's
-// actually used, not this request's.
+// An instance has one user. The first registration on a fresh
+// instance (see GET /api/auth/registration-status) creates that
+// user. Once any account holds a passkey, this answers 403 whatever
+// username it carries.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -16104,13 +15039,10 @@ func (c *ClientWithResponses) BeginRegistrationWithBodyWithResponse(ctx context.
 
 // BeginRegistrationWithResponse Start a passkey registration ceremony
 //
-// The very first registration on a fresh instance (zero registered
-// users — see GET /api/auth/registration-status) needs no
-// `inviteToken` and bootstraps that account as admin. Every
-// registration after that requires a valid, unexpired, unconsumed
-// `inviteToken` issued by an admin (POST /api/admin/invites) for
-// exactly this `username` — the invite's own `displayName` is what's
-// actually used, not this request's.
+// An instance has one user. The first registration on a fresh
+// instance (see GET /api/auth/registration-status) creates that
+// user. Once any account holds a passkey, this answers 403 whatever
+// username it carries.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -16154,9 +15086,9 @@ func (c *ClientWithResponses) FinishRegistrationWithResponse(ctx context.Context
 // Unauthenticated — a visitor deciding whether to show the login
 // page's own "Register a new passkey instead" button has no session
 // yet by definition. `open` is true only on a fresh instance with
-// zero registered users; once any account exists, self-registration
-// is closed and every registration after that requires a valid
-// `inviteToken` (see POST /api/auth/register/begin).
+// zero registered users; once any account holds a passkey,
+// registration is closed for good. More passkeys for that account are
+// added from Settings.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -17864,8 +16796,8 @@ func (c *ClientWithResponses) CreateAPITokenWithResponse(ctx context.Context, bo
 // Stops the token authenticating immediately. Idempotent — deleting
 // an id that's already gone (or never belonged to the signed-in
 // user) still answers 204, the same as any other delete-by-id
-// endpoint here (compare DELETE /api/admin/users/{username}), so a
-// double-click or a retried request isn't an error.
+// endpoint here, so a double-click or a retried request isn't an
+// error.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -18102,283 +17034,6 @@ func (c *ClientWithResponses) ReadyWithResponse(ctx context.Context, reqEditors 
 		return nil, err
 	}
 	return ParseReadyResponse(rsp)
-}
-
-// ParseListInvitesResponse parses an HTTP response from a ListInvitesWithResponse call
-func ParseListInvitesResponse(rsp *http.Response) (*ListInvitesResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListInvitesResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []AdminInvite
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateInviteResponse parses an HTTP response from a CreateInviteWithResponse call
-func ParseCreateInviteResponse(rsp *http.Response) (*CreateInviteResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateInviteResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest AdminInviteCreateResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRevokeInviteResponse parses an HTTP response from a RevokeInviteWithResponse call
-func ParseRevokeInviteResponse(rsp *http.Response) (*RevokeInviteResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RevokeInviteResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListUsersResponse parses an HTTP response from a ListUsersWithResponse call
-func ParseListUsersResponse(rsp *http.Response) (*ListUsersResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListUsersResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []AdminUser
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteUserResponse parses an HTTP response from a DeleteUserWithResponse call
-func ParseDeleteUserResponse(rsp *http.Response) (*DeleteUserResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteUserResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRevokeUserResponse parses an HTTP response from a RevokeUserWithResponse call
-func ParseRevokeUserResponse(rsp *http.Response) (*RevokeUserResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RevokeUserResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
 }
 
 // ParseListCredentialsResponse parses an HTTP response from a ListCredentialsWithResponse call
@@ -18632,13 +17287,6 @@ func ParseBeginRegistrationResponse(rsp *http.Response) (*BeginRegistrationRespo
 			return nil, err
 		}
 		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
 
 	}
 
