@@ -3553,6 +3553,9 @@ type ClientInterface interface {
 	// it as text. Whatever the forge already masks stays masked. Only the last
 	// 256 KiB are returned; `truncated` says the start was cut.
 	//
+	// Only for a repository the dashboard tracks for you; any other answers 404
+	// without asking the forge.
+	//
 	// Fetched live on every call and never as part of a snapshot, since a log
 	// can be large and most are never opened. GitHub reads the job's log
 	// through its REST API (one request, then a short-lived download). Forgejo
@@ -5331,6 +5334,9 @@ func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) 
 // codes and carriage returns removed, never markup, so a client must render
 // it as text. Whatever the forge already masks stays masked. Only the last
 // 256 KiB are returned; `truncated` says the start was cut.
+//
+// Only for a repository the dashboard tracks for you; any other answers 404
+// without asking the forge.
 //
 // Fetched live on every call and never as part of a snapshot, since a log
 // can be large and most are never opened. GitHub reads the job's log
@@ -10301,6 +10307,9 @@ type ClientWithResponsesInterface interface {
 	// it as text. Whatever the forge already masks stays masked. Only the last
 	// 256 KiB are returned; `truncated` says the start was cut.
 	//
+	// Only for a repository the dashboard tracks for you; any other answers 404
+	// without asking the forge.
+	//
 	// Fetched live on every call and never as part of a snapshot, since a log
 	// can be large and most are never opened. GitHub reads the job's log
 	// through its REST API (one request, then a short-lived download). Forgejo
@@ -12368,6 +12377,8 @@ type GetCheckLogResponse struct {
 	JSON429 *Error
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
@@ -12403,6 +12414,11 @@ func (r GetCheckLogResponse) GetJSON429() *Error {
 // GetJSON502 returns the response for an HTTP 502 `application/json` response
 func (r GetCheckLogResponse) GetJSON502() *Error {
 	return r.JSON502
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetCheckLogResponse) GetJSON503() *Error {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -15632,6 +15648,9 @@ func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEdi
 // it as text. Whatever the forge already masks stays masked. Only the last
 // 256 KiB are returned; `truncated` says the start was cut.
 //
+// Only for a repository the dashboard tracks for you; any other answers 404
+// without asking the forge.
+//
 // Fetched live on every call and never as part of a snapshot, since a log
 // can be large and most are never opened. GitHub reads the job's log
 // through its REST API (one request, then a short-lived download). Forgejo
@@ -18040,6 +18059,13 @@ func ParseGetCheckLogResponse(rsp *http.Response) (*GetCheckLogResponse, error) 
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
