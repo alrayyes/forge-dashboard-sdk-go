@@ -83,6 +83,33 @@ func (e ActionErrorCode) Valid() bool {
 	}
 }
 
+// Defines values for AdvisoryReason.
+const (
+	AdvisoryReasonFailed      AdvisoryReason = "failed"
+	AdvisoryReasonRefused     AdvisoryReason = "refused"
+	AdvisoryReasonSwitchedOff AdvisoryReason = "switched_off"
+	AdvisoryReasonThrottled   AdvisoryReason = "throttled"
+	AdvisoryReasonTooMany     AdvisoryReason = "too_many"
+)
+
+// Valid indicates whether the value is a known member of the AdvisoryReason enum.
+func (e AdvisoryReason) Valid() bool {
+	switch e {
+	case AdvisoryReasonFailed:
+		return true
+	case AdvisoryReasonRefused:
+		return true
+	case AdvisoryReasonSwitchedOff:
+		return true
+	case AdvisoryReasonThrottled:
+		return true
+	case AdvisoryReasonTooMany:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdvisorySeverity.
 const (
 	AdvisorySeverityCritical AdvisorySeverity = "critical"
@@ -857,6 +884,14 @@ type Advisories struct {
 	// Highest The worst severity among the open advisories. Absent when there are none.
 	Highest *AdvisorySeverity `json:"highest,omitempty"`
 
+	// Reason Why `state` is "unknown", when the dashboard can tell. Absent when
+	// the state is "known". "refused" is a 403: the credential lacks the
+	// Dependabot alerts permission. "switched_off" is a 404: alerts are off
+	// for the repository. "throttled" is a rate limit, which clears by
+	// itself. "failed" is any other error reading the alerts. "too_many" is
+	// a repository with more open alerts than one read pages through.
+	Reason *AdvisoryReason `json:"reason,omitempty"`
+
 	// State "known" is an answer the forge gave. "unknown" is no answer, and must
 	// never be shown as zero.
 	State AdvisoryState `json:"state"`
@@ -864,6 +899,14 @@ type Advisories struct {
 	// Url Where to see the advisories on the forge. Absent when there are none or the state is unknown.
 	Url *string `json:"url,omitempty"`
 }
+
+// AdvisoryReason Why `state` is "unknown", when the dashboard can tell. Absent when
+// the state is "known". "refused" is a 403: the credential lacks the
+// Dependabot alerts permission. "switched_off" is a 404: alerts are off
+// for the repository. "throttled" is a rate limit, which clears by
+// itself. "failed" is any other error reading the alerts. "too_many" is
+// a repository with more open alerts than one read pages through.
+type AdvisoryReason string
 
 // AdvisorySeverity The worst severity among the open advisories. Absent when there are none.
 type AdvisorySeverity string
