@@ -1067,16 +1067,20 @@ type Check struct {
 	// with per-line timestamps and colour codes removed, at most 2,000
 	// characters. Never markup, and a client must render it as text.
 	// Whatever the forge already masks stays masked. Absent when the
-	// log can't be read or has expired. GitHub only: Forgejo's API
-	// doesn't serve job logs, so there the link to the run is all a
-	// failed check offers.
+	// log can't be read or has expired. GitHub only: for Forgejo the
+	// whole output is read through GET /api/checks/log.
 	Excerpt *string `json:"excerpt,omitempty"`
 
 	// FailedStep The name of the step of a failed job that broke. Absent when
 	// the check isn't a job the token can read (a third-party check,
 	// a forge with no step data, a token without access).
 	FailedStep *string `json:"failedStep,omitempty"`
-	Name       string  `json:"name"`
+
+	// JobId The Actions job (or check run) id to pass to GET /api/checks/log.
+	// Absent for a legacy commit status and for a workflow held for
+	// approval, which have no output to read.
+	JobId *int   `json:"jobId,omitempty"`
+	Name  string `json:"name"`
 
 	// Required Whether the base branch's protection makes this check block the
 	// merge (GitHub required status checks and rulesets, Forgejo
@@ -1152,6 +1156,15 @@ type CheckCounts struct {
 	Running int `json:"running"`
 	Skipped int `json:"skipped"`
 	Waiting int `json:"waiting"`
+}
+
+// CheckLog The output of one CI job.
+type CheckLog struct {
+	// Text Plain text, never markup. A client must render it as text.
+	Text string `json:"text"`
+
+	// Truncated True when the start of the output was cut to fit the size cap.
+	Truncated bool `json:"truncated"`
 }
 
 // CheckState One job/check's own status — the per-job detail CIStatus
@@ -3090,6 +3103,17 @@ type FinishRegistrationParams struct {
 	Username string `form:"username" json:"username"`
 }
 
+// GetCheckLogParams defines parameters for GetCheckLog.
+type GetCheckLogParams struct {
+	Forge Forge `form:"forge" json:"forge"`
+
+	// FullName "owner/repo" of the repository the check ran in.
+	FullName string `form:"fullName" json:"fullName"`
+
+	// JobId Matching a Check.jobId.
+	JobId int `form:"jobId" json:"jobId"`
+}
+
 // GetDashboardParams defines parameters for GetDashboard.
 type GetDashboardParams struct {
 	// IncludeDrafts Whether draft pull requests are in `pullRequests`. Defaults to
@@ -3503,6 +3527,25 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/auth/session (the `GetSession` operationId).
 	GetSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetCheckLog Read the output of one CI job, on demand
+	//
+	// The output behind a `Check` that carries a `jobId`, as plain text: colour
+	// codes and carriage returns removed, never markup, so a client must render
+	// it as text. Whatever the forge already masks stays masked. Only the last
+	// 256 KiB are returned; `truncated` says the start was cut.
+	//
+	// Fetched live on every call and never as part of a snapshot, since a log
+	// can be large and most are never opened. GitHub reads the job's log
+	// through its REST API (one request, then a short-lived download). Forgejo
+	// reads it through the job logs endpoint of its Actions API.
+	//
+	// A forge can refuse: the token may not read logs, the log may have
+	// expired, or the check may not be an Actions job at all. Those answer 403
+	// or 404 with a sentence a person can read.
+	//
+	// Corresponds with GET /api/checks/log (the `GetCheckLog` operationId).
+	GetCheckLog(ctx context.Context, params *GetCheckLogParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetDashboard The aggregated view
 	//
@@ -5218,6 +5261,35 @@ func (c *Client) GetRegistrationStatus(ctx context.Context, reqEditors ...Reques
 // Corresponds with GET /api/auth/session (the `GetSession` operationId).
 func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSessionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetCheckLog Read the output of one CI job, on demand
+//
+// The output behind a `Check` that carries a `jobId`, as plain text: colour
+// codes and carriage returns removed, never markup, so a client must render
+// it as text. Whatever the forge already masks stays masked. Only the last
+// 256 KiB are returned; `truncated` says the start was cut.
+//
+// Fetched live on every call and never as part of a snapshot, since a log
+// can be large and most are never opened. GitHub reads the job's log
+// through its REST API (one request, then a short-lived download). Forgejo
+// reads it through the job logs endpoint of its Actions API.
+//
+// A forge can refuse: the token may not read logs, the log may have
+// expired, or the check may not be an Actions job at all. Those answer 403
+// or 404 with a sentence a person can read.
+//
+// Corresponds with GET /api/checks/log (the `GetCheckLog` operationId).
+func (c *Client) GetCheckLog(ctx context.Context, params *GetCheckLogParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCheckLogRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7840,6 +7912,72 @@ func NewGetSessionRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetCheckLogRequest constructs an http.Request for the GetCheckLog method
+func NewGetCheckLogRequest(server string, params *GetCheckLogParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/checks/log")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "fullName", params.FullName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "jobId", params.JobId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetDashboardRequest constructs an http.Request for the GetDashboard method
 func NewGetDashboardRequest(server string, params *GetDashboardParams) (*http.Request, error) {
 	var err error
@@ -10006,6 +10144,27 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/auth/session (the `GetSession` operationId).
 	GetSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSessionResponse, error)
 
+	// GetCheckLogWithResponse Read the output of one CI job, on demand
+	//
+	// The output behind a `Check` that carries a `jobId`, as plain text: colour
+	// codes and carriage returns removed, never markup, so a client must render
+	// it as text. Whatever the forge already masks stays masked. Only the last
+	// 256 KiB are returned; `truncated` says the start was cut.
+	//
+	// Fetched live on every call and never as part of a snapshot, since a log
+	// can be large and most are never opened. GitHub reads the job's log
+	// through its REST API (one request, then a short-lived download). Forgejo
+	// reads it through the job logs endpoint of its Actions API.
+	//
+	// A forge can refuse: the token may not read logs, the log may have
+	// expired, or the check may not be an Actions job at all. Those answer 403
+	// or 404 with a sentence a person can read.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/checks/log (the `GetCheckLog` operationId).
+	GetCheckLogWithResponse(ctx context.Context, params *GetCheckLogParams, reqEditors ...RequestEditorFn) (*GetCheckLogResponse, error)
+
 	// GetDashboardWithResponse The aggregated view
 	//
 	// Returns the most recently fetched snapshot. The backend refreshes
@@ -12000,6 +12159,89 @@ func (r GetSessionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetSessionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetCheckLogResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *CheckLog
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetCheckLogResponse) GetJSON200() *CheckLog {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetCheckLogResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetCheckLogResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetCheckLogResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetCheckLogResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r GetCheckLogResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r GetCheckLogResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r GetCheckLogResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetCheckLogResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetCheckLogResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetCheckLogResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -15114,6 +15356,33 @@ func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEdi
 	return ParseGetSessionResponse(rsp)
 }
 
+// GetCheckLogWithResponse Read the output of one CI job, on demand
+//
+// The output behind a `Check` that carries a `jobId`, as plain text: colour
+// codes and carriage returns removed, never markup, so a client must render
+// it as text. Whatever the forge already masks stays masked. Only the last
+// 256 KiB are returned; `truncated` says the start was cut.
+//
+// Fetched live on every call and never as part of a snapshot, since a log
+// can be large and most are never opened. GitHub reads the job's log
+// through its REST API (one request, then a short-lived download). Forgejo
+// reads it through the job logs endpoint of its Actions API.
+//
+// A forge can refuse: the token may not read logs, the log may have
+// expired, or the check may not be an Actions job at all. Those answer 403
+// or 404 with a sentence a person can read.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/checks/log (the `GetCheckLog` operationId).
+func (c *ClientWithResponses) GetCheckLogWithResponse(ctx context.Context, params *GetCheckLogParams, reqEditors ...RequestEditorFn) (*GetCheckLogResponse, error) {
+	rsp, err := c.GetCheckLog(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetCheckLogResponse(rsp)
+}
+
 // GetDashboardWithResponse The aggregated view
 //
 // Returns the most recently fetched snapshot. The backend refreshes
@@ -17386,6 +17655,74 @@ func ParseGetSessionResponse(rsp *http.Response) (*GetSessionResponse, error) {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetCheckLogResponse parses an HTTP response from a GetCheckLogWithResponse call
+func ParseGetCheckLogResponse(rsp *http.Response) (*GetCheckLogResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetCheckLogResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CheckLog
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
