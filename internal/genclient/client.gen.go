@@ -938,6 +938,105 @@ type Advisories struct {
 	Url *string `json:"url,omitempty"`
 }
 
+// AdvisoryCVSS defines model for AdvisoryCVSS.
+type AdvisoryCVSS struct {
+	// Score The CVSS base score, 0 to 10.
+	Score float32 `json:"score"`
+
+	// Vector The CVSS vector string.
+	Vector *string `json:"vector,omitempty"`
+}
+
+// AdvisoryEPSS The Exploit Prediction Scoring System's reading, as GitHub sends it. Absent when GitHub sent none.
+type AdvisoryEPSS struct {
+	// Percentage The probability of exploitation in the next 30 days, as a fraction from 0 to 1.
+	Percentage float32 `json:"percentage"`
+
+	// Percentile How the score ranks among all scored flaws, as a fraction from 0 to 1.
+	Percentile float32 `json:"percentile"`
+}
+
+// AdvisoryItem One open Dependabot alert with the fields GitHub's alert page shows.
+type AdvisoryItem struct {
+	CveId *string       `json:"cveId,omitempty"`
+	Cvss  *AdvisoryCVSS `json:"cvss,omitempty"`
+
+	// Description The advisory's text, Markdown exactly as GitHub stores it. Render it with raw HTML disabled.
+	Description *string `json:"description,omitempty"`
+
+	// Ecosystem The package ecosystem, such as "npm" or "pip".
+	Ecosystem *string `json:"ecosystem,omitempty"`
+
+	// Epss The Exploit Prediction Scoring System's reading, as GitHub sends it. Absent when GitHub sent none.
+	Epss   *AdvisoryEPSS `json:"epss,omitempty"`
+	GhsaId *string       `json:"ghsaId,omitempty"`
+
+	// ManifestPath The file the dependency was detected in.
+	ManifestPath *string `json:"manifestPath,omitempty"`
+
+	// Number The alert's number on the forge.
+	Number   int        `json:"number"`
+	OpenedAt *time.Time `json:"openedAt,omitempty"`
+
+	// Package The vulnerable dependency's name.
+	Package *string `json:"package,omitempty"`
+
+	// PatchedVersion The first version with the fix. Absent when there is none yet.
+	PatchedVersion *string `json:"patchedVersion,omitempty"`
+
+	// References Links the advisory cites. A client shows only http(s) ones.
+	References *[]string `json:"references,omitempty"`
+
+	// Relationship Whether the dependency is direct or transitive. Absent when GitHub didn't say.
+	Relationship *string `json:"relationship,omitempty"`
+
+	// Scope Whether the dependency is needed at runtime or only in development.
+	Scope *string `json:"scope,omitempty"`
+
+	// Severity The worst severity among the open advisories. Absent when there are none.
+	Severity *AdvisorySeverity `json:"severity,omitempty"`
+
+	// State The alert's state on the forge. Always "open" here.
+	State string `json:"state"`
+
+	// Summary The advisory's one-line title.
+	Summary string `json:"summary"`
+
+	// Url The alert's own page on the forge.
+	Url *string `json:"url,omitempty"`
+
+	// VulnerableVersions The affected version range, as GitHub writes it.
+	VulnerableVersions *string             `json:"vulnerableVersions,omitempty"`
+	Weaknesses         *[]AdvisoryWeakness `json:"weaknesses,omitempty"`
+}
+
+// AdvisoryList A repository's open dependency advisories in full.
+type AdvisoryList struct {
+	// Advisories Empty when none are open and whenever `state` is "unknown". Highest severity first, then newest first.
+	Advisories []AdvisoryItem `json:"advisories"`
+
+	// Reason Why `state` is "unknown", when the dashboard can tell. Absent when
+	// the state is "known". "refused" is a 403: the credential lacks the
+	// Dependabot alerts permission. "switched_off" is a 404: alerts are off
+	// for the repository. "throttled" is a rate limit, which clears by
+	// itself. "failed" is any other error reading the alerts. "too_many" is
+	// a repository with more open alerts than one read pages through. On a
+	// Forgejo repository, "not_enabled" is the operator not having switched
+	// on lockfile checking (it is off by default, since it sends package
+	// names to a third party), absent when it has no lockfile the dashboard
+	// reads, and "failed" when one is too big or doesn't parse. A Forgejo
+	// repository whose advisories have not been read yet, because its first
+	// read is still running in the background, is "unknown" with no reason.
+	Reason *AdvisoryReason `json:"reason,omitempty"`
+
+	// State "known" is an answer the forge gave. "unknown" is no answer, and must
+	// never be shown as zero.
+	State AdvisoryState `json:"state"`
+
+	// Url The repository's advisories page on the forge. Absent when none are open or the state is unknown.
+	Url *string `json:"url,omitempty"`
+}
+
 // AdvisoryReason Why `state` is "unknown", when the dashboard can tell. Absent when
 // the state is "known". "refused" is a 403: the credential lacks the
 // Dependabot alerts permission. "switched_off" is a 404: alerts are off
@@ -958,6 +1057,13 @@ type AdvisorySeverity string
 // AdvisoryState "known" is an answer the forge gave. "unknown" is no answer, and must
 // never be shown as zero.
 type AdvisoryState string
+
+// AdvisoryWeakness defines model for AdvisoryWeakness.
+type AdvisoryWeakness struct {
+	// Id The CWE id, such as "CWE-295".
+	Id   string  `json:"id"`
+	Name *string `json:"name,omitempty"`
+}
 
 // AllowedAction defines model for AllowedAction.
 type AllowedAction struct {
@@ -3352,6 +3458,14 @@ type GetIssueDetailsParams struct {
 	Number int `form:"number" json:"number"`
 }
 
+// ListAdvisoriesParams defines parameters for ListAdvisories.
+type ListAdvisoriesParams struct {
+	Forge Forge `form:"forge" json:"forge"`
+
+	// FullName "owner/repo", matching a MainBranch.fullName from GET /api/main-branches.
+	FullName string `form:"fullName" json:"fullName"`
+}
+
 // GetMainBranchChecksParams defines parameters for GetMainBranchChecks.
 type GetMainBranchChecksParams struct {
 	Forge Forge `form:"forge" json:"forge"`
@@ -3991,6 +4105,33 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/main-branches (the `GetMainBranches` operationId).
 	GetMainBranches(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAdvisories List a repository's open dependency advisories in full, on demand
+	//
+	// What the advisories dialog on the Main branches page shows for one
+	// repository: each open Dependabot alert with the fields GitHub's own
+	// alert page shows. The list and the detail view are the same answer, so
+	// opening one advisory costs no second call. Fetched live on every call,
+	// never as part of GET /api/main-branches' snapshot, so a repository
+	// nobody opens costs no budget.
+	//
+	// Sorted by severity, highest first, then newest first. Only GitHub reads
+	// them, through the Dependabot alerts of the repository; a Forgejo
+	// repository is a 400.
+	//
+	// A forge that can't say is a 200 with `state` "unknown", an empty list
+	// and the `reason`, the same words as the row's own `advisories`: alerts
+	// switched off, a credential without the Dependabot alerts permission, a
+	// rate limit, any other failure, or a repository with more open alerts
+	// than one read pages through. An empty `known` list means nothing is
+	// open.
+	//
+	// `description` is Markdown exactly as GitHub stores it, so a client must
+	// render it with raw HTML disabled. A field GitHub didn't send is left
+	// out.
+	//
+	// Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
+	ListAdvisories(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetMainBranchChecks List every job/check of a repository's default-branch pipeline, on demand
 	//
@@ -6031,6 +6172,43 @@ func (c *Client) ReopenIssue(ctx context.Context, body ReopenIssueJSONRequestBod
 // Corresponds with GET /api/main-branches (the `GetMainBranches` operationId).
 func (c *Client) GetMainBranches(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetMainBranchesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListAdvisories List a repository's open dependency advisories in full, on demand
+//
+// What the advisories dialog on the Main branches page shows for one
+// repository: each open Dependabot alert with the fields GitHub's own
+// alert page shows. The list and the detail view are the same answer, so
+// opening one advisory costs no second call. Fetched live on every call,
+// never as part of GET /api/main-branches' snapshot, so a repository
+// nobody opens costs no budget.
+//
+// Sorted by severity, highest first, then newest first. Only GitHub reads
+// them, through the Dependabot alerts of the repository; a Forgejo
+// repository is a 400.
+//
+// A forge that can't say is a 200 with `state` "unknown", an empty list
+// and the `reason`, the same words as the row's own `advisories`: alerts
+// switched off, a credential without the Dependabot alerts permission, a
+// rate limit, any other failure, or a repository with more open alerts
+// than one read pages through. An empty `known` list means nothing is
+// open.
+//
+// `description` is Markdown exactly as GitHub stores it, so a client must
+// render it with raw HTML disabled. A field GitHub didn't send is left
+// out.
+//
+// Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
+func (c *Client) ListAdvisories(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAdvisoriesRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -9047,6 +9225,64 @@ func NewGetMainBranchesRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewListAdvisoriesRequest constructs an http.Request for the ListAdvisories method
+func NewListAdvisoriesRequest(server string, params *ListAdvisoriesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/main-branches/advisories")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "fullName", params.FullName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetMainBranchChecksRequest constructs an http.Request for the GetMainBranchChecks method
 func NewGetMainBranchChecksRequest(server string, params *GetMainBranchChecksParams) (*http.Request, error) {
 	var err error
@@ -11243,6 +11479,35 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/main-branches (the `GetMainBranches` operationId).
 	GetMainBranchesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMainBranchesResponse, error)
+
+	// ListAdvisoriesWithResponse List a repository's open dependency advisories in full, on demand
+	//
+	// What the advisories dialog on the Main branches page shows for one
+	// repository: each open Dependabot alert with the fields GitHub's own
+	// alert page shows. The list and the detail view are the same answer, so
+	// opening one advisory costs no second call. Fetched live on every call,
+	// never as part of GET /api/main-branches' snapshot, so a repository
+	// nobody opens costs no budget.
+	//
+	// Sorted by severity, highest first, then newest first. Only GitHub reads
+	// them, through the Dependabot alerts of the repository; a Forgejo
+	// repository is a 400.
+	//
+	// A forge that can't say is a 200 with `state` "unknown", an empty list
+	// and the `reason`, the same words as the row's own `advisories`: alerts
+	// switched off, a credential without the Dependabot alerts permission, a
+	// rate limit, any other failure, or a repository with more open alerts
+	// than one read pages through. An empty `known` list means nothing is
+	// open.
+	//
+	// `description` is Markdown exactly as GitHub stores it, so a client must
+	// render it with raw HTML disabled. A field GitHub didn't send is left
+	// out.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
+	ListAdvisoriesWithResponse(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*ListAdvisoriesResponse, error)
 
 	// GetMainBranchChecksWithResponse List every job/check of a repository's default-branch pipeline, on demand
 	//
@@ -13755,6 +14020,89 @@ func (r GetMainBranchesResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetMainBranchesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListAdvisoriesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AdvisoryList
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListAdvisoriesResponse) GetJSON200() *AdvisoryList {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListAdvisoriesResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListAdvisoriesResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ListAdvisoriesResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListAdvisoriesResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r ListAdvisoriesResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r ListAdvisoriesResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r ListAdvisoriesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAdvisoriesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAdvisoriesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListAdvisoriesResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -17032,6 +17380,41 @@ func (c *ClientWithResponses) GetMainBranchesWithResponse(ctx context.Context, r
 	return ParseGetMainBranchesResponse(rsp)
 }
 
+// ListAdvisoriesWithResponse List a repository's open dependency advisories in full, on demand
+//
+// What the advisories dialog on the Main branches page shows for one
+// repository: each open Dependabot alert with the fields GitHub's own
+// alert page shows. The list and the detail view are the same answer, so
+// opening one advisory costs no second call. Fetched live on every call,
+// never as part of GET /api/main-branches' snapshot, so a repository
+// nobody opens costs no budget.
+//
+// Sorted by severity, highest first, then newest first. Only GitHub reads
+// them, through the Dependabot alerts of the repository; a Forgejo
+// repository is a 400.
+//
+// A forge that can't say is a 200 with `state` "unknown", an empty list
+// and the `reason`, the same words as the row's own `advisories`: alerts
+// switched off, a credential without the Dependabot alerts permission, a
+// rate limit, any other failure, or a repository with more open alerts
+// than one read pages through. An empty `known` list means nothing is
+// open.
+//
+// `description` is Markdown exactly as GitHub stores it, so a client must
+// render it with raw HTML disabled. A field GitHub didn't send is left
+// out.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
+func (c *ClientWithResponses) ListAdvisoriesWithResponse(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*ListAdvisoriesResponse, error) {
+	rsp, err := c.ListAdvisories(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAdvisoriesResponse(rsp)
+}
+
 // GetMainBranchChecksWithResponse List every job/check of a repository's default-branch pipeline, on demand
 //
 // The jobs behind one Main branches row's status: the same `Check` list,
@@ -19683,6 +20066,74 @@ func ParseGetMainBranchesResponse(rsp *http.Response) (*GetMainBranchesResponse,
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAdvisoriesResponse parses an HTTP response from a ListAdvisoriesWithResponse call
+func ParseListAdvisoriesResponse(rsp *http.Response) (*ListAdvisoriesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAdvisoriesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdvisoryList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
