@@ -971,10 +971,13 @@ type AdvisoryItem struct {
 	Epss   *AdvisoryEPSS `json:"epss,omitempty"`
 	GhsaId *string       `json:"ghsaId,omitempty"`
 
+	// Id The advisory's own id in the database that states it. Set for Forgejo.
+	Id *string `json:"id,omitempty"`
+
 	// ManifestPath The file the dependency was detected in.
 	ManifestPath *string `json:"manifestPath,omitempty"`
 
-	// Number The alert's number on the forge.
+	// Number The alert's number on the forge. For Forgejo, the advisory's place in the list.
 	Number   int        `json:"number"`
 	OpenedAt *time.Time `json:"openedAt,omitempty"`
 
@@ -1015,6 +1018,9 @@ type AdvisoryList struct {
 	// Advisories Empty when none are open and whenever `state` is "unknown". Highest severity first, then newest first.
 	Advisories []AdvisoryItem `json:"advisories"`
 
+	// Partial Set on a known Forgejo list that leaves out packages the dashboard may not send to OSV, because they may be private. Absent otherwise.
+	Partial *bool `json:"partial,omitempty"`
+
 	// Reason Why `state` is "unknown", when the dashboard can tell. Absent when
 	// the state is "known". "refused" is a 403: the credential lacks the
 	// Dependabot alerts permission. "switched_off" is a 404: alerts are off
@@ -1033,7 +1039,7 @@ type AdvisoryList struct {
 	// never be shown as zero.
 	State AdvisoryState `json:"state"`
 
-	// Url The repository's advisories page on the forge. Absent when none are open or the state is unknown.
+	// Url The repository's advisories page on the forge. Absent when none are open or the state is unknown, and for Forgejo, which has no page for a whole repository.
 	Url *string `json:"url,omitempty"`
 }
 
@@ -4124,20 +4130,27 @@ type ClientInterface interface {
 	// never as part of GET /api/main-branches' snapshot, so a repository
 	// nobody opens costs no budget.
 	//
-	// Sorted by severity, highest first, then newest first. Only GitHub reads
-	// them, through the Dependabot alerts of the repository; a Forgejo
-	// repository is a 400.
+	// Sorted by severity, highest first, then newest first. GitHub reads them
+	// through the Dependabot alerts of the repository. A Forgejo repository
+	// reads its lock files again and matches them against OSV, so it costs the
+	// same as one refresh of that repository and works only while OSV
+	// advisories are switched on; each advisory is then one distinct
+	// advisory, with `number` its place in the list, `openedAt` the day OSV
+	// published it and `url` its page on OSV.
 	//
 	// A forge that can't say is a 200 with `state` "unknown", an empty list
 	// and the `reason`, the same words as the row's own `advisories`: alerts
 	// switched off, a credential without the Dependabot alerts permission, a
 	// rate limit, any other failure, or a repository with more open alerts
-	// than one read pages through. An empty `known` list means nothing is
-	// open.
+	// than one read pages through. For Forgejo: advisories not switched on
+	// (`not_enabled`), OSV unreachable or a lock file that can't be read
+	// (`failed`), too much to read (`too_many`), or no lock file found (no
+	// `reason`). An empty `known` list means nothing is open.
 	//
 	// `description` is Markdown exactly as GitHub stores it, so a client must
 	// render it with raw HTML disabled. A field GitHub didn't send is left
-	// out.
+	// out. A Forgejo advisory leaves out what OSV does not state: `epss`,
+	// `relationship`, `scope` and `vulnerableVersions`.
 	//
 	// The same answer is the `get_repository_advisories` tool, over MCP and
 	// WebMCP.
@@ -6205,20 +6218,27 @@ func (c *Client) GetMainBranches(ctx context.Context, reqEditors ...RequestEdito
 // never as part of GET /api/main-branches' snapshot, so a repository
 // nobody opens costs no budget.
 //
-// Sorted by severity, highest first, then newest first. Only GitHub reads
-// them, through the Dependabot alerts of the repository; a Forgejo
-// repository is a 400.
+// Sorted by severity, highest first, then newest first. GitHub reads them
+// through the Dependabot alerts of the repository. A Forgejo repository
+// reads its lock files again and matches them against OSV, so it costs the
+// same as one refresh of that repository and works only while OSV
+// advisories are switched on; each advisory is then one distinct
+// advisory, with `number` its place in the list, `openedAt` the day OSV
+// published it and `url` its page on OSV.
 //
 // A forge that can't say is a 200 with `state` "unknown", an empty list
 // and the `reason`, the same words as the row's own `advisories`: alerts
 // switched off, a credential without the Dependabot alerts permission, a
 // rate limit, any other failure, or a repository with more open alerts
-// than one read pages through. An empty `known` list means nothing is
-// open.
+// than one read pages through. For Forgejo: advisories not switched on
+// (`not_enabled`), OSV unreachable or a lock file that can't be read
+// (`failed`), too much to read (`too_many`), or no lock file found (no
+// `reason`). An empty `known` list means nothing is open.
 //
 // `description` is Markdown exactly as GitHub stores it, so a client must
 // render it with raw HTML disabled. A field GitHub didn't send is left
-// out.
+// out. A Forgejo advisory leaves out what OSV does not state: `epss`,
+// `relationship`, `scope` and `vulnerableVersions`.
 //
 // The same answer is the `get_repository_advisories` tool, over MCP and
 // WebMCP.
@@ -11508,20 +11528,27 @@ type ClientWithResponsesInterface interface {
 	// never as part of GET /api/main-branches' snapshot, so a repository
 	// nobody opens costs no budget.
 	//
-	// Sorted by severity, highest first, then newest first. Only GitHub reads
-	// them, through the Dependabot alerts of the repository; a Forgejo
-	// repository is a 400.
+	// Sorted by severity, highest first, then newest first. GitHub reads them
+	// through the Dependabot alerts of the repository. A Forgejo repository
+	// reads its lock files again and matches them against OSV, so it costs the
+	// same as one refresh of that repository and works only while OSV
+	// advisories are switched on; each advisory is then one distinct
+	// advisory, with `number` its place in the list, `openedAt` the day OSV
+	// published it and `url` its page on OSV.
 	//
 	// A forge that can't say is a 200 with `state` "unknown", an empty list
 	// and the `reason`, the same words as the row's own `advisories`: alerts
 	// switched off, a credential without the Dependabot alerts permission, a
 	// rate limit, any other failure, or a repository with more open alerts
-	// than one read pages through. An empty `known` list means nothing is
-	// open.
+	// than one read pages through. For Forgejo: advisories not switched on
+	// (`not_enabled`), OSV unreachable or a lock file that can't be read
+	// (`failed`), too much to read (`too_many`), or no lock file found (no
+	// `reason`). An empty `known` list means nothing is open.
 	//
 	// `description` is Markdown exactly as GitHub stores it, so a client must
 	// render it with raw HTML disabled. A field GitHub didn't send is left
-	// out.
+	// out. A Forgejo advisory leaves out what OSV does not state: `epss`,
+	// `relationship`, `scope` and `vulnerableVersions`.
 	//
 	// The same answer is the `get_repository_advisories` tool, over MCP and
 	// WebMCP.
@@ -17413,20 +17440,27 @@ func (c *ClientWithResponses) GetMainBranchesWithResponse(ctx context.Context, r
 // never as part of GET /api/main-branches' snapshot, so a repository
 // nobody opens costs no budget.
 //
-// Sorted by severity, highest first, then newest first. Only GitHub reads
-// them, through the Dependabot alerts of the repository; a Forgejo
-// repository is a 400.
+// Sorted by severity, highest first, then newest first. GitHub reads them
+// through the Dependabot alerts of the repository. A Forgejo repository
+// reads its lock files again and matches them against OSV, so it costs the
+// same as one refresh of that repository and works only while OSV
+// advisories are switched on; each advisory is then one distinct
+// advisory, with `number` its place in the list, `openedAt` the day OSV
+// published it and `url` its page on OSV.
 //
 // A forge that can't say is a 200 with `state` "unknown", an empty list
 // and the `reason`, the same words as the row's own `advisories`: alerts
 // switched off, a credential without the Dependabot alerts permission, a
 // rate limit, any other failure, or a repository with more open alerts
-// than one read pages through. An empty `known` list means nothing is
-// open.
+// than one read pages through. For Forgejo: advisories not switched on
+// (`not_enabled`), OSV unreachable or a lock file that can't be read
+// (`failed`), too much to read (`too_many`), or no lock file found (no
+// `reason`). An empty `known` list means nothing is open.
 //
 // `description` is Markdown exactly as GitHub stores it, so a client must
 // render it with raw HTML disabled. A field GitHub didn't send is left
-// out.
+// out. A Forgejo advisory leaves out what OSV does not state: `epss`,
+// `relationship`, `scope` and `vulnerableVersions`.
 //
 // The same answer is the `get_repository_advisories` tool, over MCP and
 // WebMCP.
