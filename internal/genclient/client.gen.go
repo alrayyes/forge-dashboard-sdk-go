@@ -2997,7 +2997,7 @@ type SettingsResponse struct {
 
 	// GithubAppConfigured Whether this server has a GitHub App configured at all
 	// (server-wide GITHUB_APP_ID/GITHUB_APP_PRIVATE_KEY_BASE64 —
-	// not a per-user setting). The Settings page uses this to
+	// not a saved setting). The Settings page uses this to
 	// explain why githubAppInstallationId can't be saved when
 	// it's false.
 	GithubAppConfigured bool `json:"githubAppConfigured"`
@@ -3752,7 +3752,7 @@ type ClientInterface interface {
 	// briefly unreachable, instead of waiting for the next scheduled
 	// background refresh.
 	//
-	// The server holds a five-second cooldown per user, so this can't
+	// The server holds a five-second cooldown, so this can't
 	// be used to hammer a forge's API budget. A call inside that
 	// window does not fetch: it answers 200 with the current snapshot
 	// and a `Retry-After` header carrying the seconds left. Never a
@@ -5701,7 +5701,7 @@ func (c *Client) GetDashboard(ctx context.Context, params *GetDashboardParams, r
 // briefly unreachable, instead of waiting for the next scheduled
 // background refresh.
 //
-// The server holds a five-second cooldown per user, so this can't
+// The server holds a five-second cooldown, so this can't
 // be used to hammer a forge's API budget. A call inside that
 // window does not fetch: it answers 200 with the current snapshot
 // and a `Retry-After` header carrying the seconds left. Never a
@@ -10996,7 +10996,7 @@ type ClientWithResponsesInterface interface {
 	// briefly unreachable, instead of waiting for the next scheduled
 	// background refresh.
 	//
-	// The server holds a five-second cooldown per user, so this can't
+	// The server holds a five-second cooldown, so this can't
 	// be used to hammer a forge's API budget. A call inside that
 	// window does not fetch: it answers 200 with the current snapshot
 	// and a `Retry-After` header carrying the seconds left. Never a
@@ -16724,7 +16724,7 @@ func (c *ClientWithResponses) GetDashboardWithResponse(ctx context.Context, para
 // briefly unreachable, instead of waiting for the next scheduled
 // background refresh.
 //
-// The server holds a five-second cooldown per user, so this can't
+// The server holds a five-second cooldown, so this can't
 // be used to hammer a forge's API budget. A call inside that
 // window does not fetch: it answers 200 with the current snapshot
 // and a `Retry-After` header carrying the seconds left. Never a
