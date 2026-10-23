@@ -4150,8 +4150,10 @@ type ClientInterface interface {
 	// GitHub reads the newest commits' check runs (one request for the
 	// commits, one per commit until a check is found, and up to 2 more per
 	// failed job for its failed step). Forgejo reads the repository, the
-	// Actions runs of the default branch, the runs of that commit and each
-	// run's jobs.
+	// Actions runs of the default branch and each run's jobs, the same
+	// reading GET /api/main-branches counts its `checks` from, so the list
+	// and the counts describe the same jobs. A run whose jobs can't be read
+	// is listed as one check named after its workflow.
 	//
 	// Empty when the repository has no default branch, no commit with a
 	// check, or no run. The error answers are those of GET
@@ -6236,8 +6238,10 @@ func (c *Client) ListAdvisories(ctx context.Context, params *ListAdvisoriesParam
 // GitHub reads the newest commits' check runs (one request for the
 // commits, one per commit until a check is found, and up to 2 more per
 // failed job for its failed step). Forgejo reads the repository, the
-// Actions runs of the default branch, the runs of that commit and each
-// run's jobs.
+// Actions runs of the default branch and each run's jobs, the same
+// reading GET /api/main-branches counts its `checks` from, so the list
+// and the counts describe the same jobs. A run whose jobs can't be read
+// is listed as one check named after its workflow.
 //
 // Empty when the repository has no default branch, no commit with a
 // check, or no run. The error answers are those of GET
@@ -11526,8 +11530,10 @@ type ClientWithResponsesInterface interface {
 	// GitHub reads the newest commits' check runs (one request for the
 	// commits, one per commit until a check is found, and up to 2 more per
 	// failed job for its failed step). Forgejo reads the repository, the
-	// Actions runs of the default branch, the runs of that commit and each
-	// run's jobs.
+	// Actions runs of the default branch and each run's jobs, the same
+	// reading GET /api/main-branches counts its `checks` from, so the list
+	// and the counts describe the same jobs. A run whose jobs can't be read
+	// is listed as one check named after its workflow.
 	//
 	// Empty when the repository has no default branch, no commit with a
 	// check, or no run. The error answers are those of GET
@@ -17432,8 +17438,10 @@ func (c *ClientWithResponses) ListAdvisoriesWithResponse(ctx context.Context, pa
 // GitHub reads the newest commits' check runs (one request for the
 // commits, one per commit until a check is found, and up to 2 more per
 // failed job for its failed step). Forgejo reads the repository, the
-// Actions runs of the default branch, the runs of that commit and each
-// run's jobs.
+// Actions runs of the default branch and each run's jobs, the same
+// reading GET /api/main-branches counts its `checks` from, so the list
+// and the counts describe the same jobs. A run whose jobs can't be read
+// is listed as one check named after its workflow.
 //
 // Empty when the repository has no default branch, no commit with a
 // check, or no run. The error answers are those of GET
