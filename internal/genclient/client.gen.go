@@ -1255,6 +1255,17 @@ type BotRequestPhase string
 // check at all, not that one failed.
 type CIStatus string
 
+// CancelRunRequest defines model for CancelRunRequest.
+type CancelRunRequest struct {
+	Forge Forge `json:"forge"`
+
+	// FullName The repository, as "owner/repo".
+	FullName string `json:"fullName"`
+
+	// RunId The workflow run to cancel, from a check's `runId`.
+	RunId int `json:"runId"`
+}
+
 // Check One job/check run against a pull request's head commit.
 type Check struct {
 	// DurationSeconds How long a completed check ran. Absent while it runs, or when
@@ -1297,6 +1308,22 @@ type Check struct {
 	// is what tells a retry's output from the first attempt's. Absent
 	// when the forge doesn't number attempts.
 	RunAttempt *int `json:"runAttempt,omitempty"`
+
+	// RunId The Actions workflow run this job belongs to, to pass to
+	// `POST /api/checks/cancel-run`. Present only while the job is
+	// queued or running, and only for an Actions job: a finished job,
+	// a third-party check and a legacy commit status have none, and
+	// nothing is left to cancel.
+	//
+	// A Forgejo run whose jobs couldn't be read is listed as one check
+	// named for the run, with a `runId` and no `jobId`. A client treats
+	// a check with a `runId` and no `jobId` as the run itself, not as a
+	// job of it, and doesn't list its name among the run's jobs.
+	RunId *int `json:"runId,omitempty"`
+
+	// RunName The name of that workflow run, for a client to say which run a
+	// cancel stops. Present with `runId`.
+	RunName *string `json:"runName,omitempty"`
 
 	// State One job/check's own status — the per-job detail CIStatus
 	// deliberately doesn't carry, since CIStatus is the combined result
@@ -3543,6 +3570,9 @@ type BeginRegistrationJSONRequestBody = RegisterBeginRequest
 // FinishRegistrationJSONRequestBody defines body for FinishRegistration for application/json ContentType.
 type FinishRegistrationJSONRequestBody = WebAuthnCeremonyOptions
 
+// CancelWorkflowRunJSONRequestBody defines body for CancelWorkflowRun for application/json ContentType.
+type CancelWorkflowRunJSONRequestBody = CancelRunRequest
+
 // CloseIssueJSONRequestBody defines body for CloseIssue for application/json ContentType.
 type CloseIssueJSONRequestBody = IssueActionRequest
 
@@ -3835,6 +3865,80 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/auth/session (the `GetSession` operationId).
 	GetSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelWorkflowRunWithBody Cancel one running or queued Actions workflow run, on the signed-in user's behalf
+	//
+	// Asks the forge to cancel a whole workflow run: every job of it stops,
+	// because neither GitHub nor Forgejo can stop one job of a running
+	// workflow. A client takes `runId` from a check in a checks list
+	// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
+	// where a job that is still queued or running carries the id and name of
+	// its run. A check with no `runId` (a third-party check, a legacy commit
+	// status, an external CI) belongs to no Actions run and can't be
+	// cancelled here.
+	//
+	// It answers once the forge has accepted the cancel, not when the run
+	// has stopped, so a client shows the run as cancelling and lets the next
+	// snapshot carry the result. A pull request offers it as a `cancel_run`
+	// entry in `allowedActions` while any of its checks is running or
+	// waiting, even when another check has already failed. The list can't
+	// tell an Actions check from an external CI, so a pull request whose
+	// only running check is an external one (on Forgejo, a pending commit
+	// status too) still offers it, and the checks list then has no `runId`
+	// to send.
+	//
+	// It is never queued for a rate-limit reset. After the reset the run may
+	// be a different one, started by a newer push, and a cancel can't be
+	// undone. A rate limit arrives as a 429 and the person decides again.
+	//
+	// Refusals are an `ActionError` (see Merge) and carry the forge's own
+	// plain-words `message`: the token may not write to Actions, the run
+	// already finished, or a Forgejo instance too old to have the route.
+	// An old Forgejo answers the missing route with a 404, which looks the
+	// same as a run that is gone, so it is reported as that and doesn't
+	// stop the dialog offering the action.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+	CancelWorkflowRunWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelWorkflowRun Cancel one running or queued Actions workflow run, on the signed-in user's behalf
+	//
+	// Asks the forge to cancel a whole workflow run: every job of it stops,
+	// because neither GitHub nor Forgejo can stop one job of a running
+	// workflow. A client takes `runId` from a check in a checks list
+	// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
+	// where a job that is still queued or running carries the id and name of
+	// its run. A check with no `runId` (a third-party check, a legacy commit
+	// status, an external CI) belongs to no Actions run and can't be
+	// cancelled here.
+	//
+	// It answers once the forge has accepted the cancel, not when the run
+	// has stopped, so a client shows the run as cancelling and lets the next
+	// snapshot carry the result. A pull request offers it as a `cancel_run`
+	// entry in `allowedActions` while any of its checks is running or
+	// waiting, even when another check has already failed. The list can't
+	// tell an Actions check from an external CI, so a pull request whose
+	// only running check is an external one (on Forgejo, a pending commit
+	// status too) still offers it, and the checks list then has no `runId`
+	// to send.
+	//
+	// It is never queued for a rate-limit reset. After the reset the run may
+	// be a different one, started by a newer push, and a cancel can't be
+	// undone. A rate limit arrives as a 429 and the person decides again.
+	//
+	// Refusals are an `ActionError` (see Merge) and carry the forge's own
+	// plain-words `message`: the token may not write to Actions, the run
+	// already finished, or a Forgejo instance too old to have the route.
+	// An old Forgejo answers the missing route with a 404, which looks the
+	// same as a run that is gone, so it is reported as that and doesn't
+	// stop the dialog offering the action.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+	CancelWorkflowRun(ctx context.Context, body CancelWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetCheckLog Read the output of one CI job, on demand
 	//
@@ -5794,6 +5898,100 @@ func (c *Client) GetRegistrationStatus(ctx context.Context, reqEditors ...Reques
 // Corresponds with GET /api/auth/session (the `GetSession` operationId).
 func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSessionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CancelWorkflowRunWithBody Cancel one running or queued Actions workflow run, on the signed-in user's behalf
+//
+// Asks the forge to cancel a whole workflow run: every job of it stops,
+// because neither GitHub nor Forgejo can stop one job of a running
+// workflow. A client takes `runId` from a check in a checks list
+// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
+// where a job that is still queued or running carries the id and name of
+// its run. A check with no `runId` (a third-party check, a legacy commit
+// status, an external CI) belongs to no Actions run and can't be
+// cancelled here.
+//
+// It answers once the forge has accepted the cancel, not when the run
+// has stopped, so a client shows the run as cancelling and lets the next
+// snapshot carry the result. A pull request offers it as a `cancel_run`
+// entry in `allowedActions` while any of its checks is running or
+// waiting, even when another check has already failed. The list can't
+// tell an Actions check from an external CI, so a pull request whose
+// only running check is an external one (on Forgejo, a pending commit
+// status too) still offers it, and the checks list then has no `runId`
+// to send.
+//
+// It is never queued for a rate-limit reset. After the reset the run may
+// be a different one, started by a newer push, and a cancel can't be
+// undone. A rate limit arrives as a 429 and the person decides again.
+//
+// Refusals are an `ActionError` (see Merge) and carry the forge's own
+// plain-words `message`: the token may not write to Actions, the run
+// already finished, or a Forgejo instance too old to have the route.
+// An old Forgejo answers the missing route with a 404, which looks the
+// same as a run that is gone, so it is reported as that and doesn't
+// stop the dialog offering the action.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+func (c *Client) CancelWorkflowRunWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelWorkflowRunRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CancelWorkflowRun Cancel one running or queued Actions workflow run, on the signed-in user's behalf
+//
+// Asks the forge to cancel a whole workflow run: every job of it stops,
+// because neither GitHub nor Forgejo can stop one job of a running
+// workflow. A client takes `runId` from a check in a checks list
+// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
+// where a job that is still queued or running carries the id and name of
+// its run. A check with no `runId` (a third-party check, a legacy commit
+// status, an external CI) belongs to no Actions run and can't be
+// cancelled here.
+//
+// It answers once the forge has accepted the cancel, not when the run
+// has stopped, so a client shows the run as cancelling and lets the next
+// snapshot carry the result. A pull request offers it as a `cancel_run`
+// entry in `allowedActions` while any of its checks is running or
+// waiting, even when another check has already failed. The list can't
+// tell an Actions check from an external CI, so a pull request whose
+// only running check is an external one (on Forgejo, a pending commit
+// status too) still offers it, and the checks list then has no `runId`
+// to send.
+//
+// It is never queued for a rate-limit reset. After the reset the run may
+// be a different one, started by a newer push, and a cancel can't be
+// undone. A rate limit arrives as a 429 and the person decides again.
+//
+// Refusals are an `ActionError` (see Merge) and carry the forge's own
+// plain-words `message`: the token may not write to Actions, the run
+// already finished, or a Forgejo instance too old to have the route.
+// An old Forgejo answers the missing route with a 404, which looks the
+// same as a run that is gone, so it is reported as that and doesn't
+// stop the dialog offering the action.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+func (c *Client) CancelWorkflowRun(ctx context.Context, body CancelWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelWorkflowRunRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8760,6 +8958,46 @@ func NewGetSessionRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewCancelWorkflowRunRequest calls the generic CancelWorkflowRun builder with application/json body
+func NewCancelWorkflowRunRequest(server string, body CancelWorkflowRunJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCancelWorkflowRunRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCancelWorkflowRunRequestWithBody constructs an http.Request for the CancelWorkflowRun method, with any body, and a specified content type
+func NewCancelWorkflowRunRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/checks/cancel-run")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetCheckLogRequest constructs an http.Request for the GetCheckLog method
 func NewGetCheckLogRequest(server string, params *GetCheckLogParams) (*http.Request, error) {
 	var err error
@@ -11222,6 +11460,80 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/auth/session (the `GetSession` operationId).
 	GetSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSessionResponse, error)
 
+	// CancelWorkflowRunWithBodyWithResponse Cancel one running or queued Actions workflow run, on the signed-in user's behalf
+	//
+	// Asks the forge to cancel a whole workflow run: every job of it stops,
+	// because neither GitHub nor Forgejo can stop one job of a running
+	// workflow. A client takes `runId` from a check in a checks list
+	// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
+	// where a job that is still queued or running carries the id and name of
+	// its run. A check with no `runId` (a third-party check, a legacy commit
+	// status, an external CI) belongs to no Actions run and can't be
+	// cancelled here.
+	//
+	// It answers once the forge has accepted the cancel, not when the run
+	// has stopped, so a client shows the run as cancelling and lets the next
+	// snapshot carry the result. A pull request offers it as a `cancel_run`
+	// entry in `allowedActions` while any of its checks is running or
+	// waiting, even when another check has already failed. The list can't
+	// tell an Actions check from an external CI, so a pull request whose
+	// only running check is an external one (on Forgejo, a pending commit
+	// status too) still offers it, and the checks list then has no `runId`
+	// to send.
+	//
+	// It is never queued for a rate-limit reset. After the reset the run may
+	// be a different one, started by a newer push, and a cancel can't be
+	// undone. A rate limit arrives as a 429 and the person decides again.
+	//
+	// Refusals are an `ActionError` (see Merge) and carry the forge's own
+	// plain-words `message`: the token may not write to Actions, the run
+	// already finished, or a Forgejo instance too old to have the route.
+	// An old Forgejo answers the missing route with a 404, which looks the
+	// same as a run that is gone, so it is reported as that and doesn't
+	// stop the dialog offering the action.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+	CancelWorkflowRunWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelWorkflowRunResponse, error)
+
+	// CancelWorkflowRunWithResponse Cancel one running or queued Actions workflow run, on the signed-in user's behalf
+	//
+	// Asks the forge to cancel a whole workflow run: every job of it stops,
+	// because neither GitHub nor Forgejo can stop one job of a running
+	// workflow. A client takes `runId` from a check in a checks list
+	// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
+	// where a job that is still queued or running carries the id and name of
+	// its run. A check with no `runId` (a third-party check, a legacy commit
+	// status, an external CI) belongs to no Actions run and can't be
+	// cancelled here.
+	//
+	// It answers once the forge has accepted the cancel, not when the run
+	// has stopped, so a client shows the run as cancelling and lets the next
+	// snapshot carry the result. A pull request offers it as a `cancel_run`
+	// entry in `allowedActions` while any of its checks is running or
+	// waiting, even when another check has already failed. The list can't
+	// tell an Actions check from an external CI, so a pull request whose
+	// only running check is an external one (on Forgejo, a pending commit
+	// status too) still offers it, and the checks list then has no `runId`
+	// to send.
+	//
+	// It is never queued for a rate-limit reset. After the reset the run may
+	// be a different one, started by a newer push, and a cancel can't be
+	// undone. A rate limit arrives as a 429 and the person decides again.
+	//
+	// Refusals are an `ActionError` (see Merge) and carry the forge's own
+	// plain-words `message`: the token may not write to Actions, the run
+	// already finished, or a Forgejo instance too old to have the route.
+	// An old Forgejo answers the missing route with a 404, which looks the
+	// same as a run that is gone, so it is reported as that and doesn't
+	// stop the dialog offering the action.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+	CancelWorkflowRunWithResponse(ctx context.Context, body CancelWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelWorkflowRunResponse, error)
+
 	// GetCheckLogWithResponse Read the output of one CI job, on demand
 	//
 	// The output behind a `Check` that carries a `jobId`, as plain text: colour
@@ -13464,6 +13776,89 @@ func (r GetSessionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetSessionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CancelWorkflowRunResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *ActionError
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *ActionError
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *ActionError
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *ActionError
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *ActionError
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CancelWorkflowRunResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CancelWorkflowRunResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CancelWorkflowRunResponse) GetJSON403() *ActionError {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CancelWorkflowRunResponse) GetJSON404() *ActionError {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CancelWorkflowRunResponse) GetJSON409() *ActionError {
+	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r CancelWorkflowRunResponse) GetJSON429() *ActionError {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r CancelWorkflowRunResponse) GetJSON502() *ActionError {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r CancelWorkflowRunResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelWorkflowRunResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelWorkflowRunResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CancelWorkflowRunResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -17062,6 +17457,92 @@ func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEdi
 	return ParseGetSessionResponse(rsp)
 }
 
+// CancelWorkflowRunWithBodyWithResponse Cancel one running or queued Actions workflow run, on the signed-in user's behalf
+//
+// Asks the forge to cancel a whole workflow run: every job of it stops,
+// because neither GitHub nor Forgejo can stop one job of a running
+// workflow. A client takes `runId` from a check in a checks list
+// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
+// where a job that is still queued or running carries the id and name of
+// its run. A check with no `runId` (a third-party check, a legacy commit
+// status, an external CI) belongs to no Actions run and can't be
+// cancelled here.
+//
+// It answers once the forge has accepted the cancel, not when the run
+// has stopped, so a client shows the run as cancelling and lets the next
+// snapshot carry the result. A pull request offers it as a `cancel_run`
+// entry in `allowedActions` while any of its checks is running or
+// waiting, even when another check has already failed. The list can't
+// tell an Actions check from an external CI, so a pull request whose
+// only running check is an external one (on Forgejo, a pending commit
+// status too) still offers it, and the checks list then has no `runId`
+// to send.
+//
+// It is never queued for a rate-limit reset. After the reset the run may
+// be a different one, started by a newer push, and a cancel can't be
+// undone. A rate limit arrives as a 429 and the person decides again.
+//
+// Refusals are an `ActionError` (see Merge) and carry the forge's own
+// plain-words `message`: the token may not write to Actions, the run
+// already finished, or a Forgejo instance too old to have the route.
+// An old Forgejo answers the missing route with a 404, which looks the
+// same as a run that is gone, so it is reported as that and doesn't
+// stop the dialog offering the action.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+func (c *ClientWithResponses) CancelWorkflowRunWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelWorkflowRunResponse, error) {
+	rsp, err := c.CancelWorkflowRunWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelWorkflowRunResponse(rsp)
+}
+
+// CancelWorkflowRunWithResponse Cancel one running or queued Actions workflow run, on the signed-in user's behalf
+//
+// Asks the forge to cancel a whole workflow run: every job of it stops,
+// because neither GitHub nor Forgejo can stop one job of a running
+// workflow. A client takes `runId` from a check in a checks list
+// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
+// where a job that is still queued or running carries the id and name of
+// its run. A check with no `runId` (a third-party check, a legacy commit
+// status, an external CI) belongs to no Actions run and can't be
+// cancelled here.
+//
+// It answers once the forge has accepted the cancel, not when the run
+// has stopped, so a client shows the run as cancelling and lets the next
+// snapshot carry the result. A pull request offers it as a `cancel_run`
+// entry in `allowedActions` while any of its checks is running or
+// waiting, even when another check has already failed. The list can't
+// tell an Actions check from an external CI, so a pull request whose
+// only running check is an external one (on Forgejo, a pending commit
+// status too) still offers it, and the checks list then has no `runId`
+// to send.
+//
+// It is never queued for a rate-limit reset. After the reset the run may
+// be a different one, started by a newer push, and a cancel can't be
+// undone. A rate limit arrives as a 429 and the person decides again.
+//
+// Refusals are an `ActionError` (see Merge) and carry the forge's own
+// plain-words `message`: the token may not write to Actions, the run
+// already finished, or a Forgejo instance too old to have the route.
+// An old Forgejo answers the missing route with a 404, which looks the
+// same as a run that is gone, so it is reported as that and doesn't
+// stop the dialog offering the action.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+func (c *ClientWithResponses) CancelWorkflowRunWithResponse(ctx context.Context, body CancelWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelWorkflowRunResponse, error) {
+	rsp, err := c.CancelWorkflowRun(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelWorkflowRunResponse(rsp)
+}
+
 // GetCheckLogWithResponse Read the output of one CI job, on demand
 //
 // The output behind a `Check` that carries a `jobId`, as plain text: colour
@@ -19642,6 +20123,77 @@ func ParseGetSessionResponse(rsp *http.Response) (*GetSessionResponse, error) {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCancelWorkflowRunResponse parses an HTTP response from a CancelWorkflowRunWithResponse call
+func ParseCancelWorkflowRunResponse(rsp *http.Response) (*CancelWorkflowRunResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelWorkflowRunResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
