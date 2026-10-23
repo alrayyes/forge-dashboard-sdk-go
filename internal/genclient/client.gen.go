@@ -2926,6 +2926,15 @@ type RepoStatus struct {
 	// the repo's webhooks worked on the last refresh.
 	CanManageWebhooks bool `json:"canManageWebhooks"`
 
+	// FailingForGood Present and true when failingSince is older than the cutoff the
+	// refresh schedule uses for a repository that keeps failing, a
+	// fixed multiple of the refresh interval. Retrying has not helped
+	// by then. The server works this out when it builds the response,
+	// so a client shows it without doing the arithmetic, and a
+	// repository crosses the cutoff in what the client sees at the
+	// next refresh. Absent otherwise.
+	FailingForGood *bool `json:"failingForGood,omitempty"`
+
 	// FailingSince Present when the last fetch of this repository failed, and the
 	// time of the first failure in the run it is still part of. Its
 	// pull requests and issues are then the last good ones. Absent
@@ -4129,6 +4138,9 @@ type ClientInterface interface {
 	// `description` is Markdown exactly as GitHub stores it, so a client must
 	// render it with raw HTML disabled. A field GitHub didn't send is left
 	// out.
+	//
+	// The same answer is the `get_repository_advisories` tool, over MCP and
+	// WebMCP.
 	//
 	// Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
 	ListAdvisories(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -6207,6 +6219,9 @@ func (c *Client) GetMainBranches(ctx context.Context, reqEditors ...RequestEdito
 // `description` is Markdown exactly as GitHub stores it, so a client must
 // render it with raw HTML disabled. A field GitHub didn't send is left
 // out.
+//
+// The same answer is the `get_repository_advisories` tool, over MCP and
+// WebMCP.
 //
 // Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
 func (c *Client) ListAdvisories(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -11507,6 +11522,9 @@ type ClientWithResponsesInterface interface {
 	// `description` is Markdown exactly as GitHub stores it, so a client must
 	// render it with raw HTML disabled. A field GitHub didn't send is left
 	// out.
+	//
+	// The same answer is the `get_repository_advisories` tool, over MCP and
+	// WebMCP.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -17409,6 +17427,9 @@ func (c *ClientWithResponses) GetMainBranchesWithResponse(ctx context.Context, r
 // `description` is Markdown exactly as GitHub stores it, so a client must
 // render it with raw HTML disabled. A field GitHub didn't send is left
 // out.
+//
+// The same answer is the `get_repository_advisories` tool, over MCP and
+// WebMCP.
 //
 // Returns a wrapper object for the known response body format(s).
 //
