@@ -1615,6 +1615,30 @@ type Issue struct {
 	Url string `json:"url"`
 }
 
+// IssueActionRequest Which issue to act on.
+type IssueActionRequest struct {
+	Forge Forge `json:"forge"`
+
+	// FullName "owner/repo", matching an Issue.repo from GET /api/dashboard.
+	FullName string `json:"fullName"`
+
+	// Number Matching an Issue.number from GET /api/dashboard.
+	Number int `json:"number"`
+}
+
+// IssueCommentRequest Which issue to comment on, and what to say.
+type IssueCommentRequest struct {
+	// Body The comment, as Markdown. Blank text is refused.
+	Body  string `json:"body"`
+	Forge Forge  `json:"forge"`
+
+	// FullName "owner/repo", matching an Issue.repo from GET /api/dashboard.
+	FullName string `json:"fullName"`
+
+	// Number Matching an Issue.number from GET /api/dashboard.
+	Number int `json:"number"`
+}
+
 // IssueDetails What the issue dialog shows.
 type IssueDetails struct {
 	// CommentCount How many comments the forge has on the issue.
@@ -3370,6 +3394,15 @@ type BeginRegistrationJSONRequestBody = RegisterBeginRequest
 // FinishRegistrationJSONRequestBody defines body for FinishRegistration for application/json ContentType.
 type FinishRegistrationJSONRequestBody = WebAuthnCeremonyOptions
 
+// CloseIssueJSONRequestBody defines body for CloseIssue for application/json ContentType.
+type CloseIssueJSONRequestBody = IssueActionRequest
+
+// CommentOnIssueJSONRequestBody defines body for CommentOnIssue for application/json ContentType.
+type CommentOnIssueJSONRequestBody = IssueCommentRequest
+
+// ReopenIssueJSONRequestBody defines body for ReopenIssue for application/json ContentType.
+type ReopenIssueJSONRequestBody = IssueActionRequest
+
 // RerunMainBranchChecksJSONRequestBody defines body for RerunMainBranchChecks for application/json ContentType.
 type RerunMainBranchChecksJSONRequestBody = MainBranchRerunRequest
 
@@ -3738,6 +3771,98 @@ type ClientInterface interface {
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CloseIssueWithBody Close one issue, on the signed-in user's behalf
+	//
+	// Closes the named issue. The Issues page's dialog offers it, on its own
+	// or after posting a comment with `POST /api/issues/comment`. Closing an
+	// issue that is already closed is not refused: both forges treat it as
+	// done, so the call succeeds and there is no `already_closed` answer.
+	//
+	// A refusal is an `ActionError` classified from the forge's own answer:
+	// `permission`, `rate_limited`, `forge_error`, or `unknown` with a
+	// plain-words `message`. An issue has no allowed-actions list and no
+	// re-read, unlike a pull request.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+	CloseIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CloseIssue Close one issue, on the signed-in user's behalf
+	//
+	// Closes the named issue. The Issues page's dialog offers it, on its own
+	// or after posting a comment with `POST /api/issues/comment`. Closing an
+	// issue that is already closed is not refused: both forges treat it as
+	// done, so the call succeeds and there is no `already_closed` answer.
+	//
+	// A refusal is an `ActionError` classified from the forge's own answer:
+	// `permission`, `rate_limited`, `forge_error`, or `unknown` with a
+	// plain-words `message`. An issue has no allowed-actions list and no
+	// re-read, unlike a pull request.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+	CloseIssue(ctx context.Context, body CloseIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CommentOnIssueWithBody Post a comment on one issue, on the signed-in user's behalf
+	//
+	// Posts `body` as a comment on the named issue. The dialog's "Close with
+	// a comment" calls this first and Close second, so when the second call
+	// fails the page knows the comment is already there and offers only the
+	// close again. On GitHub, with the App as the credential and a personal
+	// token saved beside it, the comment is posted as that person.
+	//
+	// A refusal is an `ActionError`, classified as for Close.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+	CommentOnIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CommentOnIssue Post a comment on one issue, on the signed-in user's behalf
+	//
+	// Posts `body` as a comment on the named issue. The dialog's "Close with
+	// a comment" calls this first and Close second, so when the second call
+	// fails the page knows the comment is already there and offers only the
+	// close again. On GitHub, with the App as the credential and a personal
+	// token saved beside it, the comment is posted as that person.
+	//
+	// A refusal is an `ActionError`, classified as for Close.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+	CommentOnIssue(ctx context.Context, body CommentOnIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetIssueDetails Read an issue's description, comments and reactions, on demand
 	//
 	// What the issue dialog shows: the description, the conversation in
@@ -3766,6 +3891,44 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/issues/details (the `GetIssueDetails` operationId).
 	GetIssueDetails(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReopenIssueWithBody Reopen one issue that was closed, on the signed-in user's behalf
+	//
+	// Reopens the named issue: the undo the dialog offers right after a
+	// close. Reopening one that is already open is not refused.
+	//
+	// A refusal is an `ActionError`, classified as for Close.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+	ReopenIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReopenIssue Reopen one issue that was closed, on the signed-in user's behalf
+	//
+	// Reopens the named issue: the undo the dialog offers right after a
+	// close. Reopening one that is already open is not refused.
+	//
+	// A refusal is an `ActionError`, classified as for Close.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+	ReopenIssue(ctx context.Context, body ReopenIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetMainBranches The CI status of every tracked repository's default branch
 	//
@@ -5565,6 +5728,138 @@ func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardPar
 	return c.Client.Do(req)
 }
 
+// CloseIssueWithBody Close one issue, on the signed-in user's behalf
+//
+// Closes the named issue. The Issues page's dialog offers it, on its own
+// or after posting a comment with `POST /api/issues/comment`. Closing an
+// issue that is already closed is not refused: both forges treat it as
+// done, so the call succeeds and there is no `already_closed` answer.
+//
+// A refusal is an `ActionError` classified from the forge's own answer:
+// `permission`, `rate_limited`, `forge_error`, or `unknown` with a
+// plain-words `message`. An issue has no allowed-actions list and no
+// re-read, unlike a pull request.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+func (c *Client) CloseIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCloseIssueRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CloseIssue Close one issue, on the signed-in user's behalf
+//
+// Closes the named issue. The Issues page's dialog offers it, on its own
+// or after posting a comment with `POST /api/issues/comment`. Closing an
+// issue that is already closed is not refused: both forges treat it as
+// done, so the call succeeds and there is no `already_closed` answer.
+//
+// A refusal is an `ActionError` classified from the forge's own answer:
+// `permission`, `rate_limited`, `forge_error`, or `unknown` with a
+// plain-words `message`. An issue has no allowed-actions list and no
+// re-read, unlike a pull request.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+func (c *Client) CloseIssue(ctx context.Context, body CloseIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCloseIssueRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CommentOnIssueWithBody Post a comment on one issue, on the signed-in user's behalf
+//
+// Posts `body` as a comment on the named issue. The dialog's "Close with
+// a comment" calls this first and Close second, so when the second call
+// fails the page knows the comment is already there and offers only the
+// close again. On GitHub, with the App as the credential and a personal
+// token saved beside it, the comment is posted as that person.
+//
+// A refusal is an `ActionError`, classified as for Close.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+func (c *Client) CommentOnIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCommentOnIssueRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CommentOnIssue Post a comment on one issue, on the signed-in user's behalf
+//
+// Posts `body` as a comment on the named issue. The dialog's "Close with
+// a comment" calls this first and Close second, so when the second call
+// fails the page knows the comment is already there and offers only the
+// close again. On GitHub, with the App as the credential and a personal
+// token saved beside it, the comment is posted as that person.
+//
+// A refusal is an `ActionError`, classified as for Close.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+func (c *Client) CommentOnIssue(ctx context.Context, body CommentOnIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCommentOnIssueRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // GetIssueDetails Read an issue's description, comments and reactions, on demand
 //
 // What the issue dialog shows: the description, the conversation in
@@ -5594,6 +5889,64 @@ func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardPar
 // Corresponds with GET /api/issues/details (the `GetIssueDetails` operationId).
 func (c *Client) GetIssueDetails(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetIssueDetailsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReopenIssueWithBody Reopen one issue that was closed, on the signed-in user's behalf
+//
+// Reopens the named issue: the undo the dialog offers right after a
+// close. Reopening one that is already open is not refused.
+//
+// A refusal is an `ActionError`, classified as for Close.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+func (c *Client) ReopenIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReopenIssueRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReopenIssue Reopen one issue that was closed, on the signed-in user's behalf
+//
+// Reopens the named issue: the undo the dialog offers right after a
+// close. Reopening one that is already open is not refused.
+//
+// A refusal is an `ActionError`, classified as for Close.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+func (c *Client) ReopenIssue(ctx context.Context, body ReopenIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReopenIssueRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8425,6 +8778,86 @@ func NewStreamDashboardRequest(server string, params *StreamDashboardParams) (*h
 	return req, nil
 }
 
+// NewCloseIssueRequest calls the generic CloseIssue builder with application/json body
+func NewCloseIssueRequest(server string, body CloseIssueJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCloseIssueRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCloseIssueRequestWithBody constructs an http.Request for the CloseIssue method, with any body, and a specified content type
+func NewCloseIssueRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/issues/close")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCommentOnIssueRequest calls the generic CommentOnIssue builder with application/json body
+func NewCommentOnIssueRequest(server string, body CommentOnIssueJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCommentOnIssueRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCommentOnIssueRequestWithBody constructs an http.Request for the CommentOnIssue method, with any body, and a specified content type
+func NewCommentOnIssueRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/issues/comment")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetIssueDetailsRequest constructs an http.Request for the GetIssueDetails method
 func NewGetIssueDetailsRequest(server string, params *GetIssueDetailsParams) (*http.Request, error) {
 	var err error
@@ -8487,6 +8920,46 @@ func NewGetIssueDetailsRequest(server string, params *GetIssueDetailsParams) (*h
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewReopenIssueRequest calls the generic ReopenIssue builder with application/json body
+func NewReopenIssueRequest(server string, body ReopenIssueJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReopenIssueRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewReopenIssueRequestWithBody constructs an http.Request for the ReopenIssue method, with any body, and a specified content type
+func NewReopenIssueRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/issues/reopen")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -10510,6 +10983,98 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboardWithResponse(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*StreamDashboardResponse, error)
 
+	// CloseIssueWithBodyWithResponse Close one issue, on the signed-in user's behalf
+	//
+	// Closes the named issue. The Issues page's dialog offers it, on its own
+	// or after posting a comment with `POST /api/issues/comment`. Closing an
+	// issue that is already closed is not refused: both forges treat it as
+	// done, so the call succeeds and there is no `already_closed` answer.
+	//
+	// A refusal is an `ActionError` classified from the forge's own answer:
+	// `permission`, `rate_limited`, `forge_error`, or `unknown` with a
+	// plain-words `message`. An issue has no allowed-actions list and no
+	// re-read, unlike a pull request.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+	CloseIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CloseIssueResponse, error)
+
+	// CloseIssueWithResponse Close one issue, on the signed-in user's behalf
+	//
+	// Closes the named issue. The Issues page's dialog offers it, on its own
+	// or after posting a comment with `POST /api/issues/comment`. Closing an
+	// issue that is already closed is not refused: both forges treat it as
+	// done, so the call succeeds and there is no `already_closed` answer.
+	//
+	// A refusal is an `ActionError` classified from the forge's own answer:
+	// `permission`, `rate_limited`, `forge_error`, or `unknown` with a
+	// plain-words `message`. An issue has no allowed-actions list and no
+	// re-read, unlike a pull request.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+	CloseIssueWithResponse(ctx context.Context, body CloseIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*CloseIssueResponse, error)
+
+	// CommentOnIssueWithBodyWithResponse Post a comment on one issue, on the signed-in user's behalf
+	//
+	// Posts `body` as a comment on the named issue. The dialog's "Close with
+	// a comment" calls this first and Close second, so when the second call
+	// fails the page knows the comment is already there and offers only the
+	// close again. On GitHub, with the App as the credential and a personal
+	// token saved beside it, the comment is posted as that person.
+	//
+	// A refusal is an `ActionError`, classified as for Close.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+	CommentOnIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CommentOnIssueResponse, error)
+
+	// CommentOnIssueWithResponse Post a comment on one issue, on the signed-in user's behalf
+	//
+	// Posts `body` as a comment on the named issue. The dialog's "Close with
+	// a comment" calls this first and Close second, so when the second call
+	// fails the page knows the comment is already there and offers only the
+	// close again. On GitHub, with the App as the credential and a personal
+	// token saved beside it, the comment is posted as that person.
+	//
+	// A refusal is an `ActionError`, classified as for Close.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+	CommentOnIssueWithResponse(ctx context.Context, body CommentOnIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*CommentOnIssueResponse, error)
+
 	// GetIssueDetailsWithResponse Read an issue's description, comments and reactions, on demand
 	//
 	// What the issue dialog shows: the description, the conversation in
@@ -10540,6 +11105,44 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/issues/details (the `GetIssueDetails` operationId).
 	GetIssueDetailsWithResponse(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*GetIssueDetailsResponse, error)
+
+	// ReopenIssueWithBodyWithResponse Reopen one issue that was closed, on the signed-in user's behalf
+	//
+	// Reopens the named issue: the undo the dialog offers right after a
+	// close. Reopening one that is already open is not refused.
+	//
+	// A refusal is an `ActionError`, classified as for Close.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+	ReopenIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReopenIssueResponse, error)
+
+	// ReopenIssueWithResponse Reopen one issue that was closed, on the signed-in user's behalf
+	//
+	// Reopens the named issue: the undo the dialog offers right after a
+	// close. Reopening one that is already open is not refused.
+	//
+	// A refusal is an `ActionError`, classified as for Close.
+	//
+	// Closing, reopening and commenting change the issue, so they need write
+	// access to issues, which reading does not: a GitHub token's Issues
+	// permission (or the App's) set to Read and write, or a Forgejo token's
+	// `write:issue` scope. Without it the forge answers 403 and this
+	// endpoint answers an `ActionError` with `code` `permission`, whose
+	// `message` names what to add.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+	ReopenIssueWithResponse(ctx context.Context, body ReopenIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*ReopenIssueResponse, error)
 
 	// GetMainBranchesWithResponse The CI status of every tracked repository's default branch
 	//
@@ -12731,6 +13334,158 @@ func (r StreamDashboardResponse) ContentType() string {
 	return ""
 }
 
+type CloseIssueResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *ActionError
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *ActionError
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *ActionError
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *ActionError
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CloseIssueResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CloseIssueResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CloseIssueResponse) GetJSON403() *ActionError {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CloseIssueResponse) GetJSON404() *ActionError {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r CloseIssueResponse) GetJSON429() *ActionError {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r CloseIssueResponse) GetJSON502() *ActionError {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r CloseIssueResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CloseIssueResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CloseIssueResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CloseIssueResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CommentOnIssueResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *ActionError
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *ActionError
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *ActionError
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *ActionError
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CommentOnIssueResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CommentOnIssueResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CommentOnIssueResponse) GetJSON403() *ActionError {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CommentOnIssueResponse) GetJSON404() *ActionError {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r CommentOnIssueResponse) GetJSON429() *ActionError {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r CommentOnIssueResponse) GetJSON502() *ActionError {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r CommentOnIssueResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CommentOnIssueResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CommentOnIssueResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CommentOnIssueResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetIssueDetailsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -12808,6 +13563,82 @@ func (r GetIssueDetailsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetIssueDetailsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ReopenIssueResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *ActionError
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *ActionError
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *ActionError
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *ActionError
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ReopenIssueResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ReopenIssueResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ReopenIssueResponse) GetJSON403() *ActionError {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ReopenIssueResponse) GetJSON404() *ActionError {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r ReopenIssueResponse) GetJSON429() *ActionError {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r ReopenIssueResponse) GetJSON502() *ActionError {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r ReopenIssueResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReopenIssueResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReopenIssueResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReopenIssueResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -15880,6 +16711,122 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 	return ParseStreamDashboardResponse(rsp)
 }
 
+// CloseIssueWithBodyWithResponse Close one issue, on the signed-in user's behalf
+//
+// Closes the named issue. The Issues page's dialog offers it, on its own
+// or after posting a comment with `POST /api/issues/comment`. Closing an
+// issue that is already closed is not refused: both forges treat it as
+// done, so the call succeeds and there is no `already_closed` answer.
+//
+// A refusal is an `ActionError` classified from the forge's own answer:
+// `permission`, `rate_limited`, `forge_error`, or `unknown` with a
+// plain-words `message`. An issue has no allowed-actions list and no
+// re-read, unlike a pull request.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+func (c *ClientWithResponses) CloseIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CloseIssueResponse, error) {
+	rsp, err := c.CloseIssueWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCloseIssueResponse(rsp)
+}
+
+// CloseIssueWithResponse Close one issue, on the signed-in user's behalf
+//
+// Closes the named issue. The Issues page's dialog offers it, on its own
+// or after posting a comment with `POST /api/issues/comment`. Closing an
+// issue that is already closed is not refused: both forges treat it as
+// done, so the call succeeds and there is no `already_closed` answer.
+//
+// A refusal is an `ActionError` classified from the forge's own answer:
+// `permission`, `rate_limited`, `forge_error`, or `unknown` with a
+// plain-words `message`. An issue has no allowed-actions list and no
+// re-read, unlike a pull request.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+func (c *ClientWithResponses) CloseIssueWithResponse(ctx context.Context, body CloseIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*CloseIssueResponse, error) {
+	rsp, err := c.CloseIssue(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCloseIssueResponse(rsp)
+}
+
+// CommentOnIssueWithBodyWithResponse Post a comment on one issue, on the signed-in user's behalf
+//
+// Posts `body` as a comment on the named issue. The dialog's "Close with
+// a comment" calls this first and Close second, so when the second call
+// fails the page knows the comment is already there and offers only the
+// close again. On GitHub, with the App as the credential and a personal
+// token saved beside it, the comment is posted as that person.
+//
+// A refusal is an `ActionError`, classified as for Close.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+func (c *ClientWithResponses) CommentOnIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CommentOnIssueResponse, error) {
+	rsp, err := c.CommentOnIssueWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCommentOnIssueResponse(rsp)
+}
+
+// CommentOnIssueWithResponse Post a comment on one issue, on the signed-in user's behalf
+//
+// Posts `body` as a comment on the named issue. The dialog's "Close with
+// a comment" calls this first and Close second, so when the second call
+// fails the page knows the comment is already there and offers only the
+// close again. On GitHub, with the App as the credential and a personal
+// token saved beside it, the comment is posted as that person.
+//
+// A refusal is an `ActionError`, classified as for Close.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+func (c *ClientWithResponses) CommentOnIssueWithResponse(ctx context.Context, body CommentOnIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*CommentOnIssueResponse, error) {
+	rsp, err := c.CommentOnIssue(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCommentOnIssueResponse(rsp)
+}
+
 // GetIssueDetailsWithResponse Read an issue's description, comments and reactions, on demand
 //
 // What the issue dialog shows: the description, the conversation in
@@ -15915,6 +16862,56 @@ func (c *ClientWithResponses) GetIssueDetailsWithResponse(ctx context.Context, p
 		return nil, err
 	}
 	return ParseGetIssueDetailsResponse(rsp)
+}
+
+// ReopenIssueWithBodyWithResponse Reopen one issue that was closed, on the signed-in user's behalf
+//
+// Reopens the named issue: the undo the dialog offers right after a
+// close. Reopening one that is already open is not refused.
+//
+// A refusal is an `ActionError`, classified as for Close.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+func (c *ClientWithResponses) ReopenIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReopenIssueResponse, error) {
+	rsp, err := c.ReopenIssueWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReopenIssueResponse(rsp)
+}
+
+// ReopenIssueWithResponse Reopen one issue that was closed, on the signed-in user's behalf
+//
+// Reopens the named issue: the undo the dialog offers right after a
+// close. Reopening one that is already open is not refused.
+//
+// A refusal is an `ActionError`, classified as for Close.
+//
+// Closing, reopening and commenting change the issue, so they need write
+// access to issues, which reading does not: a GitHub token's Issues
+// permission (or the App's) set to Read and write, or a Forgejo token's
+// `write:issue` scope. Without it the forge answers 403 and this
+// endpoint answers an `ActionError` with `code` `permission`, whose
+// `message` names what to add.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+func (c *ClientWithResponses) ReopenIssueWithResponse(ctx context.Context, body ReopenIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*ReopenIssueResponse, error) {
+	rsp, err := c.ReopenIssue(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReopenIssueResponse(rsp)
 }
 
 // GetMainBranchesWithResponse The CI status of every tracked repository's default branch
@@ -18319,6 +19316,134 @@ func ParseStreamDashboardResponse(rsp *http.Response) (*StreamDashboardResponse,
 	return response, nil
 }
 
+// ParseCloseIssueResponse parses an HTTP response from a CloseIssueWithResponse call
+func ParseCloseIssueResponse(rsp *http.Response) (*CloseIssueResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CloseIssueResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCommentOnIssueResponse parses an HTTP response from a CommentOnIssueWithResponse call
+func ParseCommentOnIssueResponse(rsp *http.Response) (*CommentOnIssueResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CommentOnIssueResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetIssueDetailsResponse parses an HTTP response from a GetIssueDetailsWithResponse call
 func ParseGetIssueDetailsResponse(rsp *http.Response) (*GetIssueDetailsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -18377,6 +19502,70 @@ func ParseGetIssueDetailsResponse(rsp *http.Response) (*GetIssueDetailsResponse,
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
 		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReopenIssueResponse parses an HTTP response from a ReopenIssueWithResponse call
+func ParseReopenIssueResponse(rsp *http.Response) (*ReopenIssueResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReopenIssueResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ActionError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
