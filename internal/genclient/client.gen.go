@@ -1465,7 +1465,7 @@ type Credential struct {
 	// Id This passkey's own credential ID (base64url), distinct from the account's user ID.
 	Id string `json:"id"`
 
-	// Label The name given at registration time, so a list of several is tellable apart.
+	// Label The passkey's name, given at registration and changeable with `PATCH /api/auth/credentials/{id}`. Empty when it was never named; clients then fall back to `createdAt`.
 	Label string `json:"label"`
 }
 
@@ -2972,6 +2972,12 @@ type ReleaseDetails struct {
 	Url string `json:"url"`
 }
 
+// RenameCredentialRequest defines model for RenameCredentialRequest.
+type RenameCredentialRequest struct {
+	// Label The new name. Trimmed first; blank is refused.
+	Label string `json:"label"`
+}
+
 // RepoIgnoreRequest Which repo to ignore, and in which scope(s). At least one
 // of prs/issues must be true — a request with both false is
 // rejected with 400 rather than silently doing nothing; use POST
@@ -3608,6 +3614,9 @@ type ReceiveGitHubWebhookJSONBody = map[string]interface{}
 // FinishAddCredentialJSONRequestBody defines body for FinishAddCredential for application/json ContentType.
 type FinishAddCredentialJSONRequestBody = WebAuthnCeremonyOptions
 
+// RenameCredentialJSONRequestBody defines body for RenameCredential for application/json ContentType.
+type RenameCredentialJSONRequestBody = RenameCredentialRequest
+
 // FinishLoginJSONRequestBody defines body for FinishLogin for application/json ContentType.
 type FinishLoginJSONRequestBody = WebAuthnCeremonyOptions
 
@@ -3825,6 +3834,32 @@ type ClientInterface interface {
 	//
 	// Corresponds with DELETE /api/auth/credentials/{id} (the `DeleteCredential` operationId).
 	DeleteCredential(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RenameCredentialWithBody Rename one of the signed-in user's own passkeys
+	//
+	// Changes the name a passkey is listed under, so several can be told
+	// apart (a password manager and a security key, say). The name is
+	// trimmed first, then must be 1 to 64 characters. It is a plain label:
+	// clients show it as text, never as markup. Only the name changes;
+	// which passkeys can sign in does not.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+	RenameCredentialWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RenameCredential Rename one of the signed-in user's own passkeys
+	//
+	// Changes the name a passkey is listed under, so several can be told
+	// apart (a password manager and a security key, say). The name is
+	// trimmed first, then must be 1 to 64 characters. It is a plain label:
+	// clients show it as text, never as markup. Only the name changes;
+	// which passkeys can sign in does not.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+	RenameCredential(ctx context.Context, id string, body RenameCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// BeginLogin Start a passkey login ceremony
 	//
@@ -5831,6 +5866,52 @@ func (c *Client) FinishAddCredential(ctx context.Context, params *FinishAddCrede
 // Corresponds with DELETE /api/auth/credentials/{id} (the `DeleteCredential` operationId).
 func (c *Client) DeleteCredential(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteCredentialRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RenameCredentialWithBody Rename one of the signed-in user's own passkeys
+//
+// Changes the name a passkey is listed under, so several can be told
+// apart (a password manager and a security key, say). The name is
+// trimmed first, then must be 1 to 64 characters. It is a plain label:
+// clients show it as text, never as markup. Only the name changes;
+// which passkeys can sign in does not.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+func (c *Client) RenameCredentialWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRenameCredentialRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RenameCredential Rename one of the signed-in user's own passkeys
+//
+// Changes the name a passkey is listed under, so several can be told
+// apart (a password manager and a security key, say). The name is
+// trimmed first, then must be 1 to 64 characters. It is a plain label:
+// clients show it as text, never as markup. Only the name changes;
+// which passkeys can sign in does not.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+func (c *Client) RenameCredential(ctx context.Context, id string, body RenameCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRenameCredentialRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8884,6 +8965,53 @@ func NewDeleteCredentialRequest(server string, id string) (*http.Request, error)
 	return req, nil
 }
 
+// NewRenameCredentialRequest calls the generic RenameCredential builder with application/json body
+func NewRenameCredentialRequest(server string, id string, body RenameCredentialJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRenameCredentialRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewRenameCredentialRequestWithBody constructs an http.Request for the RenameCredential method, with any body, and a specified content type
+func NewRenameCredentialRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/credentials/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewBeginLoginRequest constructs an http.Request for the BeginLogin method
 func NewBeginLoginRequest(server string) (*http.Request, error) {
 	var err error
@@ -11548,6 +11676,32 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with DELETE /api/auth/credentials/{id} (the `DeleteCredential` operationId).
 	DeleteCredentialWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteCredentialResponse, error)
 
+	// RenameCredentialWithBodyWithResponse Rename one of the signed-in user's own passkeys
+	//
+	// Changes the name a passkey is listed under, so several can be told
+	// apart (a password manager and a security key, say). The name is
+	// trimmed first, then must be 1 to 64 characters. It is a plain label:
+	// clients show it as text, never as markup. Only the name changes;
+	// which passkeys can sign in does not.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+	RenameCredentialWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameCredentialResponse, error)
+
+	// RenameCredentialWithResponse Rename one of the signed-in user's own passkeys
+	//
+	// Changes the name a passkey is listed under, so several can be told
+	// apart (a password manager and a security key, say). The name is
+	// trimmed first, then must be 1 to 64 characters. It is a plain label:
+	// clients show it as text, never as markup. Only the name changes;
+	// which passkeys can sign in does not.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+	RenameCredentialWithResponse(ctx context.Context, id string, body RenameCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameCredentialResponse, error)
+
 	// BeginLoginWithResponse Start a passkey login ceremony
 	//
 	// An instance has one user, so there is nothing to name and the request
@@ -13722,6 +13876,68 @@ func (r DeleteCredentialResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r DeleteCredentialResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RenameCredentialResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Credential
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RenameCredentialResponse) GetJSON200() *Credential {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r RenameCredentialResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RenameCredentialResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RenameCredentialResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r RenameCredentialResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RenameCredentialResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RenameCredentialResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RenameCredentialResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -17649,6 +17865,44 @@ func (c *ClientWithResponses) DeleteCredentialWithResponse(ctx context.Context, 
 	return ParseDeleteCredentialResponse(rsp)
 }
 
+// RenameCredentialWithBodyWithResponse Rename one of the signed-in user's own passkeys
+//
+// Changes the name a passkey is listed under, so several can be told
+// apart (a password manager and a security key, say). The name is
+// trimmed first, then must be 1 to 64 characters. It is a plain label:
+// clients show it as text, never as markup. Only the name changes;
+// which passkeys can sign in does not.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+func (c *ClientWithResponses) RenameCredentialWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameCredentialResponse, error) {
+	rsp, err := c.RenameCredentialWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRenameCredentialResponse(rsp)
+}
+
+// RenameCredentialWithResponse Rename one of the signed-in user's own passkeys
+//
+// Changes the name a passkey is listed under, so several can be told
+// apart (a password manager and a security key, say). The name is
+// trimmed first, then must be 1 to 64 characters. It is a plain label:
+// clients show it as text, never as markup. Only the name changes;
+// which passkeys can sign in does not.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+func (c *ClientWithResponses) RenameCredentialWithResponse(ctx context.Context, id string, body RenameCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameCredentialResponse, error) {
+	rsp, err := c.RenameCredential(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRenameCredentialResponse(rsp)
+}
+
 // BeginLoginWithResponse Start a passkey login ceremony
 //
 // An instance has one user, so there is nothing to name and the request
@@ -20347,6 +20601,53 @@ func ParseDeleteCredentialResponse(rsp *http.Response) (*DeleteCredentialRespons
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRenameCredentialResponse parses an HTTP response from a RenameCredentialWithResponse call
+func ParseRenameCredentialResponse(rsp *http.Response) (*RenameCredentialResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RenameCredentialResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Credential
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
