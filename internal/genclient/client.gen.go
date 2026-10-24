@@ -1717,6 +1717,9 @@ type ForgeHealth struct {
 	// RepoCount Repositories with write access this forge reported.
 	RepoCount int `json:"repoCount"`
 
+	// RerunChecksBlocked Why this forge can't rerun checks. Set only for a Forgejo whose version is 7 to 16, which has no API route for it; a version below 7 may be a Gitea and is left to the forge. The version is read in the background, read again after an hour while it blocks, and retried after a failed read or one that gives no number. A block that has gone stale is dropped when the read fails. Rerun failed checks is not offered for the forge, and the page shows this text where the button would be. Omitted when rerunning works or the version could not be read.
+	RerunChecksBlocked *string `json:"rerunChecksBlocked,omitempty"`
+
 	// StaleSince Present when the last refresh against this forge failed, or the
 	// forge has not been asked yet since the app started (see
 	// starting), and the pull requests, issues and repos in the
@@ -4319,7 +4322,9 @@ type ClientInterface interface {
 	// A Main branches row offers it when its `status` is `failed`. A failed
 	// check that isn't an Actions job (a third-party check, a legacy status,
 	// an external CI) can't be rerun here and is skipped. Refusals are an
-	// `ActionError`; a 409 means the branch has no failed job to rerun.
+	// `ActionError`; a 409 means the branch has no failed job to rerun, or
+	// that the forge is a Forgejo older than version 17, which has no rerun
+	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -4337,7 +4342,9 @@ type ClientInterface interface {
 	// A Main branches row offers it when its `status` is `failed`. A failed
 	// check that isn't an Actions job (a third-party check, a legacy status,
 	// an external CI) can't be rerun here and is skipped. Refusals are an
-	// `ActionError`; a 409 means the branch has no failed job to rerun.
+	// `ActionError`; a 409 means the branch has no failed job to rerun, or
+	// that the forge is a Forgejo older than version 17, which has no rerun
+	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -4915,8 +4922,18 @@ type ClientInterface interface {
 	// Forgejo commit status doesn't say which workflow run it came from, so
 	// Forgejo's runs are found by the head commit instead. A failed check
 	// that isn't an Actions job (a third-party check, a legacy status, an
-	// external CI) can't be rerun here and is skipped. A Forgejo instance
-	// too old to have the rerun route refuses with its own words.
+	// external CI) can't be rerun here and is skipped. On Forgejo the
+	// jobs of each failed run are listed and each failed job is rerun
+	// by itself; Forgejo restarts the jobs that need it, so a job that
+	// passed but waits on a failed one goes again too. Forgejo
+	// gained the rerun routes in version 17; an older instance answers 409
+	// with a plain sentence and sends no rerun request to the forge (the
+	// pull request and its runs are still looked up first), and says so up
+	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
+	// appears in `allowedActions` for such a Forgejo: a caller learns of
+	// the block from that health entry or from the 409. The block is per
+	// forge kind, so with an old and a new Forgejo side by side the 409
+	// answers a click on the old one.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -4941,8 +4958,18 @@ type ClientInterface interface {
 	// Forgejo commit status doesn't say which workflow run it came from, so
 	// Forgejo's runs are found by the head commit instead. A failed check
 	// that isn't an Actions job (a third-party check, a legacy status, an
-	// external CI) can't be rerun here and is skipped. A Forgejo instance
-	// too old to have the rerun route refuses with its own words.
+	// external CI) can't be rerun here and is skipped. On Forgejo the
+	// jobs of each failed run are listed and each failed job is rerun
+	// by itself; Forgejo restarts the jobs that need it, so a job that
+	// passed but waits on a failed one goes again too. Forgejo
+	// gained the rerun routes in version 17; an older instance answers 409
+	// with a plain sentence and sends no rerun request to the forge (the
+	// pull request and its runs are still looked up first), and says so up
+	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
+	// appears in `allowedActions` for such a Forgejo: a caller learns of
+	// the block from that health entry or from the 409. The block is per
+	// forge kind, so with an old and a new Forgejo side by side the 409
+	// answers a click on the old one.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -6521,7 +6548,9 @@ func (c *Client) GetMainBranchChecks(ctx context.Context, params *GetMainBranchC
 // A Main branches row offers it when its `status` is `failed`. A failed
 // check that isn't an Actions job (a third-party check, a legacy status,
 // an external CI) can't be rerun here and is skipped. Refusals are an
-// `ActionError`; a 409 means the branch has no failed job to rerun.
+// `ActionError`; a 409 means the branch has no failed job to rerun, or
+// that the forge is a Forgejo older than version 17, which has no rerun
+// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
 //
 // Takes any type of body and a specified content type.
 //
@@ -6549,7 +6578,9 @@ func (c *Client) RerunMainBranchChecksWithBody(ctx context.Context, contentType 
 // A Main branches row offers it when its `status` is `failed`. A failed
 // check that isn't an Actions job (a third-party check, a legacy status,
 // an external CI) can't be rerun here and is skipped. Refusals are an
-// `ActionError`; a 409 means the branch has no failed job to rerun.
+// `ActionError`; a 409 means the branch has no failed job to rerun, or
+// that the forge is a Forgejo older than version 17, which has no rerun
+// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
 //
 // Takes a body of the `application/json` content type.
 //
@@ -7357,8 +7388,18 @@ func (c *Client) ReopenPullRequest(ctx context.Context, body ReopenPullRequestJS
 // Forgejo commit status doesn't say which workflow run it came from, so
 // Forgejo's runs are found by the head commit instead. A failed check
 // that isn't an Actions job (a third-party check, a legacy status, an
-// external CI) can't be rerun here and is skipped. A Forgejo instance
-// too old to have the rerun route refuses with its own words.
+// external CI) can't be rerun here and is skipped. On Forgejo the
+// jobs of each failed run are listed and each failed job is rerun
+// by itself; Forgejo restarts the jobs that need it, so a job that
+// passed but waits on a failed one goes again too. Forgejo
+// gained the rerun routes in version 17; an older instance answers 409
+// with a plain sentence and sends no rerun request to the forge (the
+// pull request and its runs are still looked up first), and says so up
+// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
+// appears in `allowedActions` for such a Forgejo: a caller learns of
+// the block from that health entry or from the 409. The block is per
+// forge kind, so with an old and a new Forgejo side by side the 409
+// answers a click on the old one.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
@@ -7393,8 +7434,18 @@ func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType
 // Forgejo commit status doesn't say which workflow run it came from, so
 // Forgejo's runs are found by the head commit instead. A failed check
 // that isn't an Actions job (a third-party check, a legacy status, an
-// external CI) can't be rerun here and is skipped. A Forgejo instance
-// too old to have the rerun route refuses with its own words.
+// external CI) can't be rerun here and is skipped. On Forgejo the
+// jobs of each failed run are listed and each failed job is rerun
+// by itself; Forgejo restarts the jobs that need it, so a job that
+// passed but waits on a failed one goes again too. Forgejo
+// gained the rerun routes in version 17; an older instance answers 409
+// with a plain sentence and sends no rerun request to the forge (the
+// pull request and its runs are still looked up first), and says so up
+// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
+// appears in `allowedActions` for such a Forgejo: a caller learns of
+// the block from that health entry or from the 409. The block is per
+// forge kind, so with an old and a new Forgejo side by side the 409
+// answers a click on the old one.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
@@ -11929,7 +11980,9 @@ type ClientWithResponsesInterface interface {
 	// A Main branches row offers it when its `status` is `failed`. A failed
 	// check that isn't an Actions job (a third-party check, a legacy status,
 	// an external CI) can't be rerun here and is skipped. Refusals are an
-	// `ActionError`; a 409 means the branch has no failed job to rerun.
+	// `ActionError`; a 409 means the branch has no failed job to rerun, or
+	// that the forge is a Forgejo older than version 17, which has no rerun
+	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -11947,7 +12000,9 @@ type ClientWithResponsesInterface interface {
 	// A Main branches row offers it when its `status` is `failed`. A failed
 	// check that isn't an Actions job (a third-party check, a legacy status,
 	// an external CI) can't be rerun here and is skipped. Refusals are an
-	// `ActionError`; a 409 means the branch has no failed job to rerun.
+	// `ActionError`; a 409 means the branch has no failed job to rerun, or
+	// that the forge is a Forgejo older than version 17, which has no rerun
+	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -12529,8 +12584,18 @@ type ClientWithResponsesInterface interface {
 	// Forgejo commit status doesn't say which workflow run it came from, so
 	// Forgejo's runs are found by the head commit instead. A failed check
 	// that isn't an Actions job (a third-party check, a legacy status, an
-	// external CI) can't be rerun here and is skipped. A Forgejo instance
-	// too old to have the rerun route refuses with its own words.
+	// external CI) can't be rerun here and is skipped. On Forgejo the
+	// jobs of each failed run are listed and each failed job is rerun
+	// by itself; Forgejo restarts the jobs that need it, so a job that
+	// passed but waits on a failed one goes again too. Forgejo
+	// gained the rerun routes in version 17; an older instance answers 409
+	// with a plain sentence and sends no rerun request to the forge (the
+	// pull request and its runs are still looked up first), and says so up
+	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
+	// appears in `allowedActions` for such a Forgejo: a caller learns of
+	// the block from that health entry or from the 409. The block is per
+	// forge kind, so with an old and a new Forgejo side by side the 409
+	// answers a click on the old one.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -12555,8 +12620,18 @@ type ClientWithResponsesInterface interface {
 	// Forgejo commit status doesn't say which workflow run it came from, so
 	// Forgejo's runs are found by the head commit instead. A failed check
 	// that isn't an Actions job (a third-party check, a legacy status, an
-	// external CI) can't be rerun here and is skipped. A Forgejo instance
-	// too old to have the rerun route refuses with its own words.
+	// external CI) can't be rerun here and is skipped. On Forgejo the
+	// jobs of each failed run are listed and each failed job is rerun
+	// by itself; Forgejo restarts the jobs that need it, so a job that
+	// passed but waits on a failed one goes again too. Forgejo
+	// gained the rerun routes in version 17; an older instance answers 409
+	// with a plain sentence and sends no rerun request to the forge (the
+	// pull request and its runs are still looked up first), and says so up
+	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
+	// appears in `allowedActions` for such a Forgejo: a caller learns of
+	// the block from that health entry or from the 409. The block is per
+	// forge kind, so with an old and a new Forgejo side by side the 409
+	// answers a click on the old one.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -18022,7 +18097,9 @@ func (c *ClientWithResponses) GetMainBranchChecksWithResponse(ctx context.Contex
 // A Main branches row offers it when its `status` is `failed`. A failed
 // check that isn't an Actions job (a third-party check, a legacy status,
 // an external CI) can't be rerun here and is skipped. Refusals are an
-// `ActionError`; a 409 means the branch has no failed job to rerun.
+// `ActionError`; a 409 means the branch has no failed job to rerun, or
+// that the forge is a Forgejo older than version 17, which has no rerun
+// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -18046,7 +18123,9 @@ func (c *ClientWithResponses) RerunMainBranchChecksWithBodyWithResponse(ctx cont
 // A Main branches row offers it when its `status` is `failed`. A failed
 // check that isn't an Actions job (a third-party check, a legacy status,
 // an external CI) can't be rerun here and is skipped. Refusals are an
-// `ActionError`; a 409 means the branch has no failed job to rerun.
+// `ActionError`; a 409 means the branch has no failed job to rerun, or
+// that the forge is a Forgejo older than version 17, which has no rerun
+// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -18766,8 +18845,18 @@ func (c *ClientWithResponses) ReopenPullRequestWithResponse(ctx context.Context,
 // Forgejo commit status doesn't say which workflow run it came from, so
 // Forgejo's runs are found by the head commit instead. A failed check
 // that isn't an Actions job (a third-party check, a legacy status, an
-// external CI) can't be rerun here and is skipped. A Forgejo instance
-// too old to have the rerun route refuses with its own words.
+// external CI) can't be rerun here and is skipped. On Forgejo the
+// jobs of each failed run are listed and each failed job is rerun
+// by itself; Forgejo restarts the jobs that need it, so a job that
+// passed but waits on a failed one goes again too. Forgejo
+// gained the rerun routes in version 17; an older instance answers 409
+// with a plain sentence and sends no rerun request to the forge (the
+// pull request and its runs are still looked up first), and says so up
+// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
+// appears in `allowedActions` for such a Forgejo: a caller learns of
+// the block from that health entry or from the 409. The block is per
+// forge kind, so with an old and a new Forgejo side by side the 409
+// answers a click on the old one.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
@@ -18798,8 +18887,18 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithBodyWithResponse(ctx con
 // Forgejo commit status doesn't say which workflow run it came from, so
 // Forgejo's runs are found by the head commit instead. A failed check
 // that isn't an Actions job (a third-party check, a legacy status, an
-// external CI) can't be rerun here and is skipped. A Forgejo instance
-// too old to have the rerun route refuses with its own words.
+// external CI) can't be rerun here and is skipped. On Forgejo the
+// jobs of each failed run are listed and each failed job is rerun
+// by itself; Forgejo restarts the jobs that need it, so a job that
+// passed but waits on a failed one goes again too. Forgejo
+// gained the rerun routes in version 17; an older instance answers 409
+// with a plain sentence and sends no rerun request to the forge (the
+// pull request and its runs are still looked up first), and says so up
+// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
+// appears in `allowedActions` for such a Forgejo: a caller learns of
+// the block from that health entry or from the 409. The block is per
+// forge kind, so with an old and a new Forgejo side by side the 409
+// answers a click on the old one.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
