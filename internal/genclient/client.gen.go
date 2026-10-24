@@ -5060,8 +5060,9 @@ type ClientInterface interface {
 	// that may have restarted, as are the other failed jobs of its run,
 	// whichever job it was. Only a request that provably never reached the
 	// forge (a refused connection, a name that doesn't resolve, a rejected
-	// certificate) counts as not restarted. When the version could not be
-	// read the forge decides, and a 404 from it reads "The forge couldn't
+	// certificate) counts as not restarted. The message leaves out "Try again
+	// in a moment" only when a job may have restarted. When the version
+	// could not be read the forge decides, and a 404 from it reads "The forge couldn't
 	// find that run, job or pull request. It may not support rerunning checks from
 	// here, or the token can't see this repository." That sentence names no
 	// forge or version, because a 404 can mean either.
@@ -5108,8 +5109,9 @@ type ClientInterface interface {
 	// that may have restarted, as are the other failed jobs of its run,
 	// whichever job it was. Only a request that provably never reached the
 	// forge (a refused connection, a name that doesn't resolve, a rejected
-	// certificate) counts as not restarted. When the version could not be
-	// read the forge decides, and a 404 from it reads "The forge couldn't
+	// certificate) counts as not restarted. The message leaves out "Try again
+	// in a moment" only when a job may have restarted. When the version
+	// could not be read the forge decides, and a 404 from it reads "The forge couldn't
 	// find that run, job or pull request. It may not support rerunning checks from
 	// here, or the token can't see this repository." That sentence names no
 	// forge or version, because a 404 can mean either.
@@ -7616,8 +7618,9 @@ func (c *Client) ReopenPullRequest(ctx context.Context, body ReopenPullRequestJS
 // that may have restarted, as are the other failed jobs of its run,
 // whichever job it was. Only a request that provably never reached the
 // forge (a refused connection, a name that doesn't resolve, a rejected
-// certificate) counts as not restarted. When the version could not be
-// read the forge decides, and a 404 from it reads "The forge couldn't
+// certificate) counts as not restarted. The message leaves out "Try again
+// in a moment" only when a job may have restarted. When the version
+// could not be read the forge decides, and a 404 from it reads "The forge couldn't
 // find that run, job or pull request. It may not support rerunning checks from
 // here, or the token can't see this repository." That sentence names no
 // forge or version, because a 404 can mean either.
@@ -7674,8 +7677,9 @@ func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType
 // that may have restarted, as are the other failed jobs of its run,
 // whichever job it was. Only a request that provably never reached the
 // forge (a refused connection, a name that doesn't resolve, a rejected
-// certificate) counts as not restarted. When the version could not be
-// read the forge decides, and a 404 from it reads "The forge couldn't
+// certificate) counts as not restarted. The message leaves out "Try again
+// in a moment" only when a job may have restarted. When the version
+// could not be read the forge decides, and a 404 from it reads "The forge couldn't
 // find that run, job or pull request. It may not support rerunning checks from
 // here, or the token can't see this repository." That sentence names no
 // forge or version, because a 404 can mean either.
@@ -12922,8 +12926,9 @@ type ClientWithResponsesInterface interface {
 	// that may have restarted, as are the other failed jobs of its run,
 	// whichever job it was. Only a request that provably never reached the
 	// forge (a refused connection, a name that doesn't resolve, a rejected
-	// certificate) counts as not restarted. When the version could not be
-	// read the forge decides, and a 404 from it reads "The forge couldn't
+	// certificate) counts as not restarted. The message leaves out "Try again
+	// in a moment" only when a job may have restarted. When the version
+	// could not be read the forge decides, and a 404 from it reads "The forge couldn't
 	// find that run, job or pull request. It may not support rerunning checks from
 	// here, or the token can't see this repository." That sentence names no
 	// forge or version, because a 404 can mean either.
@@ -12970,8 +12975,9 @@ type ClientWithResponsesInterface interface {
 	// that may have restarted, as are the other failed jobs of its run,
 	// whichever job it was. Only a request that provably never reached the
 	// forge (a refused connection, a name that doesn't resolve, a rejected
-	// certificate) counts as not restarted. When the version could not be
-	// read the forge decides, and a 404 from it reads "The forge couldn't
+	// certificate) counts as not restarted. The message leaves out "Try again
+	// in a moment" only when a job may have restarted. When the version
+	// could not be read the forge decides, and a 404 from it reads "The forge couldn't
 	// find that run, job or pull request. It may not support rerunning checks from
 	// here, or the token can't see this repository." That sentence names no
 	// forge or version, because a 404 can mean either.
@@ -19348,8 +19354,9 @@ func (c *ClientWithResponses) ReopenPullRequestWithResponse(ctx context.Context,
 // that may have restarted, as are the other failed jobs of its run,
 // whichever job it was. Only a request that provably never reached the
 // forge (a refused connection, a name that doesn't resolve, a rejected
-// certificate) counts as not restarted. When the version could not be
-// read the forge decides, and a 404 from it reads "The forge couldn't
+// certificate) counts as not restarted. The message leaves out "Try again
+// in a moment" only when a job may have restarted. When the version
+// could not be read the forge decides, and a 404 from it reads "The forge couldn't
 // find that run, job or pull request. It may not support rerunning checks from
 // here, or the token can't see this repository." That sentence names no
 // forge or version, because a 404 can mean either.
@@ -19402,8 +19409,9 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithBodyWithResponse(ctx con
 // that may have restarted, as are the other failed jobs of its run,
 // whichever job it was. Only a request that provably never reached the
 // forge (a refused connection, a name that doesn't resolve, a rejected
-// certificate) counts as not restarted. When the version could not be
-// read the forge decides, and a 404 from it reads "The forge couldn't
+// certificate) counts as not restarted. The message leaves out "Try again
+// in a moment" only when a job may have restarted. When the version
+// could not be read the forge decides, and a 404 from it reads "The forge couldn't
 // find that run, job or pull request. It may not support rerunning checks from
 // here, or the token can't see this repository." That sentence names no
 // forge or version, because a 404 can mean either.
