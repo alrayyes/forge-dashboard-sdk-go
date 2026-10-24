@@ -1336,6 +1336,11 @@ type Check struct {
 	// cancel stops. Present with `runId`.
 	RunName *string `json:"runName,omitempty"`
 
+	// RunNumber The forge's own number for that run, the one in the run's page
+	// address. It tells two runs of one workflow apart. Present with
+	// `runId` when the forge says it.
+	RunNumber *int `json:"runNumber,omitempty"`
+
 	// State One job/check's own status — the per-job detail CIStatus
 	// deliberately doesn't carry, since CIStatus is the combined result
 	// across every one of them.
