@@ -5042,12 +5042,12 @@ type ClientInterface interface {
 	// passed but waits on a failed one goes again too. Forgejo
 	// gained the rerun routes in version 17; an older instance answers 409
 	// with a plain sentence and sends no rerun request to the forge (the
-	// version is checked before the pull request or its runs are looked up), and says so up
-	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
-	// appears in `allowedActions` for such a Forgejo: a caller learns of
-	// the block from that health entry or from the 409. The block is per
-	// forge kind, so with an old and a new Forgejo side by side the 409
-	// answers a click on the old one.
+	// version is checked before the pull request or its runs are looked up),
+	// and says so up front in `ForgeHealth.rerunChecksBlocked`.
+	// `rerun_checks` still appears in `allowedActions` for such a Forgejo: a
+	// caller learns of the block from that health entry or from the 409. The
+	// block is per forge kind, so with an old and a new Forgejo side by side
+	// the 409 answers a click on the old one.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -5055,17 +5055,18 @@ type ClientInterface interface {
 	// old or already running) arrives with its own plain-words `message`.
 	// Jobs are rerun one request at a time, so a refusal can come after
 	// earlier jobs restarted; the `message` then ends with which jobs
-	// restarted and which did not. A job whose request got no clear answer (a
-	// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
-	// that may have restarted, as are the other failed jobs of its run,
+	// restarted and which did not. A job whose request got no clear answer
+	// (a timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as
+	// one that may have restarted, as are the other failed jobs of its run,
 	// whichever job it was. Only a request that provably never reached the
 	// forge (a refused connection, a name that doesn't resolve, a rejected
-	// certificate) counts as not restarted. The message leaves out "Try again
-	// in a moment" only when a job may have restarted. When the version
-	// could not be read the forge decides, and a 404 from it reads "The forge couldn't
-	// find that run, job or pull request. It may not support rerunning checks from
-	// here, or the token can't see this repository." That sentence names no
-	// forge or version, because a 404 can mean either.
+	// certificate) counts as not restarted. The message leaves out "Try
+	// again in a moment" only when a job may have restarted. When the
+	// version could not be read the forge decides, and a 404 from it reads
+	// "The forge couldn't find that run, job or pull request. It may not
+	// support rerunning checks from here, or the token can't see this
+	// repository." That sentence names no forge or version, because a 404
+	// can mean either.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -5091,12 +5092,12 @@ type ClientInterface interface {
 	// passed but waits on a failed one goes again too. Forgejo
 	// gained the rerun routes in version 17; an older instance answers 409
 	// with a plain sentence and sends no rerun request to the forge (the
-	// version is checked before the pull request or its runs are looked up), and says so up
-	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
-	// appears in `allowedActions` for such a Forgejo: a caller learns of
-	// the block from that health entry or from the 409. The block is per
-	// forge kind, so with an old and a new Forgejo side by side the 409
-	// answers a click on the old one.
+	// version is checked before the pull request or its runs are looked up),
+	// and says so up front in `ForgeHealth.rerunChecksBlocked`.
+	// `rerun_checks` still appears in `allowedActions` for such a Forgejo: a
+	// caller learns of the block from that health entry or from the 409. The
+	// block is per forge kind, so with an old and a new Forgejo side by side
+	// the 409 answers a click on the old one.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -5104,17 +5105,18 @@ type ClientInterface interface {
 	// old or already running) arrives with its own plain-words `message`.
 	// Jobs are rerun one request at a time, so a refusal can come after
 	// earlier jobs restarted; the `message` then ends with which jobs
-	// restarted and which did not. A job whose request got no clear answer (a
-	// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
-	// that may have restarted, as are the other failed jobs of its run,
+	// restarted and which did not. A job whose request got no clear answer
+	// (a timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as
+	// one that may have restarted, as are the other failed jobs of its run,
 	// whichever job it was. Only a request that provably never reached the
 	// forge (a refused connection, a name that doesn't resolve, a rejected
-	// certificate) counts as not restarted. The message leaves out "Try again
-	// in a moment" only when a job may have restarted. When the version
-	// could not be read the forge decides, and a 404 from it reads "The forge couldn't
-	// find that run, job or pull request. It may not support rerunning checks from
-	// here, or the token can't see this repository." That sentence names no
-	// forge or version, because a 404 can mean either.
+	// certificate) counts as not restarted. The message leaves out "Try
+	// again in a moment" only when a job may have restarted. When the
+	// version could not be read the forge decides, and a 404 from it reads
+	// "The forge couldn't find that run, job or pull request. It may not
+	// support rerunning checks from here, or the token can't see this
+	// repository." That sentence names no forge or version, because a 404
+	// can mean either.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -7600,12 +7602,12 @@ func (c *Client) ReopenPullRequest(ctx context.Context, body ReopenPullRequestJS
 // passed but waits on a failed one goes again too. Forgejo
 // gained the rerun routes in version 17; an older instance answers 409
 // with a plain sentence and sends no rerun request to the forge (the
-// version is checked before the pull request or its runs are looked up), and says so up
-// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
-// appears in `allowedActions` for such a Forgejo: a caller learns of
-// the block from that health entry or from the 409. The block is per
-// forge kind, so with an old and a new Forgejo side by side the 409
-// answers a click on the old one.
+// version is checked before the pull request or its runs are looked up),
+// and says so up front in `ForgeHealth.rerunChecksBlocked`.
+// `rerun_checks` still appears in `allowedActions` for such a Forgejo: a
+// caller learns of the block from that health entry or from the 409. The
+// block is per forge kind, so with an old and a new Forgejo side by side
+// the 409 answers a click on the old one.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
@@ -7613,17 +7615,18 @@ func (c *Client) ReopenPullRequest(ctx context.Context, body ReopenPullRequestJS
 // old or already running) arrives with its own plain-words `message`.
 // Jobs are rerun one request at a time, so a refusal can come after
 // earlier jobs restarted; the `message` then ends with which jobs
-// restarted and which did not. A job whose request got no clear answer (a
-// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
-// that may have restarted, as are the other failed jobs of its run,
+// restarted and which did not. A job whose request got no clear answer
+// (a timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as
+// one that may have restarted, as are the other failed jobs of its run,
 // whichever job it was. Only a request that provably never reached the
 // forge (a refused connection, a name that doesn't resolve, a rejected
-// certificate) counts as not restarted. The message leaves out "Try again
-// in a moment" only when a job may have restarted. When the version
-// could not be read the forge decides, and a 404 from it reads "The forge couldn't
-// find that run, job or pull request. It may not support rerunning checks from
-// here, or the token can't see this repository." That sentence names no
-// forge or version, because a 404 can mean either.
+// certificate) counts as not restarted. The message leaves out "Try
+// again in a moment" only when a job may have restarted. When the
+// version could not be read the forge decides, and a 404 from it reads
+// "The forge couldn't find that run, job or pull request. It may not
+// support rerunning checks from here, or the token can't see this
+// repository." That sentence names no forge or version, because a 404
+// can mean either.
 //
 // Takes any type of body and a specified content type.
 //
@@ -7659,12 +7662,12 @@ func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType
 // passed but waits on a failed one goes again too. Forgejo
 // gained the rerun routes in version 17; an older instance answers 409
 // with a plain sentence and sends no rerun request to the forge (the
-// version is checked before the pull request or its runs are looked up), and says so up
-// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
-// appears in `allowedActions` for such a Forgejo: a caller learns of
-// the block from that health entry or from the 409. The block is per
-// forge kind, so with an old and a new Forgejo side by side the 409
-// answers a click on the old one.
+// version is checked before the pull request or its runs are looked up),
+// and says so up front in `ForgeHealth.rerunChecksBlocked`.
+// `rerun_checks` still appears in `allowedActions` for such a Forgejo: a
+// caller learns of the block from that health entry or from the 409. The
+// block is per forge kind, so with an old and a new Forgejo side by side
+// the 409 answers a click on the old one.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
@@ -7672,17 +7675,18 @@ func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType
 // old or already running) arrives with its own plain-words `message`.
 // Jobs are rerun one request at a time, so a refusal can come after
 // earlier jobs restarted; the `message` then ends with which jobs
-// restarted and which did not. A job whose request got no clear answer (a
-// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
-// that may have restarted, as are the other failed jobs of its run,
+// restarted and which did not. A job whose request got no clear answer
+// (a timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as
+// one that may have restarted, as are the other failed jobs of its run,
 // whichever job it was. Only a request that provably never reached the
 // forge (a refused connection, a name that doesn't resolve, a rejected
-// certificate) counts as not restarted. The message leaves out "Try again
-// in a moment" only when a job may have restarted. When the version
-// could not be read the forge decides, and a 404 from it reads "The forge couldn't
-// find that run, job or pull request. It may not support rerunning checks from
-// here, or the token can't see this repository." That sentence names no
-// forge or version, because a 404 can mean either.
+// certificate) counts as not restarted. The message leaves out "Try
+// again in a moment" only when a job may have restarted. When the
+// version could not be read the forge decides, and a 404 from it reads
+// "The forge couldn't find that run, job or pull request. It may not
+// support rerunning checks from here, or the token can't see this
+// repository." That sentence names no forge or version, because a 404
+// can mean either.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -12908,12 +12912,12 @@ type ClientWithResponsesInterface interface {
 	// passed but waits on a failed one goes again too. Forgejo
 	// gained the rerun routes in version 17; an older instance answers 409
 	// with a plain sentence and sends no rerun request to the forge (the
-	// version is checked before the pull request or its runs are looked up), and says so up
-	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
-	// appears in `allowedActions` for such a Forgejo: a caller learns of
-	// the block from that health entry or from the 409. The block is per
-	// forge kind, so with an old and a new Forgejo side by side the 409
-	// answers a click on the old one.
+	// version is checked before the pull request or its runs are looked up),
+	// and says so up front in `ForgeHealth.rerunChecksBlocked`.
+	// `rerun_checks` still appears in `allowedActions` for such a Forgejo: a
+	// caller learns of the block from that health entry or from the 409. The
+	// block is per forge kind, so with an old and a new Forgejo side by side
+	// the 409 answers a click on the old one.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -12921,17 +12925,18 @@ type ClientWithResponsesInterface interface {
 	// old or already running) arrives with its own plain-words `message`.
 	// Jobs are rerun one request at a time, so a refusal can come after
 	// earlier jobs restarted; the `message` then ends with which jobs
-	// restarted and which did not. A job whose request got no clear answer (a
-	// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
-	// that may have restarted, as are the other failed jobs of its run,
+	// restarted and which did not. A job whose request got no clear answer
+	// (a timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as
+	// one that may have restarted, as are the other failed jobs of its run,
 	// whichever job it was. Only a request that provably never reached the
 	// forge (a refused connection, a name that doesn't resolve, a rejected
-	// certificate) counts as not restarted. The message leaves out "Try again
-	// in a moment" only when a job may have restarted. When the version
-	// could not be read the forge decides, and a 404 from it reads "The forge couldn't
-	// find that run, job or pull request. It may not support rerunning checks from
-	// here, or the token can't see this repository." That sentence names no
-	// forge or version, because a 404 can mean either.
+	// certificate) counts as not restarted. The message leaves out "Try
+	// again in a moment" only when a job may have restarted. When the
+	// version could not be read the forge decides, and a 404 from it reads
+	// "The forge couldn't find that run, job or pull request. It may not
+	// support rerunning checks from here, or the token can't see this
+	// repository." That sentence names no forge or version, because a 404
+	// can mean either.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -12957,12 +12962,12 @@ type ClientWithResponsesInterface interface {
 	// passed but waits on a failed one goes again too. Forgejo
 	// gained the rerun routes in version 17; an older instance answers 409
 	// with a plain sentence and sends no rerun request to the forge (the
-	// version is checked before the pull request or its runs are looked up), and says so up
-	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
-	// appears in `allowedActions` for such a Forgejo: a caller learns of
-	// the block from that health entry or from the 409. The block is per
-	// forge kind, so with an old and a new Forgejo side by side the 409
-	// answers a click on the old one.
+	// version is checked before the pull request or its runs are looked up),
+	// and says so up front in `ForgeHealth.rerunChecksBlocked`.
+	// `rerun_checks` still appears in `allowedActions` for such a Forgejo: a
+	// caller learns of the block from that health entry or from the 409. The
+	// block is per forge kind, so with an old and a new Forgejo side by side
+	// the 409 answers a click on the old one.
 	//
 	// Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 	// means the pull request has no failed check to rerun. Anything the
@@ -12970,17 +12975,18 @@ type ClientWithResponsesInterface interface {
 	// old or already running) arrives with its own plain-words `message`.
 	// Jobs are rerun one request at a time, so a refusal can come after
 	// earlier jobs restarted; the `message` then ends with which jobs
-	// restarted and which did not. A job whose request got no clear answer (a
-	// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
-	// that may have restarted, as are the other failed jobs of its run,
+	// restarted and which did not. A job whose request got no clear answer
+	// (a timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as
+	// one that may have restarted, as are the other failed jobs of its run,
 	// whichever job it was. Only a request that provably never reached the
 	// forge (a refused connection, a name that doesn't resolve, a rejected
-	// certificate) counts as not restarted. The message leaves out "Try again
-	// in a moment" only when a job may have restarted. When the version
-	// could not be read the forge decides, and a 404 from it reads "The forge couldn't
-	// find that run, job or pull request. It may not support rerunning checks from
-	// here, or the token can't see this repository." That sentence names no
-	// forge or version, because a 404 can mean either.
+	// certificate) counts as not restarted. The message leaves out "Try
+	// again in a moment" only when a job may have restarted. When the
+	// version could not be read the forge decides, and a 404 from it reads
+	// "The forge couldn't find that run, job or pull request. It may not
+	// support rerunning checks from here, or the token can't see this
+	// repository." That sentence names no forge or version, because a 404
+	// can mean either.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -19336,12 +19342,12 @@ func (c *ClientWithResponses) ReopenPullRequestWithResponse(ctx context.Context,
 // passed but waits on a failed one goes again too. Forgejo
 // gained the rerun routes in version 17; an older instance answers 409
 // with a plain sentence and sends no rerun request to the forge (the
-// version is checked before the pull request or its runs are looked up), and says so up
-// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
-// appears in `allowedActions` for such a Forgejo: a caller learns of
-// the block from that health entry or from the 409. The block is per
-// forge kind, so with an old and a new Forgejo side by side the 409
-// answers a click on the old one.
+// version is checked before the pull request or its runs are looked up),
+// and says so up front in `ForgeHealth.rerunChecksBlocked`.
+// `rerun_checks` still appears in `allowedActions` for such a Forgejo: a
+// caller learns of the block from that health entry or from the 409. The
+// block is per forge kind, so with an old and a new Forgejo side by side
+// the 409 answers a click on the old one.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
@@ -19349,17 +19355,18 @@ func (c *ClientWithResponses) ReopenPullRequestWithResponse(ctx context.Context,
 // old or already running) arrives with its own plain-words `message`.
 // Jobs are rerun one request at a time, so a refusal can come after
 // earlier jobs restarted; the `message` then ends with which jobs
-// restarted and which did not. A job whose request got no clear answer (a
-// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
-// that may have restarted, as are the other failed jobs of its run,
+// restarted and which did not. A job whose request got no clear answer
+// (a timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as
+// one that may have restarted, as are the other failed jobs of its run,
 // whichever job it was. Only a request that provably never reached the
 // forge (a refused connection, a name that doesn't resolve, a rejected
-// certificate) counts as not restarted. The message leaves out "Try again
-// in a moment" only when a job may have restarted. When the version
-// could not be read the forge decides, and a 404 from it reads "The forge couldn't
-// find that run, job or pull request. It may not support rerunning checks from
-// here, or the token can't see this repository." That sentence names no
-// forge or version, because a 404 can mean either.
+// certificate) counts as not restarted. The message leaves out "Try
+// again in a moment" only when a job may have restarted. When the
+// version could not be read the forge decides, and a 404 from it reads
+// "The forge couldn't find that run, job or pull request. It may not
+// support rerunning checks from here, or the token can't see this
+// repository." That sentence names no forge or version, because a 404
+// can mean either.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -19391,12 +19398,12 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithBodyWithResponse(ctx con
 // passed but waits on a failed one goes again too. Forgejo
 // gained the rerun routes in version 17; an older instance answers 409
 // with a plain sentence and sends no rerun request to the forge (the
-// version is checked before the pull request or its runs are looked up), and says so up
-// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
-// appears in `allowedActions` for such a Forgejo: a caller learns of
-// the block from that health entry or from the 409. The block is per
-// forge kind, so with an old and a new Forgejo side by side the 409
-// answers a click on the old one.
+// version is checked before the pull request or its runs are looked up),
+// and says so up front in `ForgeHealth.rerunChecksBlocked`.
+// `rerun_checks` still appears in `allowedActions` for such a Forgejo: a
+// caller learns of the block from that health entry or from the 409. The
+// block is per forge kind, so with an old and a new Forgejo side by side
+// the 409 answers a click on the old one.
 //
 // Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
 // means the pull request has no failed check to rerun. Anything the
@@ -19404,17 +19411,18 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithBodyWithResponse(ctx con
 // old or already running) arrives with its own plain-words `message`.
 // Jobs are rerun one request at a time, so a refusal can come after
 // earlier jobs restarted; the `message` then ends with which jobs
-// restarted and which did not. A job whose request got no clear answer (a
-// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
-// that may have restarted, as are the other failed jobs of its run,
+// restarted and which did not. A job whose request got no clear answer
+// (a timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as
+// one that may have restarted, as are the other failed jobs of its run,
 // whichever job it was. Only a request that provably never reached the
 // forge (a refused connection, a name that doesn't resolve, a rejected
-// certificate) counts as not restarted. The message leaves out "Try again
-// in a moment" only when a job may have restarted. When the version
-// could not be read the forge decides, and a 404 from it reads "The forge couldn't
-// find that run, job or pull request. It may not support rerunning checks from
-// here, or the token can't see this repository." That sentence names no
-// forge or version, because a 404 can mean either.
+// certificate) counts as not restarted. The message leaves out "Try
+// again in a moment" only when a job may have restarted. When the
+// version could not be read the forge decides, and a 404 from it reads
+// "The forge couldn't find that run, job or pull request. It may not
+// support rerunning checks from here, or the token can't see this
+// repository." That sentence names no forge or version, because a 404
+// can mean either.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
