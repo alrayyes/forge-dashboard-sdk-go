@@ -1777,7 +1777,15 @@ type Issue struct {
 	// a repository whose pull requests they ignore. A pull request that
 	// merged or closed is gone from the list on the next refresh.
 	LinkedPullRequests []LinkedPullRequest `json:"linkedPullRequests"`
-	Number             int                 `json:"number"`
+
+	// MentionedByPullRequests The open pull requests that mention the issue without closing it,
+	// the other side of a pull request's `mentionsIssues`, ordered by
+	// repository and number and with the same entry as
+	// `linkedPullRequests`. A pull request that closes the issue is only
+	// in `linkedPullRequests`. Always present, and empty when there are
+	// none. The pull requests counted are the same as in `linkedPullRequests`.
+	MentionedByPullRequests []LinkedPullRequest `json:"mentionedByPullRequests"`
+	Number                  int                 `json:"number"`
 
 	// Repo Examples: alrayyes/hush-hush
 	Repo      string    `json:"repo"`
@@ -2130,6 +2138,33 @@ type MainBranches struct {
 
 	// GeneratedAt When the snapshot was refreshed, not when it was requested.
 	GeneratedAt time.Time `json:"generatedAt"`
+}
+
+// MentionedIssue One issue or pull request a pull request mentions without closing it.
+// The number is an issue's or a pull request's, which the forge's address
+// tells apart.
+type MentionedIssue struct {
+	Number int `json:"number"`
+
+	// PageUrl The address on this dashboard that opens the Issues page with this
+	// issue's pop-up open, built the same way as the closing issue's. A
+	// relative address.
+	//
+	//
+	// Examples: /issues.html?issue=github/alrayyes/hush-hush/12
+	PageUrl string `json:"pageUrl"`
+
+	// Repo The repository as `owner/name`, which is not always the pull request's own.
+	Repo string `json:"repo"`
+
+	// Tracked True when the dashboard holds it as an open issue it shows, so
+	// `pageUrl` opens its pop-up. False for a pull request, a closed
+	// issue, an issue the user's settings hide and anything in a repo
+	// the dashboard does not track; a client then links to `url`.
+	Tracked bool `json:"tracked"`
+
+	// Url Its page on the forge, which a client links to when `tracked` is false.
+	Url string `json:"url"`
 }
 
 // MergeStatus A pull request's mergeable/blocked state, as coarse as every forge
@@ -2512,6 +2547,29 @@ type PullRequest struct {
 	// forge. `regular`: everything else. Always present.
 	Kind   PullRequestKind `json:"kind"`
 	Labels []Label         `json:"labels"`
+
+	// MentionsIssues The issues and pull requests the title or description mentions
+	// without closing them, in order of first appearance and without
+	// repeats, at most 20. Always present, and empty when there are none.
+	// A mention is what GitHub and Forgejo both link: `#NUMBER`,
+	// `owner/repo#NUMBER`, or the address of an issue or pull request
+	// page on the forge, and on GitHub also `GH-NUMBER`. It has to stand
+	// alone: `abc#1`, `&#1` and `#1abc` are not mentions, while emphasis
+	// and table markup around it (`**#1**`, `_#1_`, `|#1|`) is fine. Code,
+	// HTML comments and the text of a link, Markdown or HTML anchor,
+	// count for nothing, and a link counts only by its target, when that
+	// is a page on the forge. Only the first 64 KiB of the description is
+	// read, cut at a space, and the first 100 references in it. A reference in a quotation still counts, and the pull
+	// request's own number does not. What the pull request actually
+	// closes is left out, even when the text also mentions it, and the
+	// cap applies after that. Which references close depends on the
+	// branch the pull request aims at, so a closing keyword on a pull
+	// request that does not target the default branch is a mention. Only
+	// the description closes, so a keyword in the title is a mention.
+	// Comments, reviews and commit messages are not read. The server
+	// reads the text on both forges, with or without a GitHub token, so a
+	// client needs no rule of its own.
+	MentionsIssues []MentionedIssue `json:"mentionsIssues"`
 
 	// MergeStatus A pull request's mergeable/blocked state, as coarse as every forge
 	// this service talks to can agree on. "blocked" covers anything
