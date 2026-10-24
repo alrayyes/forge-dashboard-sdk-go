@@ -1083,11 +1083,15 @@ type AllowedAction struct {
 	// is blocked rather than hidden while waiting or fixing something can
 	// unlock it. An empty pull request, which nothing can unlock, has no
 	// `merge` entry at all: see `status`.
-	// `renovate_rebase` is blocked with `already_requested` while
+	// A request that is already waiting is never listed blocked. While
 	// Renovate's rebase checkbox in the pull request description is
-	// ticked, whether it was ticked from this app or on the forge: one
-	// rebase is already waiting for Renovate, and it is offered again
-	// once Renovate has rebased and cleared the box.
+	// ticked, whether from this app or on the forge, `renovate_rebase`
+	// is absent and `cancel_renovate_rebase` is listed instead. A
+	// Renovate rebase asked for through this app with no checkbox
+	// behind it, and a Dependabot rebase or recreate that is pending,
+	// list neither request nor cancel: Dependabot has no command to
+	// withdraw one. The request is offered again once the bot has
+	// acted or the request has expired.
 	Blocked *struct {
 		// Code The same codes as `ActionError.code`. The server may learn
 		// more, so a client should show `message` for a code it doesn't
@@ -2804,8 +2808,8 @@ type PullRequestStatus struct {
 	// on a Dependabot or Renovate pull request. A client draws that
 	// action's button inside the status line and nowhere else on the
 	// row. Absent when no action clears it (a conflict, a check still
-	// running, a draft) and when the action is locked, such as a
-	// Renovate rebase already waiting. When set it is the entry marked
+	// running, a draft) and when the rebase is already requested, so
+	// it is not offered. When set it is the entry marked
 	// `primary`. The reverse doesn't hold: a behind bot pull request
 	// that waits on checks has a primary rebase and no `action` here.
 	Action *string `json:"action,omitempty"`
@@ -3692,6 +3696,9 @@ type MergePullRequestJSONRequestBody = PullRequestActionRequest
 // PostPullRequestRenovateRebaseJSONRequestBody defines body for PostPullRequestRenovateRebase for application/json ContentType.
 type PostPullRequestRenovateRebaseJSONRequestBody = PullRequestActionRequest
 
+// CancelPullRequestRenovateRebaseJSONRequestBody defines body for CancelPullRequestRenovateRebase for application/json ContentType.
+type CancelPullRequestRenovateRebaseJSONRequestBody = PullRequestActionRequest
+
 // ReopenPullRequestJSONRequestBody defines body for ReopenPullRequest for application/json ContentType.
 type ReopenPullRequestJSONRequestBody = PullRequestActionRequest
 
@@ -4384,7 +4391,10 @@ type ClientInterface interface {
 	// an external CI) can't be rerun here and is skipped. Refusals are an
 	// `ActionError`; a 409 means the branch has no failed job to rerun, or
 	// that the forge is a Forgejo older than version 17, which has no rerun
-	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
+	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand). On
+	// Forgejo the version is checked before the runs are looked up, as for a
+	// pull request, and a refusal that comes after some jobs restarted ends
+	// with which jobs restarted and which did not.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -4404,7 +4414,10 @@ type ClientInterface interface {
 	// an external CI) can't be rerun here and is skipped. Refusals are an
 	// `ActionError`; a 409 means the branch has no failed job to rerun, or
 	// that the forge is a Forgejo older than version 17, which has no rerun
-	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
+	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand). On
+	// Forgejo the version is checked before the runs are looked up, as for a
+	// pull request, and a refusal that comes after some jobs restarted ends
+	// with which jobs restarted and which did not.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -4919,6 +4932,46 @@ type ClientInterface interface {
 	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 	PostPullRequestRenovateRebase(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CancelPullRequestRenovateRebaseWithBody Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
+	//
+	// Unticks the `rebase-check` checkbox in the named pull request's
+	// body (`- [x] <!-- rebase-check -->...` becomes `- [ ] ...`, and
+	// nothing else in the body changes), which takes back the rebase
+	// that ticking it asked for. Renovate looks at the box on its next
+	// run, so a rebase it has already started is not stopped. The
+	// pull request offers it as a `cancel_renovate_rebase` entry in
+	// `allowedActions`, which it does while the box is ticked. A request
+	// made with the rebase label has no checkbox, so it has no cancel.
+	//
+	// Cancelling is idempotent: a box that is already unticked is left
+	// alone and the answer is still 204. The pending `botRequest` of that
+	// rebase, if this app recorded one, is dropped from the next snapshot.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+	CancelPullRequestRenovateRebaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelPullRequestRenovateRebase Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
+	//
+	// Unticks the `rebase-check` checkbox in the named pull request's
+	// body (`- [x] <!-- rebase-check -->...` becomes `- [ ] ...`, and
+	// nothing else in the body changes), which takes back the rebase
+	// that ticking it asked for. Renovate looks at the box on its next
+	// run, so a rebase it has already started is not stopped. The
+	// pull request offers it as a `cancel_renovate_rebase` entry in
+	// `allowedActions`, which it does while the box is ticked. A request
+	// made with the rebase label has no checkbox, so it has no cancel.
+	//
+	// Cancelling is idempotent: a box that is already unticked is left
+	// alone and the answer is still 204. The pending `botRequest` of that
+	// rebase, if this app recorded one, is dropped from the next snapshot.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+	CancelPullRequestRenovateRebase(ctx context.Context, body CancelPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ReopenPullRequestWithBody Reopen one pull request that was closed without merging, on the signed-in user's behalf
 	//
 	// Reopens the named pull request: the undo for Close, offered in the
@@ -5001,11 +5054,16 @@ type ClientInterface interface {
 	// old or already running) arrives with its own plain-words `message`.
 	// Jobs are rerun one request at a time, so a refusal can come after
 	// earlier jobs restarted; the `message` then ends with which jobs
-	// restarted and which did not. When the version could not be read the
-	// forge decides, and a 404 from it reads "The forge couldn't find that
-	// run or job. It may not support rerunning checks from here, or the
-	// token can't see this repository." That sentence names no forge or
-	// version, because a 404 can mean either.
+	// restarted and which did not. A job whose request got no clear answer (a
+	// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
+	// that may have restarted, as are the other failed jobs of its run,
+	// whichever job it was. Only a request that provably never reached the
+	// forge (a refused connection, a name that doesn't resolve, a rejected
+	// certificate) counts as not restarted. When the version could not be
+	// read the forge decides, and a 404 from it reads "The forge couldn't
+	// find that run, job or pull request. It may not support rerunning checks from
+	// here, or the token can't see this repository." That sentence names no
+	// forge or version, because a 404 can mean either.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -5044,11 +5102,16 @@ type ClientInterface interface {
 	// old or already running) arrives with its own plain-words `message`.
 	// Jobs are rerun one request at a time, so a refusal can come after
 	// earlier jobs restarted; the `message` then ends with which jobs
-	// restarted and which did not. When the version could not be read the
-	// forge decides, and a 404 from it reads "The forge couldn't find that
-	// run or job. It may not support rerunning checks from here, or the
-	// token can't see this repository." That sentence names no forge or
-	// version, because a 404 can mean either.
+	// restarted and which did not. A job whose request got no clear answer (a
+	// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
+	// that may have restarted, as are the other failed jobs of its run,
+	// whichever job it was. Only a request that provably never reached the
+	// forge (a refused connection, a name that doesn't resolve, a rejected
+	// certificate) counts as not restarted. When the version could not be
+	// read the forge decides, and a 404 from it reads "The forge couldn't
+	// find that run, job or pull request. It may not support rerunning checks from
+	// here, or the token can't see this repository." That sentence names no
+	// forge or version, because a 404 can mean either.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -6624,7 +6687,10 @@ func (c *Client) GetMainBranchChecks(ctx context.Context, params *GetMainBranchC
 // an external CI) can't be rerun here and is skipped. Refusals are an
 // `ActionError`; a 409 means the branch has no failed job to rerun, or
 // that the forge is a Forgejo older than version 17, which has no rerun
-// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
+// route (`ForgeHealth.rerunChecksBlocked` says so beforehand). On
+// Forgejo the version is checked before the runs are looked up, as for a
+// pull request, and a refusal that comes after some jobs restarted ends
+// with which jobs restarted and which did not.
 //
 // Takes any type of body and a specified content type.
 //
@@ -6654,7 +6720,10 @@ func (c *Client) RerunMainBranchChecksWithBody(ctx context.Context, contentType 
 // an external CI) can't be rerun here and is skipped. Refusals are an
 // `ActionError`; a 409 means the branch has no failed job to rerun, or
 // that the forge is a Forgejo older than version 17, which has no rerun
-// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
+// route (`ForgeHealth.rerunChecksBlocked` says so beforehand). On
+// Forgejo the version is checked before the runs are looked up, as for a
+// pull request, and a refusal that comes after some jobs restarted ends
+// with which jobs restarted and which did not.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -7379,6 +7448,66 @@ func (c *Client) PostPullRequestRenovateRebase(ctx context.Context, body PostPul
 	return c.Client.Do(req)
 }
 
+// CancelPullRequestRenovateRebaseWithBody Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
+//
+// Unticks the `rebase-check` checkbox in the named pull request's
+// body (`- [x] <!-- rebase-check -->...` becomes `- [ ] ...`, and
+// nothing else in the body changes), which takes back the rebase
+// that ticking it asked for. Renovate looks at the box on its next
+// run, so a rebase it has already started is not stopped. The
+// pull request offers it as a `cancel_renovate_rebase` entry in
+// `allowedActions`, which it does while the box is ticked. A request
+// made with the rebase label has no checkbox, so it has no cancel.
+//
+// Cancelling is idempotent: a box that is already unticked is left
+// alone and the answer is still 204. The pending `botRequest` of that
+// rebase, if this app recorded one, is dropped from the next snapshot.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+func (c *Client) CancelPullRequestRenovateRebaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelPullRequestRenovateRebaseRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CancelPullRequestRenovateRebase Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
+//
+// Unticks the `rebase-check` checkbox in the named pull request's
+// body (`- [x] <!-- rebase-check -->...` becomes `- [ ] ...`, and
+// nothing else in the body changes), which takes back the rebase
+// that ticking it asked for. Renovate looks at the box on its next
+// run, so a rebase it has already started is not stopped. The
+// pull request offers it as a `cancel_renovate_rebase` entry in
+// `allowedActions`, which it does while the box is ticked. A request
+// made with the rebase label has no checkbox, so it has no cancel.
+//
+// Cancelling is idempotent: a box that is already unticked is left
+// alone and the answer is still 204. The pending `botRequest` of that
+// rebase, if this app recorded one, is dropped from the next snapshot.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+func (c *Client) CancelPullRequestRenovateRebase(ctx context.Context, body CancelPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelPullRequestRenovateRebaseRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ReopenPullRequestWithBody Reopen one pull request that was closed without merging, on the signed-in user's behalf
 //
 // Reopens the named pull request: the undo for Close, offered in the
@@ -7481,11 +7610,16 @@ func (c *Client) ReopenPullRequest(ctx context.Context, body ReopenPullRequestJS
 // old or already running) arrives with its own plain-words `message`.
 // Jobs are rerun one request at a time, so a refusal can come after
 // earlier jobs restarted; the `message` then ends with which jobs
-// restarted and which did not. When the version could not be read the
-// forge decides, and a 404 from it reads "The forge couldn't find that
-// run or job. It may not support rerunning checks from here, or the
-// token can't see this repository." That sentence names no forge or
-// version, because a 404 can mean either.
+// restarted and which did not. A job whose request got no clear answer (a
+// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
+// that may have restarted, as are the other failed jobs of its run,
+// whichever job it was. Only a request that provably never reached the
+// forge (a refused connection, a name that doesn't resolve, a rejected
+// certificate) counts as not restarted. When the version could not be
+// read the forge decides, and a 404 from it reads "The forge couldn't
+// find that run, job or pull request. It may not support rerunning checks from
+// here, or the token can't see this repository." That sentence names no
+// forge or version, because a 404 can mean either.
 //
 // Takes any type of body and a specified content type.
 //
@@ -7534,11 +7668,16 @@ func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType
 // old or already running) arrives with its own plain-words `message`.
 // Jobs are rerun one request at a time, so a refusal can come after
 // earlier jobs restarted; the `message` then ends with which jobs
-// restarted and which did not. When the version could not be read the
-// forge decides, and a 404 from it reads "The forge couldn't find that
-// run or job. It may not support rerunning checks from here, or the
-// token can't see this repository." That sentence names no forge or
-// version, because a 404 can mean either.
+// restarted and which did not. A job whose request got no clear answer (a
+// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
+// that may have restarted, as are the other failed jobs of its run,
+// whichever job it was. Only a request that provably never reached the
+// forge (a refused connection, a name that doesn't resolve, a rejected
+// certificate) counts as not restarted. When the version could not be
+// read the forge decides, and a 404 from it reads "The forge couldn't
+// find that run, job or pull request. It may not support rerunning checks from
+// here, or the token can't see this repository." That sentence names no
+// forge or version, because a 404 can mean either.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -10306,6 +10445,46 @@ func NewPostPullRequestRenovateRebaseRequestWithBody(server string, contentType 
 	return req, nil
 }
 
+// NewCancelPullRequestRenovateRebaseRequest calls the generic CancelPullRequestRenovateRebase builder with application/json body
+func NewCancelPullRequestRenovateRebaseRequest(server string, body CancelPullRequestRenovateRebaseJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCancelPullRequestRenovateRebaseRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCancelPullRequestRenovateRebaseRequestWithBody constructs an http.Request for the CancelPullRequestRenovateRebase method, with any body, and a specified content type
+func NewCancelPullRequestRenovateRebaseRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/pull-requests/renovate-rebase/cancel")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewReopenPullRequestRequest calls the generic ReopenPullRequest builder with application/json body
 func NewReopenPullRequestRequest(server string, body ReopenPullRequestJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -12070,7 +12249,10 @@ type ClientWithResponsesInterface interface {
 	// an external CI) can't be rerun here and is skipped. Refusals are an
 	// `ActionError`; a 409 means the branch has no failed job to rerun, or
 	// that the forge is a Forgejo older than version 17, which has no rerun
-	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
+	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand). On
+	// Forgejo the version is checked before the runs are looked up, as for a
+	// pull request, and a refusal that comes after some jobs restarted ends
+	// with which jobs restarted and which did not.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -12090,7 +12272,10 @@ type ClientWithResponsesInterface interface {
 	// an external CI) can't be rerun here and is skipped. Refusals are an
 	// `ActionError`; a 409 means the branch has no failed job to rerun, or
 	// that the forge is a Forgejo older than version 17, which has no rerun
-	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
+	// route (`ForgeHealth.rerunChecksBlocked` says so beforehand). On
+	// Forgejo the version is checked before the runs are looked up, as for a
+	// pull request, and a refusal that comes after some jobs restarted ends
+	// with which jobs restarted and which did not.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -12609,6 +12794,46 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 	PostPullRequestRenovateRebaseWithResponse(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPullRequestRenovateRebaseResponse, error)
 
+	// CancelPullRequestRenovateRebaseWithBodyWithResponse Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
+	//
+	// Unticks the `rebase-check` checkbox in the named pull request's
+	// body (`- [x] <!-- rebase-check -->...` becomes `- [ ] ...`, and
+	// nothing else in the body changes), which takes back the rebase
+	// that ticking it asked for. Renovate looks at the box on its next
+	// run, so a rebase it has already started is not stopped. The
+	// pull request offers it as a `cancel_renovate_rebase` entry in
+	// `allowedActions`, which it does while the box is ticked. A request
+	// made with the rebase label has no checkbox, so it has no cancel.
+	//
+	// Cancelling is idempotent: a box that is already unticked is left
+	// alone and the answer is still 204. The pending `botRequest` of that
+	// rebase, if this app recorded one, is dropped from the next snapshot.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+	CancelPullRequestRenovateRebaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelPullRequestRenovateRebaseResponse, error)
+
+	// CancelPullRequestRenovateRebaseWithResponse Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
+	//
+	// Unticks the `rebase-check` checkbox in the named pull request's
+	// body (`- [x] <!-- rebase-check -->...` becomes `- [ ] ...`, and
+	// nothing else in the body changes), which takes back the rebase
+	// that ticking it asked for. Renovate looks at the box on its next
+	// run, so a rebase it has already started is not stopped. The
+	// pull request offers it as a `cancel_renovate_rebase` entry in
+	// `allowedActions`, which it does while the box is ticked. A request
+	// made with the rebase label has no checkbox, so it has no cancel.
+	//
+	// Cancelling is idempotent: a box that is already unticked is left
+	// alone and the answer is still 204. The pending `botRequest` of that
+	// rebase, if this app recorded one, is dropped from the next snapshot.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+	CancelPullRequestRenovateRebaseWithResponse(ctx context.Context, body CancelPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelPullRequestRenovateRebaseResponse, error)
+
 	// ReopenPullRequestWithBodyWithResponse Reopen one pull request that was closed without merging, on the signed-in user's behalf
 	//
 	// Reopens the named pull request: the undo for Close, offered in the
@@ -12691,11 +12916,16 @@ type ClientWithResponsesInterface interface {
 	// old or already running) arrives with its own plain-words `message`.
 	// Jobs are rerun one request at a time, so a refusal can come after
 	// earlier jobs restarted; the `message` then ends with which jobs
-	// restarted and which did not. When the version could not be read the
-	// forge decides, and a 404 from it reads "The forge couldn't find that
-	// run or job. It may not support rerunning checks from here, or the
-	// token can't see this repository." That sentence names no forge or
-	// version, because a 404 can mean either.
+	// restarted and which did not. A job whose request got no clear answer (a
+	// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
+	// that may have restarted, as are the other failed jobs of its run,
+	// whichever job it was. Only a request that provably never reached the
+	// forge (a refused connection, a name that doesn't resolve, a rejected
+	// certificate) counts as not restarted. When the version could not be
+	// read the forge decides, and a 404 from it reads "The forge couldn't
+	// find that run, job or pull request. It may not support rerunning checks from
+	// here, or the token can't see this repository." That sentence names no
+	// forge or version, because a 404 can mean either.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -12734,11 +12964,16 @@ type ClientWithResponsesInterface interface {
 	// old or already running) arrives with its own plain-words `message`.
 	// Jobs are rerun one request at a time, so a refusal can come after
 	// earlier jobs restarted; the `message` then ends with which jobs
-	// restarted and which did not. When the version could not be read the
-	// forge decides, and a 404 from it reads "The forge couldn't find that
-	// run or job. It may not support rerunning checks from here, or the
-	// token can't see this repository." That sentence names no forge or
-	// version, because a 404 can mean either.
+	// restarted and which did not. A job whose request got no clear answer (a
+	// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
+	// that may have restarted, as are the other failed jobs of its run,
+	// whichever job it was. Only a request that provably never reached the
+	// forge (a refused connection, a name that doesn't resolve, a rejected
+	// certificate) counts as not restarted. When the version could not be
+	// read the forge decides, and a 404 from it reads "The forge couldn't
+	// find that run, job or pull request. It may not support rerunning checks from
+	// here, or the token can't see this repository." That sentence names no
+	// forge or version, because a 404 can mean either.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -15709,6 +15944,89 @@ func (r PostPullRequestRenovateRebaseResponse) ContentType() string {
 	return ""
 }
 
+type CancelPullRequestRenovateRebaseResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *ActionError
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *ActionError
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *ActionError
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *ActionError
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *ActionError
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CancelPullRequestRenovateRebaseResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CancelPullRequestRenovateRebaseResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CancelPullRequestRenovateRebaseResponse) GetJSON403() *ActionError {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CancelPullRequestRenovateRebaseResponse) GetJSON404() *ActionError {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CancelPullRequestRenovateRebaseResponse) GetJSON409() *ActionError {
+	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r CancelPullRequestRenovateRebaseResponse) GetJSON429() *ActionError {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r CancelPullRequestRenovateRebaseResponse) GetJSON502() *ActionError {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r CancelPullRequestRenovateRebaseResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelPullRequestRenovateRebaseResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelPullRequestRenovateRebaseResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CancelPullRequestRenovateRebaseResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ReopenPullRequestResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -18201,7 +18519,10 @@ func (c *ClientWithResponses) GetMainBranchChecksWithResponse(ctx context.Contex
 // an external CI) can't be rerun here and is skipped. Refusals are an
 // `ActionError`; a 409 means the branch has no failed job to rerun, or
 // that the forge is a Forgejo older than version 17, which has no rerun
-// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
+// route (`ForgeHealth.rerunChecksBlocked` says so beforehand). On
+// Forgejo the version is checked before the runs are looked up, as for a
+// pull request, and a refusal that comes after some jobs restarted ends
+// with which jobs restarted and which did not.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -18227,7 +18548,10 @@ func (c *ClientWithResponses) RerunMainBranchChecksWithBodyWithResponse(ctx cont
 // an external CI) can't be rerun here and is skipped. Refusals are an
 // `ActionError`; a 409 means the branch has no failed job to rerun, or
 // that the forge is a Forgejo older than version 17, which has no rerun
-// route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
+// route (`ForgeHealth.rerunChecksBlocked` says so beforehand). On
+// Forgejo the version is checked before the runs are looked up, as for a
+// pull request, and a refusal that comes after some jobs restarted ends
+// with which jobs restarted and which did not.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -18872,6 +19196,58 @@ func (c *ClientWithResponses) PostPullRequestRenovateRebaseWithResponse(ctx cont
 	return ParsePostPullRequestRenovateRebaseResponse(rsp)
 }
 
+// CancelPullRequestRenovateRebaseWithBodyWithResponse Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
+//
+// Unticks the `rebase-check` checkbox in the named pull request's
+// body (`- [x] <!-- rebase-check -->...` becomes `- [ ] ...`, and
+// nothing else in the body changes), which takes back the rebase
+// that ticking it asked for. Renovate looks at the box on its next
+// run, so a rebase it has already started is not stopped. The
+// pull request offers it as a `cancel_renovate_rebase` entry in
+// `allowedActions`, which it does while the box is ticked. A request
+// made with the rebase label has no checkbox, so it has no cancel.
+//
+// Cancelling is idempotent: a box that is already unticked is left
+// alone and the answer is still 204. The pending `botRequest` of that
+// rebase, if this app recorded one, is dropped from the next snapshot.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+func (c *ClientWithResponses) CancelPullRequestRenovateRebaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelPullRequestRenovateRebaseResponse, error) {
+	rsp, err := c.CancelPullRequestRenovateRebaseWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelPullRequestRenovateRebaseResponse(rsp)
+}
+
+// CancelPullRequestRenovateRebaseWithResponse Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
+//
+// Unticks the `rebase-check` checkbox in the named pull request's
+// body (`- [x] <!-- rebase-check -->...` becomes `- [ ] ...`, and
+// nothing else in the body changes), which takes back the rebase
+// that ticking it asked for. Renovate looks at the box on its next
+// run, so a rebase it has already started is not stopped. The
+// pull request offers it as a `cancel_renovate_rebase` entry in
+// `allowedActions`, which it does while the box is ticked. A request
+// made with the rebase label has no checkbox, so it has no cancel.
+//
+// Cancelling is idempotent: a box that is already unticked is left
+// alone and the answer is still 204. The pending `botRequest` of that
+// rebase, if this app recorded one, is dropped from the next snapshot.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+func (c *ClientWithResponses) CancelPullRequestRenovateRebaseWithResponse(ctx context.Context, body CancelPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelPullRequestRenovateRebaseResponse, error) {
+	rsp, err := c.CancelPullRequestRenovateRebase(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelPullRequestRenovateRebaseResponse(rsp)
+}
+
 // ReopenPullRequestWithBodyWithResponse Reopen one pull request that was closed without merging, on the signed-in user's behalf
 //
 // Reopens the named pull request: the undo for Close, offered in the
@@ -18966,11 +19342,16 @@ func (c *ClientWithResponses) ReopenPullRequestWithResponse(ctx context.Context,
 // old or already running) arrives with its own plain-words `message`.
 // Jobs are rerun one request at a time, so a refusal can come after
 // earlier jobs restarted; the `message` then ends with which jobs
-// restarted and which did not. When the version could not be read the
-// forge decides, and a 404 from it reads "The forge couldn't find that
-// run or job. It may not support rerunning checks from here, or the
-// token can't see this repository." That sentence names no forge or
-// version, because a 404 can mean either.
+// restarted and which did not. A job whose request got no clear answer (a
+// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
+// that may have restarted, as are the other failed jobs of its run,
+// whichever job it was. Only a request that provably never reached the
+// forge (a refused connection, a name that doesn't resolve, a rejected
+// certificate) counts as not restarted. When the version could not be
+// read the forge decides, and a 404 from it reads "The forge couldn't
+// find that run, job or pull request. It may not support rerunning checks from
+// here, or the token can't see this repository." That sentence names no
+// forge or version, because a 404 can mean either.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -19015,11 +19396,16 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithBodyWithResponse(ctx con
 // old or already running) arrives with its own plain-words `message`.
 // Jobs are rerun one request at a time, so a refusal can come after
 // earlier jobs restarted; the `message` then ends with which jobs
-// restarted and which did not. When the version could not be read the
-// forge decides, and a 404 from it reads "The forge couldn't find that
-// run or job. It may not support rerunning checks from here, or the
-// token can't see this repository." That sentence names no forge or
-// version, because a 404 can mean either.
+// restarted and which did not. A job whose request got no clear answer (a
+// timeout, a reset, a cancelled wait, a 502, 503 or 504) is named as one
+// that may have restarted, as are the other failed jobs of its run,
+// whichever job it was. Only a request that provably never reached the
+// forge (a refused connection, a name that doesn't resolve, a rejected
+// certificate) counts as not restarted. When the version could not be
+// read the forge decides, and a 404 from it reads "The forge couldn't
+// find that run, job or pull request. It may not support rerunning checks from
+// here, or the token can't see this repository." That sentence names no
+// forge or version, because a 404 can mean either.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -21717,6 +22103,77 @@ func ParsePostPullRequestRenovateRebaseResponse(rsp *http.Response) (*PostPullRe
 	}
 
 	response := &PostPullRequestRenovateRebaseResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCancelPullRequestRenovateRebaseResponse parses an HTTP response from a CancelPullRequestRenovateRebaseWithResponse call
+func ParseCancelPullRequestRenovateRebaseResponse(rsp *http.Response) (*CancelPullRequestRenovateRebaseResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelPullRequestRenovateRebaseResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
