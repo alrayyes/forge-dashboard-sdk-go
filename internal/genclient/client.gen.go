@@ -3465,7 +3465,8 @@ type QueryIncludeHidden = bool
 type FinishAddCredentialParams struct {
 	// Label A name the user recognizes, e.g. "MacBook" or "YubiKey",
 	// prompted for at registration time, never derived
-	// from the authenticator itself.
+	// from the authenticator itself. Trimmed first, then must be 1 to
+	// 64 characters, the same rule as renaming a passkey.
 	Label string `form:"label" json:"label"`
 }
 
