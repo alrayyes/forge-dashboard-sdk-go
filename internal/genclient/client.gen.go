@@ -1717,7 +1717,7 @@ type ForgeHealth struct {
 	// RepoCount Repositories with write access this forge reported.
 	RepoCount int `json:"repoCount"`
 
-	// RerunChecksBlocked Why this forge can't rerun checks. Set only for a Forgejo whose version is 7 to 16, which has no API route for it; a version below 7 may be a Gitea and is left to the forge. The version is read in the background, read again after an hour while it blocks, and retried after a failed read or one that gives no number. A block that has gone stale is dropped when the read fails. Rerun failed checks is not offered for the forge, and the page shows this text where the button would be. Omitted when rerunning works or the version could not be read.
+	// RerunChecksBlocked Why this forge can't rerun checks. Set only for a Forgejo whose version is 7 to 16, which has no API route for it. A version below 7 is left to the forge, because a Gitea numbers itself that way. The version is read in the background, read again after an hour while it blocks, and retried after a failed read or one that gives no number. A block that has gone stale is dropped when the read fails. Rerun failed checks is not offered for the forge, and the page shows this text where the button would be. Omitted when rerunning works or the version could not be read.
 	RerunChecksBlocked *string `json:"rerunChecksBlocked,omitempty"`
 
 	// StaleSince Present when the last refresh against this forge failed, or the
@@ -4928,7 +4928,7 @@ type ClientInterface interface {
 	// passed but waits on a failed one goes again too. Forgejo
 	// gained the rerun routes in version 17; an older instance answers 409
 	// with a plain sentence and sends no rerun request to the forge (the
-	// pull request and its runs are still looked up first), and says so up
+	// version is checked before the pull request or its runs are looked up), and says so up
 	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
 	// appears in `allowedActions` for such a Forgejo: a caller learns of
 	// the block from that health entry or from the 409. The block is per
@@ -4939,6 +4939,13 @@ type ClientInterface interface {
 	// means the pull request has no failed check to rerun. Anything the
 	// forge refuses (the token may not write to Actions, the run is too
 	// old or already running) arrives with its own plain-words `message`.
+	// Jobs are rerun one request at a time, so a refusal can come after
+	// earlier jobs restarted; the `message` then ends with which jobs
+	// restarted and which did not. When the version could not be read the
+	// forge decides, and a 404 from it reads "The forge couldn't find that
+	// run or job. It may not support rerunning checks from here, or the
+	// token can't see this repository." That sentence names no forge or
+	// version, because a 404 can mean either.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -4964,7 +4971,7 @@ type ClientInterface interface {
 	// passed but waits on a failed one goes again too. Forgejo
 	// gained the rerun routes in version 17; an older instance answers 409
 	// with a plain sentence and sends no rerun request to the forge (the
-	// pull request and its runs are still looked up first), and says so up
+	// version is checked before the pull request or its runs are looked up), and says so up
 	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
 	// appears in `allowedActions` for such a Forgejo: a caller learns of
 	// the block from that health entry or from the 409. The block is per
@@ -4975,6 +4982,13 @@ type ClientInterface interface {
 	// means the pull request has no failed check to rerun. Anything the
 	// forge refuses (the token may not write to Actions, the run is too
 	// old or already running) arrives with its own plain-words `message`.
+	// Jobs are rerun one request at a time, so a refusal can come after
+	// earlier jobs restarted; the `message` then ends with which jobs
+	// restarted and which did not. When the version could not be read the
+	// forge decides, and a 404 from it reads "The forge couldn't find that
+	// run or job. It may not support rerunning checks from here, or the
+	// token can't see this repository." That sentence names no forge or
+	// version, because a 404 can mean either.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -7394,7 +7408,7 @@ func (c *Client) ReopenPullRequest(ctx context.Context, body ReopenPullRequestJS
 // passed but waits on a failed one goes again too. Forgejo
 // gained the rerun routes in version 17; an older instance answers 409
 // with a plain sentence and sends no rerun request to the forge (the
-// pull request and its runs are still looked up first), and says so up
+// version is checked before the pull request or its runs are looked up), and says so up
 // front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
 // appears in `allowedActions` for such a Forgejo: a caller learns of
 // the block from that health entry or from the 409. The block is per
@@ -7405,6 +7419,13 @@ func (c *Client) ReopenPullRequest(ctx context.Context, body ReopenPullRequestJS
 // means the pull request has no failed check to rerun. Anything the
 // forge refuses (the token may not write to Actions, the run is too
 // old or already running) arrives with its own plain-words `message`.
+// Jobs are rerun one request at a time, so a refusal can come after
+// earlier jobs restarted; the `message` then ends with which jobs
+// restarted and which did not. When the version could not be read the
+// forge decides, and a 404 from it reads "The forge couldn't find that
+// run or job. It may not support rerunning checks from here, or the
+// token can't see this repository." That sentence names no forge or
+// version, because a 404 can mean either.
 //
 // Takes any type of body and a specified content type.
 //
@@ -7440,7 +7461,7 @@ func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType
 // passed but waits on a failed one goes again too. Forgejo
 // gained the rerun routes in version 17; an older instance answers 409
 // with a plain sentence and sends no rerun request to the forge (the
-// pull request and its runs are still looked up first), and says so up
+// version is checked before the pull request or its runs are looked up), and says so up
 // front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
 // appears in `allowedActions` for such a Forgejo: a caller learns of
 // the block from that health entry or from the 409. The block is per
@@ -7451,6 +7472,13 @@ func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType
 // means the pull request has no failed check to rerun. Anything the
 // forge refuses (the token may not write to Actions, the run is too
 // old or already running) arrives with its own plain-words `message`.
+// Jobs are rerun one request at a time, so a refusal can come after
+// earlier jobs restarted; the `message` then ends with which jobs
+// restarted and which did not. When the version could not be read the
+// forge decides, and a 404 from it reads "The forge couldn't find that
+// run or job. It may not support rerunning checks from here, or the
+// token can't see this repository." That sentence names no forge or
+// version, because a 404 can mean either.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -12590,7 +12618,7 @@ type ClientWithResponsesInterface interface {
 	// passed but waits on a failed one goes again too. Forgejo
 	// gained the rerun routes in version 17; an older instance answers 409
 	// with a plain sentence and sends no rerun request to the forge (the
-	// pull request and its runs are still looked up first), and says so up
+	// version is checked before the pull request or its runs are looked up), and says so up
 	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
 	// appears in `allowedActions` for such a Forgejo: a caller learns of
 	// the block from that health entry or from the 409. The block is per
@@ -12601,6 +12629,13 @@ type ClientWithResponsesInterface interface {
 	// means the pull request has no failed check to rerun. Anything the
 	// forge refuses (the token may not write to Actions, the run is too
 	// old or already running) arrives with its own plain-words `message`.
+	// Jobs are rerun one request at a time, so a refusal can come after
+	// earlier jobs restarted; the `message` then ends with which jobs
+	// restarted and which did not. When the version could not be read the
+	// forge decides, and a 404 from it reads "The forge couldn't find that
+	// run or job. It may not support rerunning checks from here, or the
+	// token can't see this repository." That sentence names no forge or
+	// version, because a 404 can mean either.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -12626,7 +12661,7 @@ type ClientWithResponsesInterface interface {
 	// passed but waits on a failed one goes again too. Forgejo
 	// gained the rerun routes in version 17; an older instance answers 409
 	// with a plain sentence and sends no rerun request to the forge (the
-	// pull request and its runs are still looked up first), and says so up
+	// version is checked before the pull request or its runs are looked up), and says so up
 	// front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
 	// appears in `allowedActions` for such a Forgejo: a caller learns of
 	// the block from that health entry or from the 409. The block is per
@@ -12637,6 +12672,13 @@ type ClientWithResponsesInterface interface {
 	// means the pull request has no failed check to rerun. Anything the
 	// forge refuses (the token may not write to Actions, the run is too
 	// old or already running) arrives with its own plain-words `message`.
+	// Jobs are rerun one request at a time, so a refusal can come after
+	// earlier jobs restarted; the `message` then ends with which jobs
+	// restarted and which did not. When the version could not be read the
+	// forge decides, and a 404 from it reads "The forge couldn't find that
+	// run or job. It may not support rerunning checks from here, or the
+	// token can't see this repository." That sentence names no forge or
+	// version, because a 404 can mean either.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -18851,7 +18893,7 @@ func (c *ClientWithResponses) ReopenPullRequestWithResponse(ctx context.Context,
 // passed but waits on a failed one goes again too. Forgejo
 // gained the rerun routes in version 17; an older instance answers 409
 // with a plain sentence and sends no rerun request to the forge (the
-// pull request and its runs are still looked up first), and says so up
+// version is checked before the pull request or its runs are looked up), and says so up
 // front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
 // appears in `allowedActions` for such a Forgejo: a caller learns of
 // the block from that health entry or from the 409. The block is per
@@ -18862,6 +18904,13 @@ func (c *ClientWithResponses) ReopenPullRequestWithResponse(ctx context.Context,
 // means the pull request has no failed check to rerun. Anything the
 // forge refuses (the token may not write to Actions, the run is too
 // old or already running) arrives with its own plain-words `message`.
+// Jobs are rerun one request at a time, so a refusal can come after
+// earlier jobs restarted; the `message` then ends with which jobs
+// restarted and which did not. When the version could not be read the
+// forge decides, and a 404 from it reads "The forge couldn't find that
+// run or job. It may not support rerunning checks from here, or the
+// token can't see this repository." That sentence names no forge or
+// version, because a 404 can mean either.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -18893,7 +18942,7 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithBodyWithResponse(ctx con
 // passed but waits on a failed one goes again too. Forgejo
 // gained the rerun routes in version 17; an older instance answers 409
 // with a plain sentence and sends no rerun request to the forge (the
-// pull request and its runs are still looked up first), and says so up
+// version is checked before the pull request or its runs are looked up), and says so up
 // front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
 // appears in `allowedActions` for such a Forgejo: a caller learns of
 // the block from that health entry or from the 409. The block is per
@@ -18904,6 +18953,13 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithBodyWithResponse(ctx con
 // means the pull request has no failed check to rerun. Anything the
 // forge refuses (the token may not write to Actions, the run is too
 // old or already running) arrives with its own plain-words `message`.
+// Jobs are rerun one request at a time, so a refusal can come after
+// earlier jobs restarted; the `message` then ends with which jobs
+// restarted and which did not. When the version could not be read the
+// forge decides, and a 404 from it reads "The forge couldn't find that
+// run or job. It may not support rerunning checks from here, or the
+// token can't see this repository." That sentence names no forge or
+// version, because a 404 can mean either.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
