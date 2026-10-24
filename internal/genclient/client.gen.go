@@ -1943,17 +1943,6 @@ type LinkedPullRequest struct {
 	Repo string `json:"repo"`
 }
 
-// LoginBeginRequest defines model for LoginBeginRequest.
-type LoginBeginRequest struct {
-	// Username Surrounding whitespace is trimmed by the server, and what is
-	// left must not be empty. Clients may check the same pattern for
-	// quick feedback; the server decides.
-	//
-	//
-	// Examples: ryan
-	Username string `json:"username"`
-}
-
 // MainBranch One tracked repository and the CI status of its default branch.
 type MainBranch struct {
 	// Advisories The open dependency advisories on a repository's default branch, read
@@ -2961,20 +2950,6 @@ type Ready struct {
 // ReadyStatus defines model for Ready.Status.
 type ReadyStatus string
 
-// RegisterBeginRequest defines model for RegisterBeginRequest.
-type RegisterBeginRequest struct {
-	// DisplayName Examples: Ryan
-	DisplayName string `json:"displayName"`
-
-	// Username Surrounding whitespace is trimmed by the server, and what is
-	// left must not be empty. Clients may check the same pattern for
-	// quick feedback; the server decides.
-	//
-	//
-	// Examples: ryan
-	Username string `json:"username"`
-}
-
 // RegistrationStatus defines model for RegistrationStatus.
 type RegistrationStatus struct {
 	// Open True only when the instance has zero registered users.
@@ -3488,16 +3463,6 @@ type FinishAddCredentialParams struct {
 	Label string `form:"label" json:"label"`
 }
 
-// FinishLoginParams defines parameters for FinishLogin.
-type FinishLoginParams struct {
-	Username string `form:"username" json:"username"`
-}
-
-// FinishRegistrationParams defines parameters for FinishRegistration.
-type FinishRegistrationParams struct {
-	Username string `form:"username" json:"username"`
-}
-
 // GetCheckLogParams defines parameters for GetCheckLog.
 type GetCheckLogParams struct {
 	Forge Forge `form:"forge" json:"forge"`
@@ -3643,14 +3608,8 @@ type ReceiveGitHubWebhookJSONBody = map[string]interface{}
 // FinishAddCredentialJSONRequestBody defines body for FinishAddCredential for application/json ContentType.
 type FinishAddCredentialJSONRequestBody = WebAuthnCeremonyOptions
 
-// BeginLoginJSONRequestBody defines body for BeginLogin for application/json ContentType.
-type BeginLoginJSONRequestBody = LoginBeginRequest
-
 // FinishLoginJSONRequestBody defines body for FinishLogin for application/json ContentType.
 type FinishLoginJSONRequestBody = WebAuthnCeremonyOptions
-
-// BeginRegistrationJSONRequestBody defines body for BeginRegistration for application/json ContentType.
-type BeginRegistrationJSONRequestBody = RegisterBeginRequest
 
 // FinishRegistrationJSONRequestBody defines body for FinishRegistration for application/json ContentType.
 type FinishRegistrationJSONRequestBody = WebAuthnCeremonyOptions
@@ -3838,7 +3797,8 @@ type ClientInterface interface {
 	// The authenticated counterpart to POST /api/auth/register/begin —
 	// that one only ever works for a brand-new, credential-less
 	// account; this is how an already-registered user adds a second
-	// (or third...) passkey, e.g. a laptop and a security key.
+	// (or third...) passkey, e.g. a laptop and a security key. Like the
+	// first registration it requires a resident key.
 	//
 	// Corresponds with POST /api/auth/credentials/begin (the `BeginAddCredential` operationId).
 	BeginAddCredential(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3866,76 +3826,60 @@ type ClientInterface interface {
 	// Corresponds with DELETE /api/auth/credentials/{id} (the `DeleteCredential` operationId).
 	DeleteCredential(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// BeginLoginWithBody Start a passkey login ceremony
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
-	BeginLoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// BeginLogin Start a passkey login ceremony
 	//
-	// Takes a body of the `application/json` content type.
+	// An instance has one user, so there is nothing to name and the request
+	// carries no body. The options name no passkey and no user, so the
+	// browser offers whichever discoverable passkey it holds for the site
+	// and nothing about the account is revealed to a visitor.
 	//
 	// Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
-	BeginLogin(ctx context.Context, body BeginLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	BeginLogin(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// FinishLoginWithBody Complete a passkey login ceremony
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
-	FinishLoginWithBody(ctx context.Context, params *FinishLoginParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	FinishLoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// FinishLogin Complete a passkey login ceremony
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
-	FinishLogin(ctx context.Context, params *FinishLoginParams, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	FinishLogin(ctx context.Context, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// Logout End the current session
 	//
 	// Corresponds with POST /api/auth/logout (the `Logout` operationId).
 	Logout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// BeginRegistrationWithBody Start a passkey registration ceremony
-	//
-	// An instance has one user. The first registration on a fresh
-	// instance (see GET /api/auth/registration-status) creates that
-	// user. Once any account holds a passkey, this answers 403 whatever
-	// username it carries.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
-	BeginRegistrationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// BeginRegistration Start a passkey registration ceremony
 	//
 	// An instance has one user. The first registration on a fresh
 	// instance (see GET /api/auth/registration-status) creates that
-	// user. Once any account holds a passkey, this answers 403 whatever
-	// username it carries.
-	//
-	// Takes a body of the `application/json` content type.
+	// user and the server names it, so the request carries no body. The
+	// options require a resident key, so the passkey can be found at
+	// sign-in without being named. Once any account holds a passkey, this
+	// answers 403.
 	//
 	// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
-	BeginRegistration(ctx context.Context, body BeginRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	BeginRegistration(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// FinishRegistrationWithBody Complete a passkey registration ceremony
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
-	FinishRegistrationWithBody(ctx context.Context, params *FinishRegistrationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	FinishRegistrationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// FinishRegistration Complete a passkey registration ceremony
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
-	FinishRegistration(ctx context.Context, params *FinishRegistrationParams, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	FinishRegistration(ctx context.Context, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetRegistrationStatus Whether self-registration is open
 	//
@@ -5828,7 +5772,8 @@ func (c *Client) ListCredentials(ctx context.Context, reqEditors ...RequestEdito
 // The authenticated counterpart to POST /api/auth/register/begin —
 // that one only ever works for a brand-new, credential-less
 // account; this is how an already-registered user adds a second
-// (or third...) passkey, e.g. a laptop and a security key.
+// (or third...) passkey, e.g. a laptop and a security key. Like the
+// first registration it requires a resident key.
 //
 // Corresponds with POST /api/auth/credentials/begin (the `BeginAddCredential` operationId).
 func (c *Client) BeginAddCredential(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -5896,30 +5841,16 @@ func (c *Client) DeleteCredential(ctx context.Context, id string, reqEditors ...
 	return c.Client.Do(req)
 }
 
-// BeginLoginWithBody Start a passkey login ceremony
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
-func (c *Client) BeginLoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewBeginLoginRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // BeginLogin Start a passkey login ceremony
 //
-// Takes a body of the `application/json` content type.
+// An instance has one user, so there is nothing to name and the request
+// carries no body. The options name no passkey and no user, so the
+// browser offers whichever discoverable passkey it holds for the site
+// and nothing about the account is revealed to a visitor.
 //
 // Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
-func (c *Client) BeginLogin(ctx context.Context, body BeginLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewBeginLoginRequest(c.Server, body)
+func (c *Client) BeginLogin(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBeginLoginRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -5935,8 +5866,8 @@ func (c *Client) BeginLogin(ctx context.Context, body BeginLoginJSONRequestBody,
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
-func (c *Client) FinishLoginWithBody(ctx context.Context, params *FinishLoginParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewFinishLoginRequestWithBody(c.Server, params, contentType, body)
+func (c *Client) FinishLoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFinishLoginRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5952,8 +5883,8 @@ func (c *Client) FinishLoginWithBody(ctx context.Context, params *FinishLoginPar
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
-func (c *Client) FinishLogin(ctx context.Context, params *FinishLoginParams, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewFinishLoginRequest(c.Server, params, body)
+func (c *Client) FinishLogin(ctx context.Context, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFinishLoginRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5979,40 +5910,18 @@ func (c *Client) Logout(ctx context.Context, reqEditors ...RequestEditorFn) (*ht
 	return c.Client.Do(req)
 }
 
-// BeginRegistrationWithBody Start a passkey registration ceremony
-//
-// An instance has one user. The first registration on a fresh
-// instance (see GET /api/auth/registration-status) creates that
-// user. Once any account holds a passkey, this answers 403 whatever
-// username it carries.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
-func (c *Client) BeginRegistrationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewBeginRegistrationRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // BeginRegistration Start a passkey registration ceremony
 //
 // An instance has one user. The first registration on a fresh
 // instance (see GET /api/auth/registration-status) creates that
-// user. Once any account holds a passkey, this answers 403 whatever
-// username it carries.
-//
-// Takes a body of the `application/json` content type.
+// user and the server names it, so the request carries no body. The
+// options require a resident key, so the passkey can be found at
+// sign-in without being named. Once any account holds a passkey, this
+// answers 403.
 //
 // Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
-func (c *Client) BeginRegistration(ctx context.Context, body BeginRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewBeginRegistrationRequest(c.Server, body)
+func (c *Client) BeginRegistration(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBeginRegistrationRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -6028,8 +5937,8 @@ func (c *Client) BeginRegistration(ctx context.Context, body BeginRegistrationJS
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
-func (c *Client) FinishRegistrationWithBody(ctx context.Context, params *FinishRegistrationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewFinishRegistrationRequestWithBody(c.Server, params, contentType, body)
+func (c *Client) FinishRegistrationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFinishRegistrationRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6045,8 +5954,8 @@ func (c *Client) FinishRegistrationWithBody(ctx context.Context, params *FinishR
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
-func (c *Client) FinishRegistration(ctx context.Context, params *FinishRegistrationParams, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewFinishRegistrationRequest(c.Server, params, body)
+func (c *Client) FinishRegistration(ctx context.Context, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFinishRegistrationRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8975,19 +8884,8 @@ func NewDeleteCredentialRequest(server string, id string) (*http.Request, error)
 	return req, nil
 }
 
-// NewBeginLoginRequest calls the generic BeginLogin builder with application/json body
-func NewBeginLoginRequest(server string, body BeginLoginJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewBeginLoginRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewBeginLoginRequestWithBody constructs an http.Request for the BeginLogin method, with any body, and a specified content type
-func NewBeginLoginRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewBeginLoginRequest constructs an http.Request for the BeginLogin method
+func NewBeginLoginRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -9005,29 +8903,27 @@ func NewBeginLoginRequestWithBody(server string, contentType string, body io.Rea
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
 
 // NewFinishLoginRequest calls the generic FinishLogin builder with application/json body
-func NewFinishLoginRequest(server string, params *FinishLoginParams, body FinishLoginJSONRequestBody) (*http.Request, error) {
+func NewFinishLoginRequest(server string, body FinishLoginJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewFinishLoginRequestWithBody(server, params, "application/json", bodyReader)
+	return NewFinishLoginRequestWithBody(server, "application/json", bodyReader)
 }
 
 // NewFinishLoginRequestWithBody constructs an http.Request for the FinishLogin method, with any body, and a specified content type
-func NewFinishLoginRequestWithBody(server string, params *FinishLoginParams, contentType string, body io.Reader) (*http.Request, error) {
+func NewFinishLoginRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -9043,29 +8939,6 @@ func NewFinishLoginRequestWithBody(server string, params *FinishLoginParams, con
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "username", params.Username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
@@ -9105,19 +8978,8 @@ func NewLogoutRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewBeginRegistrationRequest calls the generic BeginRegistration builder with application/json body
-func NewBeginRegistrationRequest(server string, body BeginRegistrationJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewBeginRegistrationRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewBeginRegistrationRequestWithBody constructs an http.Request for the BeginRegistration method, with any body, and a specified content type
-func NewBeginRegistrationRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewBeginRegistrationRequest constructs an http.Request for the BeginRegistration method
+func NewBeginRegistrationRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -9135,29 +8997,27 @@ func NewBeginRegistrationRequestWithBody(server string, contentType string, body
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
 
 // NewFinishRegistrationRequest calls the generic FinishRegistration builder with application/json body
-func NewFinishRegistrationRequest(server string, params *FinishRegistrationParams, body FinishRegistrationJSONRequestBody) (*http.Request, error) {
+func NewFinishRegistrationRequest(server string, body FinishRegistrationJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewFinishRegistrationRequestWithBody(server, params, "application/json", bodyReader)
+	return NewFinishRegistrationRequestWithBody(server, "application/json", bodyReader)
 }
 
 // NewFinishRegistrationRequestWithBody constructs an http.Request for the FinishRegistration method, with any body, and a specified content type
-func NewFinishRegistrationRequestWithBody(server string, params *FinishRegistrationParams, contentType string, body io.Reader) (*http.Request, error) {
+func NewFinishRegistrationRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -9173,29 +9033,6 @@ func NewFinishRegistrationRequestWithBody(server string, params *FinishRegistrat
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "username", params.Username, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
@@ -11678,7 +11515,8 @@ type ClientWithResponsesInterface interface {
 	// The authenticated counterpart to POST /api/auth/register/begin —
 	// that one only ever works for a brand-new, credential-less
 	// account; this is how an already-registered user adds a second
-	// (or third...) passkey, e.g. a laptop and a security key.
+	// (or third...) passkey, e.g. a laptop and a security key. Like the
+	// first registration it requires a resident key.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -11710,33 +11548,31 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with DELETE /api/auth/credentials/{id} (the `DeleteCredential` operationId).
 	DeleteCredentialWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteCredentialResponse, error)
 
-	// BeginLoginWithBodyWithResponse Start a passkey login ceremony
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
-	BeginLoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BeginLoginResponse, error)
-
 	// BeginLoginWithResponse Start a passkey login ceremony
 	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	// An instance has one user, so there is nothing to name and the request
+	// carries no body. The options name no passkey and no user, so the
+	// browser offers whichever discoverable passkey it holds for the site
+	// and nothing about the account is revealed to a visitor.
+	//
+	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
-	BeginLoginWithResponse(ctx context.Context, body BeginLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*BeginLoginResponse, error)
+	BeginLoginWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BeginLoginResponse, error)
 
 	// FinishLoginWithBodyWithResponse Complete a passkey login ceremony
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
-	FinishLoginWithBodyWithResponse(ctx context.Context, params *FinishLoginParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error)
+	FinishLoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error)
 
 	// FinishLoginWithResponse Complete a passkey login ceremony
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
-	FinishLoginWithResponse(ctx context.Context, params *FinishLoginParams, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error)
+	FinishLoginWithResponse(ctx context.Context, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error)
 
 	// LogoutWithResponse End the current session
 	//
@@ -11745,43 +11581,33 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/auth/logout (the `Logout` operationId).
 	LogoutWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*LogoutResponse, error)
 
-	// BeginRegistrationWithBodyWithResponse Start a passkey registration ceremony
-	//
-	// An instance has one user. The first registration on a fresh
-	// instance (see GET /api/auth/registration-status) creates that
-	// user. Once any account holds a passkey, this answers 403 whatever
-	// username it carries.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
-	BeginRegistrationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BeginRegistrationResponse, error)
-
 	// BeginRegistrationWithResponse Start a passkey registration ceremony
 	//
 	// An instance has one user. The first registration on a fresh
 	// instance (see GET /api/auth/registration-status) creates that
-	// user. Once any account holds a passkey, this answers 403 whatever
-	// username it carries.
+	// user and the server names it, so the request carries no body. The
+	// options require a resident key, so the passkey can be found at
+	// sign-in without being named. Once any account holds a passkey, this
+	// answers 403.
 	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
-	BeginRegistrationWithResponse(ctx context.Context, body BeginRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*BeginRegistrationResponse, error)
+	BeginRegistrationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BeginRegistrationResponse, error)
 
 	// FinishRegistrationWithBodyWithResponse Complete a passkey registration ceremony
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
-	FinishRegistrationWithBodyWithResponse(ctx context.Context, params *FinishRegistrationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error)
+	FinishRegistrationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error)
 
 	// FinishRegistrationWithResponse Complete a passkey registration ceremony
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
-	FinishRegistrationWithResponse(ctx context.Context, params *FinishRegistrationParams, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error)
+	FinishRegistrationWithResponse(ctx context.Context, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error)
 
 	// GetRegistrationStatusWithResponse Whether self-registration is open
 	//
@@ -17766,7 +17592,8 @@ func (c *ClientWithResponses) ListCredentialsWithResponse(ctx context.Context, r
 // The authenticated counterpart to POST /api/auth/register/begin —
 // that one only ever works for a brand-new, credential-less
 // account; this is how an already-registered user adds a second
-// (or third...) passkey, e.g. a laptop and a security key.
+// (or third...) passkey, e.g. a laptop and a security key. Like the
+// first registration it requires a resident key.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -17822,26 +17649,18 @@ func (c *ClientWithResponses) DeleteCredentialWithResponse(ctx context.Context, 
 	return ParseDeleteCredentialResponse(rsp)
 }
 
-// BeginLoginWithBodyWithResponse Start a passkey login ceremony
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
-func (c *ClientWithResponses) BeginLoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BeginLoginResponse, error) {
-	rsp, err := c.BeginLoginWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseBeginLoginResponse(rsp)
-}
-
 // BeginLoginWithResponse Start a passkey login ceremony
 //
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+// An instance has one user, so there is nothing to name and the request
+// carries no body. The options name no passkey and no user, so the
+// browser offers whichever discoverable passkey it holds for the site
+// and nothing about the account is revealed to a visitor.
+//
+// Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
-func (c *ClientWithResponses) BeginLoginWithResponse(ctx context.Context, body BeginLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*BeginLoginResponse, error) {
-	rsp, err := c.BeginLogin(ctx, body, reqEditors...)
+func (c *ClientWithResponses) BeginLoginWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BeginLoginResponse, error) {
+	rsp, err := c.BeginLogin(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -17853,8 +17672,8 @@ func (c *ClientWithResponses) BeginLoginWithResponse(ctx context.Context, body B
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
-func (c *ClientWithResponses) FinishLoginWithBodyWithResponse(ctx context.Context, params *FinishLoginParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error) {
-	rsp, err := c.FinishLoginWithBody(ctx, params, contentType, body, reqEditors...)
+func (c *ClientWithResponses) FinishLoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error) {
+	rsp, err := c.FinishLoginWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -17866,8 +17685,8 @@ func (c *ClientWithResponses) FinishLoginWithBodyWithResponse(ctx context.Contex
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
-func (c *ClientWithResponses) FinishLoginWithResponse(ctx context.Context, params *FinishLoginParams, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error) {
-	rsp, err := c.FinishLogin(ctx, params, body, reqEditors...)
+func (c *ClientWithResponses) FinishLoginWithResponse(ctx context.Context, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error) {
+	rsp, err := c.FinishLogin(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -17887,36 +17706,20 @@ func (c *ClientWithResponses) LogoutWithResponse(ctx context.Context, reqEditors
 	return ParseLogoutResponse(rsp)
 }
 
-// BeginRegistrationWithBodyWithResponse Start a passkey registration ceremony
-//
-// An instance has one user. The first registration on a fresh
-// instance (see GET /api/auth/registration-status) creates that
-// user. Once any account holds a passkey, this answers 403 whatever
-// username it carries.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
-func (c *ClientWithResponses) BeginRegistrationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BeginRegistrationResponse, error) {
-	rsp, err := c.BeginRegistrationWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseBeginRegistrationResponse(rsp)
-}
-
 // BeginRegistrationWithResponse Start a passkey registration ceremony
 //
 // An instance has one user. The first registration on a fresh
 // instance (see GET /api/auth/registration-status) creates that
-// user. Once any account holds a passkey, this answers 403 whatever
-// username it carries.
+// user and the server names it, so the request carries no body. The
+// options require a resident key, so the passkey can be found at
+// sign-in without being named. Once any account holds a passkey, this
+// answers 403.
 //
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+// Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
-func (c *ClientWithResponses) BeginRegistrationWithResponse(ctx context.Context, body BeginRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*BeginRegistrationResponse, error) {
-	rsp, err := c.BeginRegistration(ctx, body, reqEditors...)
+func (c *ClientWithResponses) BeginRegistrationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BeginRegistrationResponse, error) {
+	rsp, err := c.BeginRegistration(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -17928,8 +17731,8 @@ func (c *ClientWithResponses) BeginRegistrationWithResponse(ctx context.Context,
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
-func (c *ClientWithResponses) FinishRegistrationWithBodyWithResponse(ctx context.Context, params *FinishRegistrationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error) {
-	rsp, err := c.FinishRegistrationWithBody(ctx, params, contentType, body, reqEditors...)
+func (c *ClientWithResponses) FinishRegistrationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error) {
+	rsp, err := c.FinishRegistrationWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -17941,8 +17744,8 @@ func (c *ClientWithResponses) FinishRegistrationWithBodyWithResponse(ctx context
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
-func (c *ClientWithResponses) FinishRegistrationWithResponse(ctx context.Context, params *FinishRegistrationParams, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error) {
-	rsp, err := c.FinishRegistration(ctx, params, body, reqEditors...)
+func (c *ClientWithResponses) FinishRegistrationWithResponse(ctx context.Context, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error) {
+	rsp, err := c.FinishRegistration(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
