@@ -266,6 +266,51 @@ func (e BotRequestPhase) Valid() bool {
 	}
 }
 
+// Defines values for BranchDeletionOutcome.
+const (
+	BranchDeletionOutcomeDeleted BranchDeletionOutcome = "deleted"
+	BranchDeletionOutcomeFailed  BranchDeletionOutcome = "failed"
+	BranchDeletionOutcomeSkipped BranchDeletionOutcome = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the BranchDeletionOutcome enum.
+func (e BranchDeletionOutcome) Valid() bool {
+	switch e {
+	case BranchDeletionOutcomeDeleted:
+		return true
+	case BranchDeletionOutcomeFailed:
+		return true
+	case BranchDeletionOutcomeSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BranchDeletionReason.
+const (
+	DefaultBranch BranchDeletionReason = "default_branch"
+	Fork          BranchDeletionReason = "fork"
+	Protected     BranchDeletionReason = "protected"
+	Unsupported   BranchDeletionReason = "unsupported"
+)
+
+// Valid indicates whether the value is a known member of the BranchDeletionReason enum.
+func (e BranchDeletionReason) Valid() bool {
+	switch e {
+	case DefaultBranch:
+		return true
+	case Fork:
+		return true
+	case Protected:
+		return true
+	case Unsupported:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CIStatus.
 const (
 	CIStatusFailure CIStatus = "failure"
@@ -1264,6 +1309,36 @@ type BotRequestBot string
 // A request is dropped once CI shows pending after the push, 2
 // minutes into `rebasing`, or when the pull request is gone.
 type BotRequestPhase string
+
+// BranchDeletion What happened to the source branch. A fact for the client to word,
+// never a reason to treat the merge as failed.
+type BranchDeletion struct {
+	// Outcome `deleted`: the branch is gone, including when the forge had
+	// already removed it. `skipped`: it was left alone on purpose,
+	// see `reason`. `failed`: the forge refused or couldn't be
+	// reached, and the branch may still exist.
+	Outcome BranchDeletionOutcome `json:"outcome"`
+
+	// Reason Why a `skipped` branch was left. `fork`: the branch lives in
+	// another repo. `default_branch`: it is the repo's default
+	// branch. `protected`: the forge protects it. `unsupported`: the
+	// forge's client can't delete branches. Absent unless `outcome`
+	// is `skipped`.
+	Reason *BranchDeletionReason `json:"reason,omitempty"`
+}
+
+// BranchDeletionOutcome `deleted`: the branch is gone, including when the forge had
+// already removed it. `skipped`: it was left alone on purpose,
+// see `reason`. `failed`: the forge refused or couldn't be
+// reached, and the branch may still exist.
+type BranchDeletionOutcome string
+
+// BranchDeletionReason Why a `skipped` branch was left. `fork`: the branch lives in
+// another repo. `default_branch`: it is the repo's default
+// branch. `protected`: the forge protects it. `unsupported`: the
+// forge's client can't delete branches. Absent unless `outcome`
+// is `skipped`.
+type BranchDeletionReason string
 
 // CIStatus The combined result across every check reported against the pull
 // request's head commit. "none" means neither forge reported any
@@ -2796,6 +2871,26 @@ type PullRequestHideRequest struct {
 	Number int `json:"number"`
 }
 
+// PullRequestMergeRequest Which pull request to merge, and whether to delete its source branch afterwards.
+type PullRequestMergeRequest struct {
+	// DeleteBranch Delete the source branch once the merge has landed.
+	DeleteBranch *bool `json:"deleteBranch,omitempty"`
+	Forge        Forge `json:"forge"`
+
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	FullName string `json:"fullName"`
+
+	// Number Matching a PullRequest.number from GET /api/dashboard.
+	Number int `json:"number"`
+}
+
+// PullRequestMergeResult What a merge that asked for `deleteBranch` did besides merging.
+type PullRequestMergeResult struct {
+	// BranchDeletion What happened to the source branch. A fact for the client to word,
+	// never a reason to treat the merge as failed.
+	BranchDeletion BranchDeletion `json:"branchDeletion"`
+}
+
 // PullRequestStatus Why a pull request is waiting on something or can't be merged, in one
 // place for a client to show. Same fields as
 // `AllowedAction.blocked`, plus `action`.
@@ -3671,7 +3766,7 @@ type PostPullRequestDependabotActionJSONRequestBody = PullRequestDependabotActio
 type HidePullRequestJSONRequestBody = PullRequestHideRequest
 
 // MergePullRequestJSONRequestBody defines body for MergePullRequest for application/json ContentType.
-type MergePullRequestJSONRequestBody = PullRequestActionRequest
+type MergePullRequestJSONRequestBody = PullRequestMergeRequest
 
 // PostPullRequestRenovateRebaseJSONRequestBody defines body for PostPullRequestRenovateRebase for application/json ContentType.
 type PostPullRequestRenovateRebaseJSONRequestBody = PullRequestActionRequest
@@ -4836,6 +4931,12 @@ type ClientInterface interface {
 	// gets 409 `already_up_to_date` from this server, which never asks the
 	// forge.
 	//
+	// `deleteBranch: true` also asks for the pull request's source branch
+	// to be deleted once the merge has landed. The merge never depends on
+	// it: a branch that can't or shouldn't be deleted leaves the merge
+	// done and is reported in `branchDeletion`. Without `deleteBranch`
+	// the answer is a bare 204 and the branch is left alone.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -4863,6 +4964,12 @@ type ClientInterface interface {
 	// `merge` in `allowedActions`. A Merge posted for one anyway
 	// gets 409 `already_up_to_date` from this server, which never asks the
 	// forge.
+	//
+	// `deleteBranch: true` also asks for the pull request's source branch
+	// to be deleted once the merge has landed. The merge never depends on
+	// it: a branch that can't or shouldn't be deleted leaves the merge
+	// done and is reported in `branchDeletion`. Without `deleteBranch`
+	// the answer is a bare 204 and the branch is left alone.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -7327,6 +7434,12 @@ func (c *Client) HidePullRequest(ctx context.Context, body HidePullRequestJSONRe
 // gets 409 `already_up_to_date` from this server, which never asks the
 // forge.
 //
+// `deleteBranch: true` also asks for the pull request's source branch
+// to be deleted once the merge has landed. The merge never depends on
+// it: a branch that can't or shouldn't be deleted leaves the merge
+// done and is reported in `branchDeletion`. Without `deleteBranch`
+// the answer is a bare 204 and the branch is left alone.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -7364,6 +7477,12 @@ func (c *Client) MergePullRequestWithBody(ctx context.Context, contentType strin
 // `merge` in `allowedActions`. A Merge posted for one anyway
 // gets 409 `already_up_to_date` from this server, which never asks the
 // forge.
+//
+// `deleteBranch: true` also asks for the pull request's source branch
+// to be deleted once the merge has landed. The merge never depends on
+// it: a branch that can't or shouldn't be deleted leaves the merge
+// done and is reported in `branchDeletion`. Without `deleteBranch`
+// the answer is a bare 204 and the branch is left alone.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -12707,6 +12826,12 @@ type ClientWithResponsesInterface interface {
 	// gets 409 `already_up_to_date` from this server, which never asks the
 	// forge.
 	//
+	// `deleteBranch: true` also asks for the pull request's source branch
+	// to be deleted once the merge has landed. The merge never depends on
+	// it: a branch that can't or shouldn't be deleted leaves the merge
+	// done and is reported in `branchDeletion`. Without `deleteBranch`
+	// the answer is a bare 204 and the branch is left alone.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -12734,6 +12859,12 @@ type ClientWithResponsesInterface interface {
 	// `merge` in `allowedActions`. A Merge posted for one anyway
 	// gets 409 `already_up_to_date` from this server, which never asks the
 	// forge.
+	//
+	// `deleteBranch: true` also asks for the pull request's source branch
+	// to be deleted once the merge has landed. The merge never depends on
+	// it: a branch that can't or shouldn't be deleted leaves the merge
+	// done and is reported in `branchDeletion`. Without `deleteBranch`
+	// the answer is a bare 204 and the branch is left alone.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -15903,6 +16034,8 @@ func (r HidePullRequestResponse) ContentType() string {
 type MergePullRequestResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PullRequestMergeResult
 	// JSON400 the response for an HTTP 400 `application/json` response
 	JSON400 *Error
 	// JSON401 the response for an HTTP 401 `application/json` response
@@ -15917,6 +16050,11 @@ type MergePullRequestResponse struct {
 	JSON429 *ActionError
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *ActionError
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r MergePullRequestResponse) GetJSON200() *PullRequestMergeResult {
+	return r.JSON200
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -19222,6 +19360,12 @@ func (c *ClientWithResponses) HidePullRequestWithResponse(ctx context.Context, b
 // gets 409 `already_up_to_date` from this server, which never asks the
 // forge.
 //
+// `deleteBranch: true` also asks for the pull request's source branch
+// to be deleted once the merge has landed. The merge never depends on
+// it: a branch that can't or shouldn't be deleted leaves the merge
+// done and is reported in `branchDeletion`. Without `deleteBranch`
+// the answer is a bare 204 and the branch is left alone.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
@@ -19255,6 +19399,12 @@ func (c *ClientWithResponses) MergePullRequestWithBodyWithResponse(ctx context.C
 // `merge` in `allowedActions`. A Merge posted for one anyway
 // gets 409 `already_up_to_date` from this server, which never asks the
 // forge.
+//
+// `deleteBranch: true` also asks for the pull request's source branch
+// to be deleted once the merge has landed. The merge never depends on
+// it: a branch that can't or shouldn't be deleted leaves the merge
+// done and is reported in `branchDeletion`. Without `deleteBranch`
+// the answer is a bare 204 and the branch is left alone.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -22305,6 +22455,13 @@ func ParseMergePullRequestResponse(rsp *http.Response) (*MergePullRequestRespons
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PullRequestMergeResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case rsp.StatusCode == 204:
 		break // No content-type
 
