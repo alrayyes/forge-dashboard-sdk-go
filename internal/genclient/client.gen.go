@@ -291,6 +291,7 @@ func (e BranchDeletionOutcome) Valid() bool {
 const (
 	DefaultBranch BranchDeletionReason = "default_branch"
 	Fork          BranchDeletionReason = "fork"
+	InUse         BranchDeletionReason = "in_use"
 	Protected     BranchDeletionReason = "protected"
 	Unsupported   BranchDeletionReason = "unsupported"
 )
@@ -301,6 +302,8 @@ func (e BranchDeletionReason) Valid() bool {
 	case DefaultBranch:
 		return true
 	case Fork:
+		return true
+	case InUse:
 		return true
 	case Protected:
 		return true
@@ -1321,7 +1324,9 @@ type BranchDeletion struct {
 
 	// Reason Why a `skipped` branch was left. `fork`: the branch lives in
 	// another repo. `default_branch`: it is the repo's default
-	// branch. `protected`: the forge protects it. `unsupported`: the
+	// branch. `protected`: the forge protects it. `in_use`: another
+	// open pull request in the repo has it as its head or base, so
+	// deleting it would strand that pull request. `unsupported`: the
 	// forge's client can't delete branches. Absent unless `outcome`
 	// is `skipped`.
 	Reason *BranchDeletionReason `json:"reason,omitempty"`
@@ -1335,7 +1340,9 @@ type BranchDeletionOutcome string
 
 // BranchDeletionReason Why a `skipped` branch was left. `fork`: the branch lives in
 // another repo. `default_branch`: it is the repo's default
-// branch. `protected`: the forge protects it. `unsupported`: the
+// branch. `protected`: the forge protects it. `in_use`: another
+// open pull request in the repo has it as its head or base, so
+// deleting it would strand that pull request. `unsupported`: the
 // forge's client can't delete branches. Absent unless `outcome`
 // is `skipped`.
 type BranchDeletionReason string
