@@ -115,22 +115,22 @@ func (e AdvisoryReason) Valid() bool {
 
 // Defines values for AdvisorySeverity.
 const (
-	AdvisorySeverityCritical AdvisorySeverity = "critical"
-	AdvisorySeverityHigh     AdvisorySeverity = "high"
-	AdvisorySeverityLow      AdvisorySeverity = "low"
-	AdvisorySeverityMedium   AdvisorySeverity = "medium"
+	Critical AdvisorySeverity = "critical"
+	High     AdvisorySeverity = "high"
+	Low      AdvisorySeverity = "low"
+	Medium   AdvisorySeverity = "medium"
 )
 
 // Valid indicates whether the value is a known member of the AdvisorySeverity enum.
 func (e AdvisorySeverity) Valid() bool {
 	switch e {
-	case AdvisorySeverityCritical:
+	case Critical:
 		return true
-	case AdvisorySeverityHigh:
+	case High:
 		return true
-	case AdvisorySeverityLow:
+	case Low:
 		return true
-	case AdvisorySeverityMedium:
+	case Medium:
 		return true
 	default:
 		return false
@@ -641,30 +641,6 @@ func (e QueuedActionRequestAction) Valid() bool {
 	case QueuedActionRequestActionRenovateRebase:
 		return true
 	case QueuedActionRequestActionUpdateBranch:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for RateLimitSeverity.
-const (
-	RateLimitSeverityExceeded RateLimitSeverity = "exceeded"
-	RateLimitSeverityLow      RateLimitSeverity = "low"
-	RateLimitSeverityOk       RateLimitSeverity = "ok"
-	RateLimitSeverityWarning  RateLimitSeverity = "warning"
-)
-
-// Valid indicates whether the value is a known member of the RateLimitSeverity enum.
-func (e RateLimitSeverity) Valid() bool {
-	switch e {
-	case RateLimitSeverityExceeded:
-		return true
-	case RateLimitSeverityLow:
-		return true
-	case RateLimitSeverityOk:
-		return true
-	case RateLimitSeverityWarning:
 		return true
 	default:
 		return false
@@ -3005,27 +2981,7 @@ type RateLimit struct {
 
 	// ResetsAt When the window resets and remaining goes back to limit.
 	ResetsAt time.Time `json:"resetsAt"`
-
-	// Severity How worried a client should be about this budget, graded by
-	// the server as of the response, so no client needs its own
-	// threshold or clock check. `exceeded`: nothing left and the
-	// reset hasn't been seen to pass. `low`: under 5% left (also a
-	// spent budget whose reset time has passed, until the next
-	// snapshot says otherwise). `warning`: under 20% left but not
-	// yet low, for a gauge's amber stage; a banner or a lock has no
-	// reason to act on it. `ok`: everything else.
-	Severity RateLimitSeverity `json:"severity"`
 }
-
-// RateLimitSeverity How worried a client should be about this budget, graded by
-// the server as of the response, so no client needs its own
-// threshold or clock check. `exceeded`: nothing left and the
-// reset hasn't been seen to pass. `low`: under 5% left (also a
-// spent budget whose reset time has passed, until the next
-// snapshot says otherwise). `warning`: under 20% left but not
-// yet low, for a gauge's amber stage; a banner or a lock has no
-// reason to act on it. `ok`: everything else.
-type RateLimitSeverity string
 
 // Reaction defines model for Reaction.
 type Reaction struct {
