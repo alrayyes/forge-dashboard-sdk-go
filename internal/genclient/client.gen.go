@@ -3194,6 +3194,13 @@ type RepoStatus struct {
 	// Examples: https://repository-images.githubusercontent.com/123/abc
 	LogoUrl *string `json:"logoUrl,omitempty"`
 
+	// RebaseBots Whether the signed-in user has turned on rebasing bot pull
+	// requests for this repo. A behind Dependabot or Renovate pull
+	// request gets the bot's own rebase, whatever the repo's
+	// automatic branch update setting says. Human, draft and
+	// release-please pull requests are not covered.
+	RebaseBots bool `json:"rebaseBots"`
+
 	// Url The repo's own page on its forge, for linking out.
 	//
 	// Examples: https://github.com/alrayyes/forge-dashboard
@@ -3804,6 +3811,12 @@ type EnableAutoUpdateBranchJSONRequestBody = WebhookEnsureRequest
 
 // IgnoreRepoJSONRequestBody defines body for IgnoreRepo for application/json ContentType.
 type IgnoreRepoJSONRequestBody = RepoIgnoreRequest
+
+// DisableRebaseBotsJSONRequestBody defines body for DisableRebaseBots for application/json ContentType.
+type DisableRebaseBotsJSONRequestBody = WebhookEnsureRequest
+
+// EnableRebaseBotsJSONRequestBody defines body for EnableRebaseBots for application/json ContentType.
+type EnableRebaseBotsJSONRequestBody = WebhookEnsureRequest
 
 // UnignoreRepoJSONRequestBody defines body for UnignoreRepo for application/json ContentType.
 type UnignoreRepoJSONRequestBody = WebhookEnsureRequest
@@ -5474,6 +5487,58 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
 	IgnoreRepo(ctx context.Context, body IgnoreRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DisableRebaseBotsWithBody Stop rebasing Dependabot and Renovate pull requests for one tracked repo
+	//
+	// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+	// disabling a repo that was never enabled is a no-op, not an error.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+	DisableRebaseBotsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DisableRebaseBots Stop rebasing Dependabot and Renovate pull requests for one tracked repo
+	//
+	// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+	// disabling a repo that was never enabled is a no-op, not an error.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+	DisableRebaseBots(ctx context.Context, body DisableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EnableRebaseBotsWithBody Rebase Dependabot and Renovate pull requests for one tracked repo
+	//
+	// A Dependabot or Renovate pull request of this repo that the
+	// background refresh finds behind its base branch gets the bot's own
+	// rebase from then on: Dependabot's rebase comment, or Renovate's
+	// rebase label. It is never given a generic branch update or a pushed
+	// commit. Human, draft and release-please pull requests are not
+	// touched, and a choice made on one pull request still wins. Works
+	// with or without automatic branch updates on the repo. Idempotent:
+	// enabling an already-enabled repo is a no-op, not an error.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+	EnableRebaseBotsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EnableRebaseBots Rebase Dependabot and Renovate pull requests for one tracked repo
+	//
+	// A Dependabot or Renovate pull request of this repo that the
+	// background refresh finds behind its base branch gets the bot's own
+	// rebase from then on: Dependabot's rebase comment, or Renovate's
+	// rebase label. It is never given a generic branch update or a pushed
+	// commit. Human, draft and release-please pull requests are not
+	// touched, and a choice made on one pull request still wins. Works
+	// with or without automatic branch updates on the repo. Idempotent:
+	// enabling an already-enabled repo is a no-op, not an error.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+	EnableRebaseBots(ctx context.Context, body EnableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UnignoreRepoWithBody Stop ignoring one tracked repo
 	//
@@ -8218,6 +8283,98 @@ func (c *Client) IgnoreRepoWithBody(ctx context.Context, contentType string, bod
 // Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
 func (c *Client) IgnoreRepo(ctx context.Context, body IgnoreRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewIgnoreRepoRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DisableRebaseBotsWithBody Stop rebasing Dependabot and Renovate pull requests for one tracked repo
+//
+// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+// disabling a repo that was never enabled is a no-op, not an error.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+func (c *Client) DisableRebaseBotsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDisableRebaseBotsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DisableRebaseBots Stop rebasing Dependabot and Renovate pull requests for one tracked repo
+//
+// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+// disabling a repo that was never enabled is a no-op, not an error.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+func (c *Client) DisableRebaseBots(ctx context.Context, body DisableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDisableRebaseBotsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EnableRebaseBotsWithBody Rebase Dependabot and Renovate pull requests for one tracked repo
+//
+// A Dependabot or Renovate pull request of this repo that the
+// background refresh finds behind its base branch gets the bot's own
+// rebase from then on: Dependabot's rebase comment, or Renovate's
+// rebase label. It is never given a generic branch update or a pushed
+// commit. Human, draft and release-please pull requests are not
+// touched, and a choice made on one pull request still wins. Works
+// with or without automatic branch updates on the repo. Idempotent:
+// enabling an already-enabled repo is a no-op, not an error.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+func (c *Client) EnableRebaseBotsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnableRebaseBotsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EnableRebaseBots Rebase Dependabot and Renovate pull requests for one tracked repo
+//
+// A Dependabot or Renovate pull request of this repo that the
+// background refresh finds behind its base branch gets the bot's own
+// rebase from then on: Dependabot's rebase comment, or Renovate's
+// rebase label. It is never given a generic branch update or a pushed
+// commit. Human, draft and release-please pull requests are not
+// touched, and a choice made on one pull request still wins. Works
+// with or without automatic branch updates on the repo. Idempotent:
+// enabling an already-enabled repo is a no-op, not an error.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+func (c *Client) EnableRebaseBots(ctx context.Context, body EnableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnableRebaseBotsRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11043,6 +11200,86 @@ func NewIgnoreRepoRequestWithBody(server string, contentType string, body io.Rea
 	return req, nil
 }
 
+// NewDisableRebaseBotsRequest calls the generic DisableRebaseBots builder with application/json body
+func NewDisableRebaseBotsRequest(server string, body DisableRebaseBotsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDisableRebaseBotsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewDisableRebaseBotsRequestWithBody constructs an http.Request for the DisableRebaseBots method, with any body, and a specified content type
+func NewDisableRebaseBotsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/repos/rebase-bots/disable")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewEnableRebaseBotsRequest calls the generic EnableRebaseBots builder with application/json body
+func NewEnableRebaseBotsRequest(server string, body EnableRebaseBotsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEnableRebaseBotsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewEnableRebaseBotsRequestWithBody constructs an http.Request for the EnableRebaseBots method, with any body, and a specified content type
+func NewEnableRebaseBotsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/repos/rebase-bots/enable")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewUnignoreRepoRequest calls the generic UnignoreRepo builder with application/json body
 func NewUnignoreRepoRequest(server string, body UnignoreRepoJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -13375,6 +13612,58 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
 	IgnoreRepoWithResponse(ctx context.Context, body IgnoreRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*IgnoreRepoResponse, error)
+
+	// DisableRebaseBotsWithBodyWithResponse Stop rebasing Dependabot and Renovate pull requests for one tracked repo
+	//
+	// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+	// disabling a repo that was never enabled is a no-op, not an error.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+	DisableRebaseBotsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DisableRebaseBotsResponse, error)
+
+	// DisableRebaseBotsWithResponse Stop rebasing Dependabot and Renovate pull requests for one tracked repo
+	//
+	// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+	// disabling a repo that was never enabled is a no-op, not an error.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+	DisableRebaseBotsWithResponse(ctx context.Context, body DisableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*DisableRebaseBotsResponse, error)
+
+	// EnableRebaseBotsWithBodyWithResponse Rebase Dependabot and Renovate pull requests for one tracked repo
+	//
+	// A Dependabot or Renovate pull request of this repo that the
+	// background refresh finds behind its base branch gets the bot's own
+	// rebase from then on: Dependabot's rebase comment, or Renovate's
+	// rebase label. It is never given a generic branch update or a pushed
+	// commit. Human, draft and release-please pull requests are not
+	// touched, and a choice made on one pull request still wins. Works
+	// with or without automatic branch updates on the repo. Idempotent:
+	// enabling an already-enabled repo is a no-op, not an error.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+	EnableRebaseBotsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnableRebaseBotsResponse, error)
+
+	// EnableRebaseBotsWithResponse Rebase Dependabot and Renovate pull requests for one tracked repo
+	//
+	// A Dependabot or Renovate pull request of this repo that the
+	// background refresh finds behind its base branch gets the bot's own
+	// rebase from then on: Dependabot's rebase comment, or Renovate's
+	// rebase label. It is never given a generic branch update or a pushed
+	// commit. Human, draft and release-please pull requests are not
+	// touched, and a choice made on one pull request still wins. Works
+	// with or without automatic branch updates on the repo. Idempotent:
+	// enabling an already-enabled repo is a no-op, not an error.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+	EnableRebaseBotsWithResponse(ctx context.Context, body EnableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*EnableRebaseBotsResponse, error)
 
 	// UnignoreRepoWithBodyWithResponse Stop ignoring one tracked repo
 	//
@@ -16990,6 +17279,102 @@ func (r IgnoreRepoResponse) ContentType() string {
 	return ""
 }
 
+type DisableRebaseBotsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r DisableRebaseBotsResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DisableRebaseBotsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r DisableRebaseBotsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DisableRebaseBotsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DisableRebaseBotsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DisableRebaseBotsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type EnableRebaseBotsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r EnableRebaseBotsResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r EnableRebaseBotsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r EnableRebaseBotsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r EnableRebaseBotsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EnableRebaseBotsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r EnableRebaseBotsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type UnignoreRepoResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -20058,6 +20443,82 @@ func (c *ClientWithResponses) IgnoreRepoWithResponse(ctx context.Context, body I
 		return nil, err
 	}
 	return ParseIgnoreRepoResponse(rsp)
+}
+
+// DisableRebaseBotsWithBodyWithResponse Stop rebasing Dependabot and Renovate pull requests for one tracked repo
+//
+// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+// disabling a repo that was never enabled is a no-op, not an error.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+func (c *ClientWithResponses) DisableRebaseBotsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DisableRebaseBotsResponse, error) {
+	rsp, err := c.DisableRebaseBotsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDisableRebaseBotsResponse(rsp)
+}
+
+// DisableRebaseBotsWithResponse Stop rebasing Dependabot and Renovate pull requests for one tracked repo
+//
+// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+// disabling a repo that was never enabled is a no-op, not an error.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+func (c *ClientWithResponses) DisableRebaseBotsWithResponse(ctx context.Context, body DisableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*DisableRebaseBotsResponse, error) {
+	rsp, err := c.DisableRebaseBots(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDisableRebaseBotsResponse(rsp)
+}
+
+// EnableRebaseBotsWithBodyWithResponse Rebase Dependabot and Renovate pull requests for one tracked repo
+//
+// A Dependabot or Renovate pull request of this repo that the
+// background refresh finds behind its base branch gets the bot's own
+// rebase from then on: Dependabot's rebase comment, or Renovate's
+// rebase label. It is never given a generic branch update or a pushed
+// commit. Human, draft and release-please pull requests are not
+// touched, and a choice made on one pull request still wins. Works
+// with or without automatic branch updates on the repo. Idempotent:
+// enabling an already-enabled repo is a no-op, not an error.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+func (c *ClientWithResponses) EnableRebaseBotsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnableRebaseBotsResponse, error) {
+	rsp, err := c.EnableRebaseBotsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnableRebaseBotsResponse(rsp)
+}
+
+// EnableRebaseBotsWithResponse Rebase Dependabot and Renovate pull requests for one tracked repo
+//
+// A Dependabot or Renovate pull request of this repo that the
+// background refresh finds behind its base branch gets the bot's own
+// rebase from then on: Dependabot's rebase comment, or Renovate's
+// rebase label. It is never given a generic branch update or a pushed
+// commit. Human, draft and release-please pull requests are not
+// touched, and a choice made on one pull request still wins. Works
+// with or without automatic branch updates on the repo. Idempotent:
+// enabling an already-enabled repo is a no-op, not an error.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+func (c *ClientWithResponses) EnableRebaseBotsWithResponse(ctx context.Context, body EnableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*EnableRebaseBotsResponse, error) {
+	rsp, err := c.EnableRebaseBots(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnableRebaseBotsResponse(rsp)
 }
 
 // UnignoreRepoWithBodyWithResponse Stop ignoring one tracked repo
@@ -23199,6 +23660,78 @@ func ParseIgnoreRepoResponse(rsp *http.Response) (*IgnoreRepoResponse, error) {
 	}
 
 	response := &IgnoreRepoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDisableRebaseBotsResponse parses an HTTP response from a DisableRebaseBotsWithResponse call
+func ParseDisableRebaseBotsResponse(rsp *http.Response) (*DisableRebaseBotsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DisableRebaseBotsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEnableRebaseBotsResponse parses an HTTP response from a EnableRebaseBotsWithResponse call
+func ParseEnableRebaseBotsResponse(rsp *http.Response) (*EnableRebaseBotsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EnableRebaseBotsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
