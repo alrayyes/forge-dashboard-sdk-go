@@ -10,6 +10,10 @@
 - [lefthook](https://github.com/evilmartians/lefthook) and
   [bun](https://bun.sh) (for commitlint). `bun install` then
   `lefthook install` once, after cloning.
+- [gitleaks](https://github.com/gitleaks/gitleaks) on your `PATH`. It scans for
+  secrets in the `pre-commit` and `pre-push` hooks and in the `gitleaks`
+  workflow in CI, with the rules extended from the upstream defaults in
+  `.gitleaks.toml`.
 
 ## Building and testing
 

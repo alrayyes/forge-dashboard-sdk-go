@@ -1,0 +1,3 @@
+# Extend the upstream rules so new ones arrive with a version bump (rules/secrets.md).
+[extend]
+useDefault = true
