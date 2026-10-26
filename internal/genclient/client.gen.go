@@ -1511,6 +1511,13 @@ type Dashboard struct {
 	HiddenPullRequests *int    `json:"hiddenPullRequests,omitempty"`
 	Issues             []Issue `json:"issues"`
 
+	// MainBranchPage What `GET /api/main-branches` answers, from the same snapshot and
+	// with the same ignore list, so the Main branches page redraws from
+	// the message every other page reads. It reads the endpoint itself only
+	// while the stream is down or just back.
+	// Always present.
+	MainBranchPage MainBranches `json:"mainBranchPage"`
+
 	// NavCounts The numbers behind the navigation badges, counted from what the
 	// board shows by default, so they match each page when it opens. Pull
 	// requests leave out ignored repos, draft pull requests and hidden pull
