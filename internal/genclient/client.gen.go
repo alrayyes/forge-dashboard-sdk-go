@@ -1580,15 +1580,14 @@ type Dashboard struct {
 	// board shows by default, so they match each page when it opens. Pull
 	// requests leave out ignored repos, draft pull requests and hidden pull
 	// requests whatever `includeDrafts` and `includeHidden` ask for, so the
-	// badge doesn't jump when a toggle flips; branches counts the default
-	// branches GET /api/main-branches lists, which also leave out ignored
-	// repos. Pull requests are
+	// badge doesn't jump when a toggle flips. Pull requests are
 	// split by `kind`
 	// (release pull requests under `releases`, Dependabot and Renovate
 	// under `bots`, the rest under `pullRequests`). Always present, with
 	// zeros when there is nothing. A client hides a page's whole nav item at
 	// zero total, and a state's number at zero. Every page except Issues also
-	// carries `running` and `passed`.
+	// carries `running` and `passed`. The Branches badge isn't here: a
+	// client counts the rows of `mainBranchPage`.
 	NavCounts NavCounts `json:"navCounts"`
 
 	// OpenIssueCount How many of `issues` are real work: all of them except the
@@ -2140,18 +2139,6 @@ type MainBranchCommit struct {
 	Subject string `json:"subject"`
 }
 
-// MainBranchCounts How many rows are in each status, the numbers on the filter pills.
-// `total` is every row, so it equals the sum of the other six.
-type MainBranchCounts struct {
-	AwaitingApproval int `json:"awaitingApproval"`
-	Cancelled        int `json:"cancelled"`
-	Failed           int `json:"failed"`
-	None             int `json:"none"`
-	Passed           int `json:"passed"`
-	Running          int `json:"running"`
-	Total            int `json:"total"`
-}
-
 // MainBranchRelease A repository's latest published release.
 type MainBranchRelease struct {
 	// Tag The release's tag, such as "v1.2.3".
@@ -2180,13 +2167,11 @@ type MainBranchRerunRequest struct {
 // no pipeline at all (or the repository has no commit yet).
 type MainBranchStatus string
 
-// MainBranches defines model for MainBranches.
+// MainBranches Every default branch the page lists, in no particular order. There is
+// no tally: a client counts the rows it holds, so the filter pills and
+// the navigation badge always agree with the list.
 type MainBranches struct {
 	Branches []MainBranch `json:"branches"`
-
-	// Counts How many rows are in each status, the numbers on the filter pills.
-	// `total` is every row, so it equals the sum of the other six.
-	Counts MainBranchCounts `json:"counts"`
 
 	// Forges Each forge's health as of the last refresh, the same as the dashboard's. A client uses it to hold back an action that a forge which can't be reached, or whose rate limit is spent, would probably refuse. The budget can run out between refreshes, so the forge still has the final say.
 	Forges []ForgeHealth `json:"forges"`
@@ -2234,64 +2219,25 @@ type MentionedIssue struct {
 // this service being unable to determine it.
 type MergeStatus string
 
-// NavCount The Branches page's numbers: how many default branches
-// it lists and how many of those have a pipeline running, failed and
-// passed, the same four as `NavPullRequestCount`, plus `none`, the ones
-// with no pipeline, and `awaitingApproval`, the ones whose workflow runs
-// are held until someone approves them. A branch whose only trouble is a
-// cancelled run counts in `total` only, as a pull request with no checks
-// does, so the parts need not add up. All six are always present.
-type NavCount struct {
-	// AwaitingApproval How many of them have workflow runs held until someone approves
-	// them. Nothing has run and nothing has failed, so they are in none
-	// of `running`, `failed` and `passed`.
-	AwaitingApproval int `json:"awaitingApproval"`
-
-	// Failed How many of them have a failing pipeline.
-	Failed int `json:"failed"`
-
-	// None How many of them have no pipeline.
-	None int `json:"none"`
-
-	// Passed How many of them have a pipeline that passed.
-	Passed int `json:"passed"`
-
-	// Running How many of them have a pipeline that is still running.
-	Running int `json:"running"`
-
-	// Total How many default branches the page lists.
-	Total int `json:"total"`
-}
-
 // NavCounts The numbers behind the navigation badges, counted from what the
 // board shows by default, so they match each page when it opens. Pull
 // requests leave out ignored repos, draft pull requests and hidden pull
 // requests whatever `includeDrafts` and `includeHidden` ask for, so the
-// badge doesn't jump when a toggle flips; branches counts the default
-// branches GET /api/main-branches lists, which also leave out ignored
-// repos. Pull requests are
+// badge doesn't jump when a toggle flips. Pull requests are
 // split by `kind`
 // (release pull requests under `releases`, Dependabot and Renovate
 // under `bots`, the rest under `pullRequests`). Always present, with
 // zeros when there is nothing. A client hides a page's whole nav item at
 // zero total, and a state's number at zero. Every page except Issues also
-// carries `running` and `passed`.
+// carries `running` and `passed`. The Branches badge isn't here: a
+// client counts the rows of `mainBranchPage`.
 type NavCounts struct {
 	// Bots A pull request page's numbers. `running`, `failed` and
 	// `passed` count the pull requests whose CI is pending, failing and
 	// succeeded. A pull request with no checks counts in `total` only, so
 	// the four numbers need not add up. All four are always present.
-	Bots NavPullRequestCount `json:"bots"`
-
-	// Branches The Branches page's numbers: how many default branches
-	// it lists and how many of those have a pipeline running, failed and
-	// passed, the same four as `NavPullRequestCount`, plus `none`, the ones
-	// with no pipeline, and `awaitingApproval`, the ones whose workflow runs
-	// are held until someone approves them. A branch whose only trouble is a
-	// cancelled run counts in `total` only, as a pull request with no checks
-	// does, so the parts need not add up. All six are always present.
-	Branches NavCount      `json:"branches"`
-	Issues   NavIssueCount `json:"issues"`
+	Bots   NavPullRequestCount `json:"bots"`
+	Issues NavIssueCount       `json:"issues"`
 
 	// PullRequests A pull request page's numbers. `running`, `failed` and
 	// `passed` count the pull requests whose CI is pending, failing and
@@ -4345,10 +4291,10 @@ type ClientInterface interface {
 	//
 	// One row per tracked repository, showing the latest pipeline on its
 	// default branch: failed, passed, running or none. A repository
-	// ignored for pull requests is left out, as on the pull requests page. Every other row is returned, whatever its status, with a
-	// count per status, so a client
-	// filters and sorts locally and its pill counts always match what each
-	// pill lists. Rows come in no particular order: the client orders them.
+	// ignored for pull requests is left out, as on the pull requests page.
+	// Every other row is returned, whatever its status, and no tally comes
+	// with them, so a client filters, sorts and counts locally and its pill
+	// counts always match what each pill lists. Rows come in no particular order: the client orders them.
 	//
 	// Served from the snapshot the background refresh already holds, so it
 	// never calls a forge. On GitHub the branch's check status rides the
@@ -6688,10 +6634,10 @@ func (c *Client) ReopenIssue(ctx context.Context, body ReopenIssueJSONRequestBod
 //
 // One row per tracked repository, showing the latest pipeline on its
 // default branch: failed, passed, running or none. A repository
-// ignored for pull requests is left out, as on the pull requests page. Every other row is returned, whatever its status, with a
-// count per status, so a client
-// filters and sorts locally and its pill counts always match what each
-// pill lists. Rows come in no particular order: the client orders them.
+// ignored for pull requests is left out, as on the pull requests page.
+// Every other row is returned, whatever its status, and no tally comes
+// with them, so a client filters, sorts and counts locally and its pill
+// counts always match what each pill lists. Rows come in no particular order: the client orders them.
 //
 // Served from the snapshot the background refresh already holds, so it
 // never calls a forge. On GitHub the branch's check status rides the
@@ -12450,10 +12396,10 @@ type ClientWithResponsesInterface interface {
 	//
 	// One row per tracked repository, showing the latest pipeline on its
 	// default branch: failed, passed, running or none. A repository
-	// ignored for pull requests is left out, as on the pull requests page. Every other row is returned, whatever its status, with a
-	// count per status, so a client
-	// filters and sorts locally and its pill counts always match what each
-	// pill lists. Rows come in no particular order: the client orders them.
+	// ignored for pull requests is left out, as on the pull requests page.
+	// Every other row is returned, whatever its status, and no tally comes
+	// with them, so a client filters, sorts and counts locally and its pill
+	// counts always match what each pill lists. Rows come in no particular order: the client orders them.
 	//
 	// Served from the snapshot the background refresh already holds, so it
 	// never calls a forge. On GitHub the branch's check status rides the
@@ -19004,10 +18950,10 @@ func (c *ClientWithResponses) ReopenIssueWithResponse(ctx context.Context, body 
 //
 // One row per tracked repository, showing the latest pipeline on its
 // default branch: failed, passed, running or none. A repository
-// ignored for pull requests is left out, as on the pull requests page. Every other row is returned, whatever its status, with a
-// count per status, so a client
-// filters and sorts locally and its pill counts always match what each
-// pill lists. Rows come in no particular order: the client orders them.
+// ignored for pull requests is left out, as on the pull requests page.
+// Every other row is returned, whatever its status, and no tally comes
+// with them, so a client filters, sorts and counts locally and its pill
+// counts always match what each pill lists. Rows come in no particular order: the client orders them.
 //
 // Served from the snapshot the background refresh already holds, so it
 // never calls a forge. On GitHub the branch's check status rides the
