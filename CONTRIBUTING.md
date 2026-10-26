@@ -10,6 +10,10 @@
 - [lefthook](https://github.com/evilmartians/lefthook) and
   [bun](https://bun.sh) (for commitlint). `bun install` then
   `lefthook install` once, after cloning.
+- [gitleaks](https://github.com/gitleaks/gitleaks) on your `PATH`. It scans for
+  secrets in the `pre-commit` and `pre-push` hooks and in the `gitleaks`
+  workflow in CI, with the rules extended from the upstream defaults in
+  `.gitleaks.toml`.
 
 ## Building and testing
 
@@ -20,8 +24,8 @@
 ./scripts/go-docker.sh sh -c "go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./..."
 ```
 
-`lefthook run pre-push` runs the same set (plus `go mod tidy -diff`) except
-`govulncheck`, which would fail every push the day an advisory lands on `main`.
+`lefthook run pre-push` runs the same set (plus `go mod tidy -diff` and a
+gitleaks scan of the whole history) except `govulncheck`, which would fail every push the day an advisory lands on `main`.
 Run that one by hand; CI owns the gate.
 
 `scripts/build-reports.sh` turns `coverage.out` and `junit.xml` into the
