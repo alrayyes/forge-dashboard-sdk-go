@@ -2811,11 +2811,6 @@ type PullRequestAutoUpdateRequest struct {
 	Number int `json:"number"`
 }
 
-// PullRequestChecksResponse defines model for PullRequestChecksResponse.
-type PullRequestChecksResponse struct {
-	Checks []Check `json:"checks"`
-}
-
 // PullRequestDependabotActionRequest Which pull request to act on, and which of Dependabot's own comment commands to send.
 type PullRequestDependabotActionRequest struct {
 	// Action Which Dependabot comment command to post — "@dependabot rebase" or "@dependabot recreate".
@@ -3669,25 +3664,6 @@ type ListAdvisoriesParams struct {
 	FullName string `form:"fullName" json:"fullName"`
 }
 
-// GetMainBranchChecksParams defines parameters for GetMainBranchChecks.
-type GetMainBranchChecksParams struct {
-	Forge Forge `form:"forge" json:"forge"`
-
-	// FullName "owner/repo", matching a MainBranch.fullName from GET /api/main-branches.
-	FullName string `form:"fullName" json:"fullName"`
-}
-
-// GetPullRequestChecksParams defines parameters for GetPullRequestChecks.
-type GetPullRequestChecksParams struct {
-	Forge Forge `form:"forge" json:"forge"`
-
-	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
-	FullName string `form:"fullName" json:"fullName"`
-
-	// Number Matching a PullRequest.number from GET /api/dashboard.
-	Number int `form:"number" json:"number"`
-}
-
 // GetPullRequestDetailsParams defines parameters for GetPullRequestDetails.
 type GetPullRequestDetailsParams struct {
 	Forge Forge `form:"forge" json:"forge"`
@@ -4051,9 +4027,8 @@ type ClientInterface interface {
 	//
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
-	// workflow. A client takes `runId` from a check in a checks list
-	// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
-	// where a job that is still queued or running carries the id and name of
+	// workflow. A client takes `runId` from a check in a `checks` event on
+	// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
 	// its run. A check with no `runId` (a third-party check, a legacy commit
 	// status, an external CI) belongs to no Actions run and can't be
 	// cancelled here.
@@ -4088,9 +4063,8 @@ type ClientInterface interface {
 	//
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
-	// workflow. A client takes `runId` from a check in a checks list
-	// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
-	// where a job that is still queued or running carries the id and name of
+	// workflow. A client takes `runId` from a check in a `checks` event on
+	// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
 	// its run. A check with no `runId` (a third-party check, a legacy commit
 	// status, an external CI) belongs to no Actions run and can't be
 	// cancelled here.
@@ -4485,40 +4459,11 @@ type ClientInterface interface {
 	// Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
 	ListAdvisories(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetMainBranchChecks List every job/check of a repository's default-branch pipeline, on demand
-	//
-	// The jobs behind one Main branches row's status: the same `Check` list,
-	// in the same response shape, as GET /api/pull-requests/checks, so one
-	// pipeline panel shows either. Fetched live on every call, never as part
-	// of GET /api/main-branches' snapshot, for the same reason a pull
-	// request's jobs are not: a job list for every row would spend the
-	// forge's budget on rows nobody opens.
-	//
-	// The commit is the one the row reports: the newest commit on the
-	// default branch that a check ran on. A release bot's commit that skips
-	// CI has none, so the commit before it answers. `required` is never set,
-	// since it is a pull request's base-branch notion.
-	//
-	// GitHub reads the newest commits' check runs (one request for the
-	// commits, one per commit until a check is found, and up to 2 more per
-	// failed job for its failed step). Forgejo reads the repository, the
-	// Actions runs of the default branch and each run's jobs, the same
-	// reading GET /api/main-branches counts its `checks` from, so the list
-	// and the counts describe the same jobs. A run whose jobs can't be read
-	// is listed as one check named after its workflow.
-	//
-	// Empty when the repository has no default branch, no commit with a
-	// check, or no run. The error answers are those of GET
-	// /api/pull-requests/checks.
-	//
-	// Corresponds with GET /api/main-branches/checks (the `GetMainBranchChecks` operationId).
-	GetMainBranchChecks(ctx context.Context, params *GetMainBranchChecksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// RerunMainBranchChecksWithBody Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 	//
 	// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
 	// to rerun the failed jobs of the Actions workflow runs on the commit
-	// GET /api/main-branches/checks lists, and nothing that passed. It
+	// the branch's job list shows, and nothing that passed. It
 	// answers once the forge has queued them, not when they finish, so a
 	// client shows a queued state and lets the next refresh carry the result.
 	//
@@ -4541,7 +4486,7 @@ type ClientInterface interface {
 	//
 	// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
 	// to rerun the failed jobs of the Actions workflow runs on the commit
-	// GET /api/main-branches/checks lists, and nothing that passed. It
+	// the branch's job list shows, and nothing that passed. It
 	// answers once the forge has queued them, not when they finish, so a
 	// client shows a queued state and lets the next refresh carry the result.
 	//
@@ -4782,23 +4727,6 @@ type ClientInterface interface {
 	// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
 	SetPullRequestAutoUpdate(ctx context.Context, body SetPullRequestAutoUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetPullRequestChecks List every job/check run against a pull request's head commit, on demand
-	//
-	// Fetched live on every call, never as part of GET /api/dashboard's
-	// own snapshot — this is detail a pull request's row doesn't show
-	// until a caller actually asks for it, and adding it to the eager
-	// refresh loop would multiply that refresh's cost by every open
-	// pull request for data most of them are never opened for.
-	//
-	// Falls back to the legacy combined commit-status API's own
-	// per-check entries when the forge reports no Actions runs at all
-	// for that commit (Actions disabled, or an instance too old to
-	// expose them) — never an error for that case specifically, since
-	// it's a normal, expected shape for an older or CI-less repo.
-	//
-	// Corresponds with GET /api/pull-requests/checks (the `GetPullRequestChecks` operationId).
-	GetPullRequestChecks(ctx context.Context, params *GetPullRequestChecksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ClosePullRequestWithBody Close one pull request without merging it, on the signed-in user's behalf
 	//
 	// Closes the named pull request — for one that turns out not to
@@ -4909,9 +4837,7 @@ type ClientInterface interface {
 	// (a GitHub repository's logo, see `logoUrl` on a repo in GET
 	// /api/dashboard) and the Forgejo host.
 	//
-	// The error answers are those of GET /api/pull-requests/checks, with
-	// the same codes. A forge that can't be read is an error, never an
-	// empty thread.
+	// A forge that can't be read is an error, never an empty thread.
 	//
 	// Corresponds with GET /api/pull-requests/details (the `GetPullRequestDetails` operationId).
 	GetPullRequestDetails(ctx context.Context, params *GetPullRequestDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -6308,9 +6234,8 @@ func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) 
 //
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
-// workflow. A client takes `runId` from a check in a checks list
-// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
-// where a job that is still queued or running carries the id and name of
+// workflow. A client takes `runId` from a check in a `checks` event on
+// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
 // its run. A check with no `runId` (a third-party check, a legacy commit
 // status, an external CI) belongs to no Actions run and can't be
 // cancelled here.
@@ -6355,9 +6280,8 @@ func (c *Client) CancelWorkflowRunWithBody(ctx context.Context, contentType stri
 //
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
-// workflow. A client takes `runId` from a check in a checks list
-// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
-// where a job that is still queued or running carries the id and name of
+// workflow. A client takes `runId` from a check in a `checks` event on
+// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
 // its run. A check with no `runId` (a third-party check, a legacy commit
 // status, an external CI) belongs to no Actions run and can't be
 // cancelled here.
@@ -6912,50 +6836,11 @@ func (c *Client) ListAdvisories(ctx context.Context, params *ListAdvisoriesParam
 	return c.Client.Do(req)
 }
 
-// GetMainBranchChecks List every job/check of a repository's default-branch pipeline, on demand
-//
-// The jobs behind one Main branches row's status: the same `Check` list,
-// in the same response shape, as GET /api/pull-requests/checks, so one
-// pipeline panel shows either. Fetched live on every call, never as part
-// of GET /api/main-branches' snapshot, for the same reason a pull
-// request's jobs are not: a job list for every row would spend the
-// forge's budget on rows nobody opens.
-//
-// The commit is the one the row reports: the newest commit on the
-// default branch that a check ran on. A release bot's commit that skips
-// CI has none, so the commit before it answers. `required` is never set,
-// since it is a pull request's base-branch notion.
-//
-// GitHub reads the newest commits' check runs (one request for the
-// commits, one per commit until a check is found, and up to 2 more per
-// failed job for its failed step). Forgejo reads the repository, the
-// Actions runs of the default branch and each run's jobs, the same
-// reading GET /api/main-branches counts its `checks` from, so the list
-// and the counts describe the same jobs. A run whose jobs can't be read
-// is listed as one check named after its workflow.
-//
-// Empty when the repository has no default branch, no commit with a
-// check, or no run. The error answers are those of GET
-// /api/pull-requests/checks.
-//
-// Corresponds with GET /api/main-branches/checks (the `GetMainBranchChecks` operationId).
-func (c *Client) GetMainBranchChecks(ctx context.Context, params *GetMainBranchChecksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetMainBranchChecksRequest(c.Server, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // RerunMainBranchChecksWithBody Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 //
 // The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
 // to rerun the failed jobs of the Actions workflow runs on the commit
-// GET /api/main-branches/checks lists, and nothing that passed. It
+// the branch's job list shows, and nothing that passed. It
 // answers once the forge has queued them, not when they finish, so a
 // client shows a queued state and lets the next refresh carry the result.
 //
@@ -6988,7 +6873,7 @@ func (c *Client) RerunMainBranchChecksWithBody(ctx context.Context, contentType 
 //
 // The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
 // to rerun the failed jobs of the Actions workflow runs on the commit
-// GET /api/main-branches/checks lists, and nothing that passed. It
+// the branch's job list shows, and nothing that passed. It
 // answers once the forge has queued them, not when they finish, so a
 // client shows a queued state and lets the next refresh carry the result.
 //
@@ -7319,33 +7204,6 @@ func (c *Client) SetPullRequestAutoUpdate(ctx context.Context, body SetPullReque
 	return c.Client.Do(req)
 }
 
-// GetPullRequestChecks List every job/check run against a pull request's head commit, on demand
-//
-// Fetched live on every call, never as part of GET /api/dashboard's
-// own snapshot — this is detail a pull request's row doesn't show
-// until a caller actually asks for it, and adding it to the eager
-// refresh loop would multiply that refresh's cost by every open
-// pull request for data most of them are never opened for.
-//
-// Falls back to the legacy combined commit-status API's own
-// per-check entries when the forge reports no Actions runs at all
-// for that commit (Actions disabled, or an instance too old to
-// expose them) — never an error for that case specifically, since
-// it's a normal, expected shape for an older or CI-less repo.
-//
-// Corresponds with GET /api/pull-requests/checks (the `GetPullRequestChecks` operationId).
-func (c *Client) GetPullRequestChecks(ctx context.Context, params *GetPullRequestChecksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetPullRequestChecksRequest(c.Server, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // ClosePullRequestWithBody Close one pull request without merging it, on the signed-in user's behalf
 //
 // Closes the named pull request — for one that turns out not to
@@ -7496,9 +7354,7 @@ func (c *Client) PostPullRequestDependabotAction(ctx context.Context, body PostP
 // (a GitHub repository's logo, see `logoUrl` on a repo in GET
 // /api/dashboard) and the Forgejo host.
 //
-// The error answers are those of GET /api/pull-requests/checks, with
-// the same codes. A forge that can't be read is an error, never an
-// empty thread.
+// A forge that can't be read is an error, never an empty thread.
 //
 // Corresponds with GET /api/pull-requests/details (the `GetPullRequestDetails` operationId).
 func (c *Client) GetPullRequestDetails(ctx context.Context, params *GetPullRequestDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -10267,64 +10123,6 @@ func NewListAdvisoriesRequest(server string, params *ListAdvisoriesParams) (*htt
 	return req, nil
 }
 
-// NewGetMainBranchChecksRequest constructs an http.Request for the GetMainBranchChecks method
-func NewGetMainBranchChecksRequest(server string, params *GetMainBranchChecksParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/main-branches/checks")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "fullName", params.FullName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewRerunMainBranchChecksRequest calls the generic RerunMainBranchChecks builder with application/json body
 func NewRerunMainBranchChecksRequest(server string, body RerunMainBranchChecksJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -10521,72 +10319,6 @@ func NewSetPullRequestAutoUpdateRequestWithBody(server string, contentType strin
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewGetPullRequestChecksRequest constructs an http.Request for the GetPullRequestChecks method
-func NewGetPullRequestChecksRequest(server string, params *GetPullRequestChecksParams) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/pull-requests/checks")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "fullName", params.FullName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "number", params.Number, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -12306,9 +12038,8 @@ type ClientWithResponsesInterface interface {
 	//
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
-	// workflow. A client takes `runId` from a check in a checks list
-	// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
-	// where a job that is still queued or running carries the id and name of
+	// workflow. A client takes `runId` from a check in a `checks` event on
+	// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
 	// its run. A check with no `runId` (a third-party check, a legacy commit
 	// status, an external CI) belongs to no Actions run and can't be
 	// cancelled here.
@@ -12343,9 +12074,8 @@ type ClientWithResponsesInterface interface {
 	//
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
-	// workflow. A client takes `runId` from a check in a checks list
-	// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
-	// where a job that is still queued or running carries the id and name of
+	// workflow. A client takes `runId` from a check in a `checks` event on
+	// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
 	// its run. A check with no `runId` (a third-party check, a legacy commit
 	// status, an external CI) belongs to no Actions run and can't be
 	// cancelled here.
@@ -12754,42 +12484,11 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
 	ListAdvisoriesWithResponse(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*ListAdvisoriesResponse, error)
 
-	// GetMainBranchChecksWithResponse List every job/check of a repository's default-branch pipeline, on demand
-	//
-	// The jobs behind one Main branches row's status: the same `Check` list,
-	// in the same response shape, as GET /api/pull-requests/checks, so one
-	// pipeline panel shows either. Fetched live on every call, never as part
-	// of GET /api/main-branches' snapshot, for the same reason a pull
-	// request's jobs are not: a job list for every row would spend the
-	// forge's budget on rows nobody opens.
-	//
-	// The commit is the one the row reports: the newest commit on the
-	// default branch that a check ran on. A release bot's commit that skips
-	// CI has none, so the commit before it answers. `required` is never set,
-	// since it is a pull request's base-branch notion.
-	//
-	// GitHub reads the newest commits' check runs (one request for the
-	// commits, one per commit until a check is found, and up to 2 more per
-	// failed job for its failed step). Forgejo reads the repository, the
-	// Actions runs of the default branch and each run's jobs, the same
-	// reading GET /api/main-branches counts its `checks` from, so the list
-	// and the counts describe the same jobs. A run whose jobs can't be read
-	// is listed as one check named after its workflow.
-	//
-	// Empty when the repository has no default branch, no commit with a
-	// check, or no run. The error answers are those of GET
-	// /api/pull-requests/checks.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /api/main-branches/checks (the `GetMainBranchChecks` operationId).
-	GetMainBranchChecksWithResponse(ctx context.Context, params *GetMainBranchChecksParams, reqEditors ...RequestEditorFn) (*GetMainBranchChecksResponse, error)
-
 	// RerunMainBranchChecksWithBodyWithResponse Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 	//
 	// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
 	// to rerun the failed jobs of the Actions workflow runs on the commit
-	// GET /api/main-branches/checks lists, and nothing that passed. It
+	// the branch's job list shows, and nothing that passed. It
 	// answers once the forge has queued them, not when they finish, so a
 	// client shows a queued state and lets the next refresh carry the result.
 	//
@@ -12812,7 +12511,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
 	// to rerun the failed jobs of the Actions workflow runs on the commit
-	// GET /api/main-branches/checks lists, and nothing that passed. It
+	// the branch's job list shows, and nothing that passed. It
 	// answers once the forge has queued them, not when they finish, so a
 	// client shows a queued state and lets the next refresh carry the result.
 	//
@@ -13053,25 +12752,6 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
 	SetPullRequestAutoUpdateWithResponse(ctx context.Context, body SetPullRequestAutoUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetPullRequestAutoUpdateResponse, error)
 
-	// GetPullRequestChecksWithResponse List every job/check run against a pull request's head commit, on demand
-	//
-	// Fetched live on every call, never as part of GET /api/dashboard's
-	// own snapshot — this is detail a pull request's row doesn't show
-	// until a caller actually asks for it, and adding it to the eager
-	// refresh loop would multiply that refresh's cost by every open
-	// pull request for data most of them are never opened for.
-	//
-	// Falls back to the legacy combined commit-status API's own
-	// per-check entries when the forge reports no Actions runs at all
-	// for that commit (Actions disabled, or an instance too old to
-	// expose them) — never an error for that case specifically, since
-	// it's a normal, expected shape for an older or CI-less repo.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /api/pull-requests/checks (the `GetPullRequestChecks` operationId).
-	GetPullRequestChecksWithResponse(ctx context.Context, params *GetPullRequestChecksParams, reqEditors ...RequestEditorFn) (*GetPullRequestChecksResponse, error)
-
 	// ClosePullRequestWithBodyWithResponse Close one pull request without merging it, on the signed-in user's behalf
 	//
 	// Closes the named pull request — for one that turns out not to
@@ -13182,9 +12862,7 @@ type ClientWithResponsesInterface interface {
 	// (a GitHub repository's logo, see `logoUrl` on a repo in GET
 	// /api/dashboard) and the Forgejo host.
 	//
-	// The error answers are those of GET /api/pull-requests/checks, with
-	// the same codes. A forge that can't be read is an error, never an
-	// empty thread.
+	// A forge that can't be read is an error, never an empty thread.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -15774,89 +15452,6 @@ func (r ListAdvisoriesResponse) ContentType() string {
 	return ""
 }
 
-type GetMainBranchChecksResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *PullRequestChecksResponse
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *Error
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
-	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
-	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r GetMainBranchChecksResponse) GetJSON200() *PullRequestChecksResponse {
-	return r.JSON200
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r GetMainBranchChecksResponse) GetJSON400() *Error {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r GetMainBranchChecksResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r GetMainBranchChecksResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r GetMainBranchChecksResponse) GetJSON404() *Error {
-	return r.JSON404
-}
-
-// GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r GetMainBranchChecksResponse) GetJSON429() *Error {
-	return r.JSON429
-}
-
-// GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r GetMainBranchChecksResponse) GetJSON502() *Error {
-	return r.JSON502
-}
-
-// GetBody returns the raw response body bytes
-func (r GetMainBranchChecksResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r GetMainBranchChecksResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetMainBranchChecksResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetMainBranchChecksResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type RerunMainBranchChecksResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -16189,89 +15784,6 @@ func (r SetPullRequestAutoUpdateResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetPullRequestAutoUpdateResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type GetPullRequestChecksResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *PullRequestChecksResponse
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *Error
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *Error
-	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
-	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r GetPullRequestChecksResponse) GetJSON200() *PullRequestChecksResponse {
-	return r.JSON200
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r GetPullRequestChecksResponse) GetJSON400() *Error {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r GetPullRequestChecksResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r GetPullRequestChecksResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r GetPullRequestChecksResponse) GetJSON404() *Error {
-	return r.JSON404
-}
-
-// GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r GetPullRequestChecksResponse) GetJSON429() *Error {
-	return r.JSON429
-}
-
-// GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r GetPullRequestChecksResponse) GetJSON502() *Error {
-	return r.JSON502
-}
-
-// GetBody returns the raw response body bytes
-func (r GetPullRequestChecksResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r GetPullRequestChecksResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetPullRequestChecksResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetPullRequestChecksResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -18881,9 +18393,8 @@ func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEdi
 //
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
-// workflow. A client takes `runId` from a check in a checks list
-// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
-// where a job that is still queued or running carries the id and name of
+// workflow. A client takes `runId` from a check in a `checks` event on
+// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
 // its run. A check with no `runId` (a third-party check, a legacy commit
 // status, an external CI) belongs to no Actions run and can't be
 // cancelled here.
@@ -18924,9 +18435,8 @@ func (c *ClientWithResponses) CancelWorkflowRunWithBodyWithResponse(ctx context.
 //
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
-// workflow. A client takes `runId` from a check in a checks list
-// (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
-// where a job that is still queued or running carries the id and name of
+// workflow. A client takes `runId` from a check in a `checks` event on
+// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
 // its run. A check with no `runId` (a third-party check, a legacy commit
 // status, an external CI) belongs to no Actions run and can't be
 // cancelled here.
@@ -19431,48 +18941,11 @@ func (c *ClientWithResponses) ListAdvisoriesWithResponse(ctx context.Context, pa
 	return ParseListAdvisoriesResponse(rsp)
 }
 
-// GetMainBranchChecksWithResponse List every job/check of a repository's default-branch pipeline, on demand
-//
-// The jobs behind one Main branches row's status: the same `Check` list,
-// in the same response shape, as GET /api/pull-requests/checks, so one
-// pipeline panel shows either. Fetched live on every call, never as part
-// of GET /api/main-branches' snapshot, for the same reason a pull
-// request's jobs are not: a job list for every row would spend the
-// forge's budget on rows nobody opens.
-//
-// The commit is the one the row reports: the newest commit on the
-// default branch that a check ran on. A release bot's commit that skips
-// CI has none, so the commit before it answers. `required` is never set,
-// since it is a pull request's base-branch notion.
-//
-// GitHub reads the newest commits' check runs (one request for the
-// commits, one per commit until a check is found, and up to 2 more per
-// failed job for its failed step). Forgejo reads the repository, the
-// Actions runs of the default branch and each run's jobs, the same
-// reading GET /api/main-branches counts its `checks` from, so the list
-// and the counts describe the same jobs. A run whose jobs can't be read
-// is listed as one check named after its workflow.
-//
-// Empty when the repository has no default branch, no commit with a
-// check, or no run. The error answers are those of GET
-// /api/pull-requests/checks.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /api/main-branches/checks (the `GetMainBranchChecks` operationId).
-func (c *ClientWithResponses) GetMainBranchChecksWithResponse(ctx context.Context, params *GetMainBranchChecksParams, reqEditors ...RequestEditorFn) (*GetMainBranchChecksResponse, error) {
-	rsp, err := c.GetMainBranchChecks(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetMainBranchChecksResponse(rsp)
-}
-
 // RerunMainBranchChecksWithBodyWithResponse Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 //
 // The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
 // to rerun the failed jobs of the Actions workflow runs on the commit
-// GET /api/main-branches/checks lists, and nothing that passed. It
+// the branch's job list shows, and nothing that passed. It
 // answers once the forge has queued them, not when they finish, so a
 // client shows a queued state and lets the next refresh carry the result.
 //
@@ -19501,7 +18974,7 @@ func (c *ClientWithResponses) RerunMainBranchChecksWithBodyWithResponse(ctx cont
 //
 // The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
 // to rerun the failed jobs of the Actions workflow runs on the commit
-// GET /api/main-branches/checks lists, and nothing that passed. It
+// the branch's job list shows, and nothing that passed. It
 // answers once the forge has queued them, not when they finish, so a
 // client shows a queued state and lets the next refresh carry the result.
 //
@@ -19796,31 +19269,6 @@ func (c *ClientWithResponses) SetPullRequestAutoUpdateWithResponse(ctx context.C
 	return ParseSetPullRequestAutoUpdateResponse(rsp)
 }
 
-// GetPullRequestChecksWithResponse List every job/check run against a pull request's head commit, on demand
-//
-// Fetched live on every call, never as part of GET /api/dashboard's
-// own snapshot — this is detail a pull request's row doesn't show
-// until a caller actually asks for it, and adding it to the eager
-// refresh loop would multiply that refresh's cost by every open
-// pull request for data most of them are never opened for.
-//
-// Falls back to the legacy combined commit-status API's own
-// per-check entries when the forge reports no Actions runs at all
-// for that commit (Actions disabled, or an instance too old to
-// expose them) — never an error for that case specifically, since
-// it's a normal, expected shape for an older or CI-less repo.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /api/pull-requests/checks (the `GetPullRequestChecks` operationId).
-func (c *ClientWithResponses) GetPullRequestChecksWithResponse(ctx context.Context, params *GetPullRequestChecksParams, reqEditors ...RequestEditorFn) (*GetPullRequestChecksResponse, error) {
-	rsp, err := c.GetPullRequestChecks(ctx, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetPullRequestChecksResponse(rsp)
-}
-
 // ClosePullRequestWithBodyWithResponse Close one pull request without merging it, on the signed-in user's behalf
 //
 // Closes the named pull request — for one that turns out not to
@@ -19955,9 +19403,7 @@ func (c *ClientWithResponses) PostPullRequestDependabotActionWithResponse(ctx co
 // (a GitHub repository's logo, see `logoUrl` on a repo in GET
 // /api/dashboard) and the Forgejo host.
 //
-// The error answers are those of GET /api/pull-requests/checks, with
-// the same codes. A forge that can't be read is an error, never an
-// empty thread.
+// A forge that can't be read is an error, never an empty thread.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -22597,74 +22043,6 @@ func ParseListAdvisoriesResponse(rsp *http.Response) (*ListAdvisoriesResponse, e
 	return response, nil
 }
 
-// ParseGetMainBranchChecksResponse parses an HTTP response from a GetMainBranchChecksWithResponse call
-func ParseGetMainBranchChecksResponse(rsp *http.Response) (*GetMainBranchChecksResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetMainBranchChecksResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest PullRequestChecksResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON429 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON502 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseRerunMainBranchChecksResponse parses an HTTP response from a RerunMainBranchChecksWithResponse call
 func ParseRerunMainBranchChecksResponse(rsp *http.Response) (*RerunMainBranchChecksResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -22934,74 +22312,6 @@ func ParseSetPullRequestAutoUpdateResponse(rsp *http.Response) (*SetPullRequestA
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetPullRequestChecksResponse parses an HTTP response from a GetPullRequestChecksWithResponse call
-func ParseGetPullRequestChecksResponse(rsp *http.Response) (*GetPullRequestChecksResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetPullRequestChecksResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest PullRequestChecksResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON429 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON502 = &dest
 
 	}
 
