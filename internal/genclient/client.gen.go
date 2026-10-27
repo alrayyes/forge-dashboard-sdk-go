@@ -1377,10 +1377,9 @@ type CancelRunRequest struct {
 
 // Check One job/check run against a pull request's head commit.
 type Check struct {
-	// DurationSeconds How long a completed check ran. Absent while it runs, or when
-	// the forge doesn't say. GitHub only: Forgejo's API doesn't give
-	// a job's timing.
-	DurationSeconds *int `json:"durationSeconds,omitempty"`
+	// CompletedAt When the forge says the job finished. Absent while it runs, and
+	// when the forge doesn't say. GitHub only, like `startedAt`.
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
 
 	// Excerpt The tail of the failed job's log as plain text: the last lines,
 	// with per-line timestamps and colour codes removed, at most 2,000
@@ -1438,6 +1437,12 @@ type Check struct {
 	// address. It tells two runs of one workflow apart. Present with
 	// `runId` when the forge says it.
 	RunNumber *int `json:"runNumber,omitempty"`
+
+	// StartedAt When the forge says the job started. Absent until it has, and when
+	// the forge doesn't say. GitHub only: Forgejo's API doesn't give a
+	// job's timing. A client works out how long a job ran from this and
+	// `completedAt`.
+	StartedAt *time.Time `json:"startedAt,omitempty"`
 
 	// State One job/check's own status — the per-job detail CIStatus
 	// deliberately doesn't carry, since CIStatus is the combined result
