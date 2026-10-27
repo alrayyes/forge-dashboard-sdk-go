@@ -157,16 +157,16 @@ func (e AdvisoryState) Valid() bool {
 
 // Defines values for AutoMergeStatusState.
 const (
-	Stopped AutoMergeStatusState = "stopped"
-	Waiting AutoMergeStatusState = "waiting"
+	AutoMergeStatusStateStopped AutoMergeStatusState = "stopped"
+	AutoMergeStatusStateWaiting AutoMergeStatusState = "waiting"
 )
 
 // Valid indicates whether the value is a known member of the AutoMergeStatusState enum.
 func (e AutoMergeStatusState) Valid() bool {
 	switch e {
-	case Stopped:
+	case AutoMergeStatusStateStopped:
 		return true
-	case Waiting:
+	case AutoMergeStatusStateWaiting:
 		return true
 	default:
 		return false
@@ -338,6 +338,33 @@ func (e CIStatus) Valid() bool {
 	}
 }
 
+// Defines values for CheckConclusion.
+const (
+	CheckConclusionCancelled CheckConclusion = "cancelled"
+	CheckConclusionFailure   CheckConclusion = "failure"
+	CheckConclusionSkipped   CheckConclusion = "skipped"
+	CheckConclusionSuccess   CheckConclusion = "success"
+	CheckConclusionTimedOut  CheckConclusion = "timed_out"
+)
+
+// Valid indicates whether the value is a known member of the CheckConclusion enum.
+func (e CheckConclusion) Valid() bool {
+	switch e {
+	case CheckConclusionCancelled:
+		return true
+	case CheckConclusionFailure:
+		return true
+	case CheckConclusionSkipped:
+		return true
+	case CheckConclusionSuccess:
+		return true
+	case CheckConclusionTimedOut:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CheckListEventKind.
 const (
 	CheckListEventKindMainBranch  CheckListEventKind = "main_branch"
@@ -356,36 +383,24 @@ func (e CheckListEventKind) Valid() bool {
 	}
 }
 
-// Defines values for CheckState.
+// Defines values for CheckStatus.
 const (
-	CheckStateAwaitingApproval CheckState = "awaiting_approval"
-	CheckStateCancelled        CheckState = "cancelled"
-	CheckStateFailure          CheckState = "failure"
-	CheckStateQueued           CheckState = "queued"
-	CheckStateRunning          CheckState = "running"
-	CheckStateSkipped          CheckState = "skipped"
-	CheckStateSuccess          CheckState = "success"
-	CheckStateTimedOut         CheckState = "timed_out"
+	CheckStatusCompleted  CheckStatus = "completed"
+	CheckStatusInProgress CheckStatus = "in_progress"
+	CheckStatusQueued     CheckStatus = "queued"
+	CheckStatusWaiting    CheckStatus = "waiting"
 )
 
-// Valid indicates whether the value is a known member of the CheckState enum.
-func (e CheckState) Valid() bool {
+// Valid indicates whether the value is a known member of the CheckStatus enum.
+func (e CheckStatus) Valid() bool {
 	switch e {
-	case CheckStateAwaitingApproval:
+	case CheckStatusCompleted:
 		return true
-	case CheckStateCancelled:
+	case CheckStatusInProgress:
 		return true
-	case CheckStateFailure:
+	case CheckStatusQueued:
 		return true
-	case CheckStateQueued:
-		return true
-	case CheckStateRunning:
-		return true
-	case CheckStateSkipped:
-		return true
-	case CheckStateSuccess:
-		return true
-	case CheckStateTimedOut:
+	case CheckStatusWaiting:
 		return true
 	default:
 		return false
@@ -1381,6 +1396,10 @@ type Check struct {
 	// when the forge doesn't say. GitHub only, like `startedAt`.
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 
+	// Conclusion How a finished job ended. Sent only when `status` is "completed".
+	// Both forges' own results are folded onto these five.
+	Conclusion *CheckConclusion `json:"conclusion,omitempty"`
+
 	// Excerpt The tail of the failed job's log as plain text: the last lines,
 	// with per-line timestamps and colour codes removed, at most 2,000
 	// characters. Never markup, and a client must render it as text.
@@ -1420,7 +1439,7 @@ type Check struct {
 	// RunId The Actions workflow run this job belongs to, to pass to
 	// `POST /api/checks/cancel-run`. Present on every Actions job,
 	// finished or not; only a job that is queued or running has
-	// anything left to cancel, which a client reads from `state`. A
+	// anything left to cancel, which a client reads from `status`. A
 	// third-party check and a legacy commit status have none.
 	//
 	// A Forgejo run whose jobs couldn't be read is listed as one check
@@ -1446,18 +1465,21 @@ type Check struct {
 	// `completedAt`.
 	StartedAt *time.Time `json:"startedAt,omitempty"`
 
-	// State One job/check's own status — the per-job detail CIStatus
-	// deliberately doesn't carry, since CIStatus is the combined result
-	// across every one of them.
+	// Status How far one job has got, as a fact. The page works out what to show
+	// from it and `conclusion`.
 	//
-	// "awaiting_approval" is a GitHub workflow run held until a
-	// maintainer approves it. It has no jobs yet, so it is not queued and
-	// not failed; its `url` is the run's page, where the approve button is.
-	State CheckState `json:"state"`
+	// "waiting" is a GitHub workflow run held until a maintainer approves
+	// it. It has no jobs yet, so it is not queued and has not failed; its
+	// `url` is the run's page, where the approve button is.
+	Status CheckStatus `json:"status"`
 
 	// Url That job's own page on the forge that ran it — never the pull request's own page.
 	Url string `json:"url"`
 }
+
+// CheckConclusion How a finished job ended. Sent only when `status` is "completed".
+// Both forges' own results are folded onto these five.
+type CheckConclusion string
 
 // CheckCounts How many checks are in each state, so a client can say how far a
 // pipeline is without opening it. It is on every pull request and on
@@ -1543,14 +1565,13 @@ type CheckLog struct {
 	Truncated bool `json:"truncated"`
 }
 
-// CheckState One job/check's own status — the per-job detail CIStatus
-// deliberately doesn't carry, since CIStatus is the combined result
-// across every one of them.
+// CheckStatus How far one job has got, as a fact. The page works out what to show
+// from it and `conclusion`.
 //
-// "awaiting_approval" is a GitHub workflow run held until a
-// maintainer approves it. It has no jobs yet, so it is not queued and
-// not failed; its `url` is the run's page, where the approve button is.
-type CheckState string
+// "waiting" is a GitHub workflow run held until a maintainer approves
+// it. It has no jobs yet, so it is not queued and has not failed; its
+// `url` is the run's page, where the approve button is.
+type CheckStatus string
 
 // CheckSubject defines model for CheckSubject.
 type CheckSubject struct {
