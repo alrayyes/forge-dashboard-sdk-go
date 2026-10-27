@@ -3250,7 +3250,19 @@ type ReviewStateDecision string
 type RunEvent struct {
 	// Checks Absent when `gone` or `error` is set.
 	Checks *[]Check `json:"checks,omitempty"`
-	Error  *string  `json:"error,omitempty"`
+
+	// CompletedAt When the forge says the run attempt finished. Absent until it
+	// has. GitHub gives no finish time for a run, so it is always
+	// absent there; the page can take the latest job's
+	// `completedAt`.
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+
+	// Conclusion How the run attempt ended, in the forge's own word, once its
+	// `status` is "completed". It can differ from its jobs: a run
+	// can fail while one of its jobs passed. Absent whenever
+	// `status` is.
+	Conclusion *CheckConclusion `json:"conclusion,omitempty"`
+	Error      *string          `json:"error,omitempty"`
 
 	// Final Set on the last event of a listing, so a client can draw
 	// once the whole listing has arrived.
@@ -3278,6 +3290,20 @@ type RunEvent struct {
 
 	// RunId Absent for a check with no run.
 	RunId *int64 `json:"runId,omitempty"`
+
+	// StartedAt When the forge says the run attempt started. Absent until it
+	// has, and when the forge doesn't say.
+	StartedAt *time.Time `json:"startedAt,omitempty"`
+
+	// Status How far the run attempt itself has got, as the forge reports
+	// it. Forgejo's own status words fold onto the four values
+	// (running is `in_progress`; waiting, blocked and unknown are
+	// `queued`); a GitHub status other than these four (requested,
+	// pending) is `queued`. Absent for a check with no run (a
+	// legacy commit status, a third-party check run, a GitHub
+	// check run whose run the forge's lists don't hold) and for a
+	// run the forge gave no status.
+	Status *CheckStatus `json:"status,omitempty"`
 }
 
 // RunEventKind defines model for RunEvent.Kind.
