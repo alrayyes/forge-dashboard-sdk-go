@@ -338,33 +338,6 @@ func (e CIStatus) Valid() bool {
 	}
 }
 
-// Defines values for CheckConclusion.
-const (
-	CheckConclusionCancelled CheckConclusion = "cancelled"
-	CheckConclusionFailure   CheckConclusion = "failure"
-	CheckConclusionSkipped   CheckConclusion = "skipped"
-	CheckConclusionSuccess   CheckConclusion = "success"
-	CheckConclusionTimedOut  CheckConclusion = "timed_out"
-)
-
-// Valid indicates whether the value is a known member of the CheckConclusion enum.
-func (e CheckConclusion) Valid() bool {
-	switch e {
-	case CheckConclusionCancelled:
-		return true
-	case CheckConclusionFailure:
-		return true
-	case CheckConclusionSkipped:
-		return true
-	case CheckConclusionSuccess:
-		return true
-	case CheckConclusionTimedOut:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CheckStatus.
 const (
 	CheckStatusCompleted  CheckStatus = "completed"
@@ -1396,8 +1369,22 @@ type Check struct {
 	// when the forge doesn't say.
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 
-	// Conclusion How a finished job ended. Sent only when `status` is "completed".
-	// Both forges' own results are folded onto these five.
+	// Conclusion How a finished job ended, in the forge's own word. Sent only when
+	// `status` is "completed". It is not folded onto a fixed set: GitHub
+	// sends its check run conclusion as it is (`success`, `failure`,
+	// `neutral`, `cancelled`, `skipped`, `timed_out`, `action_required`,
+	// `stale`, `startup_failure`) and Forgejo sends the terminal status of
+	// the job (`success`, `failure`, `cancelled`, `skipped`). A legacy
+	// commit status, which has no conclusion, is sent as `success` or
+	// `failure`. A client decides what each word means and what to do
+	// with one it doesn't know.
+	//
+	// `action_required` means the job needs someone's approval, and `url`
+	// is where to give it. The page shows it as waiting for approval,
+	// the same as a held run whose `status` is "waiting".
+	//
+	//
+	// Examples: success, failure, cancelled, skipped, timed_out, neutral
 	Conclusion *CheckConclusion `json:"conclusion,omitempty"`
 
 	// Excerpt The tail of the failed job's log as plain text: the last lines,
@@ -1471,16 +1458,32 @@ type Check struct {
 	//
 	// "waiting" is a GitHub workflow run held until a maintainer approves
 	// it. It has no jobs yet, so it is not queued and has not failed; its
-	// `url` is the run's page, where the approve button is.
+	// `url` is the run's page, where the approve button is. A check run
+	// that finishes as `action_required` is the other shape of the same
+	// wait: it is "completed" with that conclusion. The page treats the
+	// two alike.
 	Status CheckStatus `json:"status"`
 
 	// Url That job's own page on the forge that ran it — never the pull request's own page.
 	Url string `json:"url"`
 }
 
-// CheckConclusion How a finished job ended. Sent only when `status` is "completed".
-// Both forges' own results are folded onto these five.
-type CheckConclusion string
+// CheckConclusion How a finished job ended, in the forge's own word. Sent only when
+// `status` is "completed". It is not folded onto a fixed set: GitHub
+// sends its check run conclusion as it is (`success`, `failure`,
+// `neutral`, `cancelled`, `skipped`, `timed_out`, `action_required`,
+// `stale`, `startup_failure`) and Forgejo sends the terminal status of
+// the job (`success`, `failure`, `cancelled`, `skipped`). A legacy
+// commit status, which has no conclusion, is sent as `success` or
+// `failure`. A client decides what each word means and what to do
+// with one it doesn't know.
+//
+// `action_required` means the job needs someone's approval, and `url`
+// is where to give it. The page shows it as waiting for approval,
+// the same as a held run whose `status` is "waiting".
+//
+// Examples: success, failure, cancelled, skipped, timed_out, neutral
+type CheckConclusion = string
 
 // CheckCounts How many checks are in each state, so a client can say how far a
 // pipeline is without opening it. It is on every pull request and on
@@ -1552,7 +1555,10 @@ type CheckLog struct {
 //
 // "waiting" is a GitHub workflow run held until a maintainer approves
 // it. It has no jobs yet, so it is not queued and has not failed; its
-// `url` is the run's page, where the approve button is.
+// `url` is the run's page, where the approve button is. A check run
+// that finishes as `action_required` is the other shape of the same
+// wait: it is "completed" with that conclusion. The page treats the
+// two alike.
 type CheckStatus string
 
 // CheckSubject defines model for CheckSubject.
