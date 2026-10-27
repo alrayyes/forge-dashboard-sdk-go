@@ -338,6 +338,24 @@ func (e CIStatus) Valid() bool {
 	}
 }
 
+// Defines values for CheckListEventKind.
+const (
+	CheckListEventKindMainBranch  CheckListEventKind = "main_branch"
+	CheckListEventKindPullRequest CheckListEventKind = "pull_request"
+)
+
+// Valid indicates whether the value is a known member of the CheckListEventKind enum.
+func (e CheckListEventKind) Valid() bool {
+	switch e {
+	case CheckListEventKindMainBranch:
+		return true
+	case CheckListEventKindPullRequest:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CheckState.
 const (
 	CheckStateAwaitingApproval CheckState = "awaiting_approval"
@@ -368,6 +386,24 @@ func (e CheckState) Valid() bool {
 	case CheckStateSuccess:
 		return true
 	case CheckStateTimedOut:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CheckSubjectKind.
+const (
+	CheckSubjectKindMainBranch  CheckSubjectKind = "main_branch"
+	CheckSubjectKindPullRequest CheckSubjectKind = "pull_request"
+)
+
+// Valid indicates whether the value is a known member of the CheckSubjectKind enum.
+func (e CheckSubjectKind) Valid() bool {
+	switch e {
+	case CheckSubjectKindMainBranch:
+		return true
+	case CheckSubjectKindPullRequest:
 		return true
 	default:
 		return false
@@ -1472,6 +1508,25 @@ type CheckCounts struct {
 	Waiting int `json:"waiting"`
 }
 
+// CheckListEvent The `data` of a `checks` event on the dashboard stream: one
+// subject and its job list, or why it could not be listed.
+type CheckListEvent struct {
+	// Checks Null when `error` is set.
+	Checks *[]Check `json:"checks"`
+	Error  *string  `json:"error,omitempty"`
+	Forge  string   `json:"forge"`
+
+	// FullName The repository, as `owner/repo`.
+	FullName string             `json:"fullName"`
+	Kind     CheckListEventKind `json:"kind"`
+
+	// Number The pull request number. Required for `pull_request`.
+	Number *int `json:"number,omitempty"`
+}
+
+// CheckListEventKind defines model for CheckListEvent.Kind.
+type CheckListEventKind string
+
 // CheckLog The output of one CI job.
 type CheckLog struct {
 	// Text Plain text, never markup. A client must render it as text.
@@ -1489,6 +1544,21 @@ type CheckLog struct {
 // maintainer approves it. It has no jobs yet, so it is not queued and
 // not failed; its `url` is the run's page, where the approve button is.
 type CheckState string
+
+// CheckSubject defines model for CheckSubject.
+type CheckSubject struct {
+	Forge string `json:"forge"`
+
+	// FullName The repository, as `owner/repo`.
+	FullName string           `json:"fullName"`
+	Kind     CheckSubjectKind `json:"kind"`
+
+	// Number The pull request number. Required for `pull_request`.
+	Number *int `json:"number,omitempty"`
+}
+
+// CheckSubjectKind defines model for CheckSubject.Kind.
+type CheckSubjectKind string
 
 // ClosingIssue One issue a pull request will close when it merges.
 type ClosingIssue struct {
@@ -3385,6 +3455,17 @@ type StackRef struct {
 	Url    string `json:"url"`
 }
 
+// StreamWatchRequest defines model for StreamWatchRequest.
+type StreamWatchRequest struct {
+	// Refresh List every subject again, including the ones already watched.
+	// A client sends it after an action that changes the jobs.
+	Refresh *bool `json:"refresh,omitempty"`
+
+	// StreamId The `sid` the stream was opened with.
+	StreamId string         `json:"streamId"`
+	Subjects []CheckSubject `json:"subjects"`
+}
+
 // ThemeRequest See PUT /api/settings/theme's own description.
 type ThemeRequest struct {
 	Theme ThemeRequestTheme `json:"theme"`
@@ -3562,6 +3643,11 @@ type StreamDashboardParams struct {
 	// Restore, by asking with `true`. The stream and the refresh endpoint
 	// take the same parameter.
 	IncludeHidden *QueryIncludeHidden `form:"includeHidden,omitempty" json:"includeHidden,omitempty"`
+
+	// Sid A random id the client makes up for this connection, 8 to 64
+	// letters, digits and dashes. It names the stream for the watch
+	// call. Anything else is ignored and the stream watches nothing.
+	Sid *string `form:"sid,omitempty" json:"sid,omitempty"`
 }
 
 // GetIssueDetailsParams defines parameters for GetIssueDetails.
@@ -3644,6 +3730,9 @@ type FinishRegistrationJSONRequestBody = WebAuthnCeremonyOptions
 
 // CancelWorkflowRunJSONRequestBody defines body for CancelWorkflowRun for application/json ContentType.
 type CancelWorkflowRunJSONRequestBody = CancelRunRequest
+
+// WatchDashboardStreamChecksJSONRequestBody defines body for WatchDashboardStreamChecks for application/json ContentType.
+type WatchDashboardStreamChecksJSONRequestBody = StreamWatchRequest
 
 // CloseIssueJSONRequestBody defines body for CloseIssue for application/json ContentType.
 type CloseIssueJSONRequestBody = IssueActionRequest
@@ -4125,8 +4214,51 @@ type ClientInterface interface {
 	// applies to every event on it. A client that changes its mind
 	// reconnects with the new value.
 	//
+	// A client that passes `sid` can also follow the job lists of the
+	// pull requests and default branches it has open, through
+	// `POST /api/dashboard/stream/watch`. Each list arrives as a named
+	// `checks` event on this stream, so a client that only listens for
+	// default messages never sees one. A reconnect reuses the same
+	// `sid` with nothing watched, so the client sends its watch again.
+	//
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WatchDashboardStreamChecksWithBody Choose which job lists a dashboard stream sends
+	//
+	// Replaces the set of pull requests and default branches whose job
+	// lists the stream named by `streamId` sends as `checks` events.
+	// The server lists a subject when it is newly watched, when its row
+	// in a new snapshot changed (CI state, check counts, or a branch's
+	// run), and when `refresh` is true. Nothing else costs a forge
+	// request. A failed listing is sent as an event with `error` set,
+	// and every snapshot after it tries again, changed or not, until a
+	// listing works.
+	//
+	// The event is the JSON of the `CheckListEvent` schema.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+	WatchDashboardStreamChecksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WatchDashboardStreamChecks Choose which job lists a dashboard stream sends
+	//
+	// Replaces the set of pull requests and default branches whose job
+	// lists the stream named by `streamId` sends as `checks` events.
+	// The server lists a subject when it is newly watched, when its row
+	// in a new snapshot changed (CI state, check counts, or a branch's
+	// run), and when `refresh` is true. Nothing else costs a forge
+	// request. A failed listing is sent as an event with `error` set,
+	// and every snapshot after it tries again, changed or not, until a
+	// listing works.
+	//
+	// The event is the JSON of the `CheckListEvent` schema.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+	WatchDashboardStreamChecks(ctx context.Context, body WatchDashboardStreamChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CloseIssueWithBody Close one issue, on the signed-in user's behalf
 	//
@@ -6389,9 +6521,72 @@ func (c *Client) RefreshDashboard(ctx context.Context, params *RefreshDashboardP
 // applies to every event on it. A client that changes its mind
 // reconnects with the new value.
 //
+// A client that passes `sid` can also follow the job lists of the
+// pull requests and default branches it has open, through
+// `POST /api/dashboard/stream/watch`. Each list arrives as a named
+// `checks` event on this stream, so a client that only listens for
+// default messages never sees one. A reconnect reuses the same
+// `sid` with nothing watched, so the client sends its watch again.
+//
 // Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStreamDashboardRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// WatchDashboardStreamChecksWithBody Choose which job lists a dashboard stream sends
+//
+// Replaces the set of pull requests and default branches whose job
+// lists the stream named by `streamId` sends as `checks` events.
+// The server lists a subject when it is newly watched, when its row
+// in a new snapshot changed (CI state, check counts, or a branch's
+// run), and when `refresh` is true. Nothing else costs a forge
+// request. A failed listing is sent as an event with `error` set,
+// and every snapshot after it tries again, changed or not, until a
+// listing works.
+//
+// The event is the JSON of the `CheckListEvent` schema.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+func (c *Client) WatchDashboardStreamChecksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchDashboardStreamChecksRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// WatchDashboardStreamChecks Choose which job lists a dashboard stream sends
+//
+// Replaces the set of pull requests and default branches whose job
+// lists the stream named by `streamId` sends as `checks` events.
+// The server lists a subject when it is newly watched, when its row
+// in a new snapshot changed (CI state, check counts, or a branch's
+// run), and when `refresh` is true. Nothing else costs a forge
+// request. A failed listing is sent as an event with `error` set,
+// and every snapshot after it tries again, changed or not, until a
+// listing works.
+//
+// The event is the JSON of the `CheckListEvent` schema.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+func (c *Client) WatchDashboardStreamChecks(ctx context.Context, body WatchDashboardStreamChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWatchDashboardStreamChecksRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -9735,6 +9930,18 @@ func NewStreamDashboardRequest(server string, params *StreamDashboardParams) (*h
 
 		}
 
+		if params.Sid != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sid", *params.Sid, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -9745,6 +9952,46 @@ func NewStreamDashboardRequest(server string, params *StreamDashboardParams) (*h
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewWatchDashboardStreamChecksRequest calls the generic WatchDashboardStreamChecks builder with application/json body
+func NewWatchDashboardStreamChecksRequest(server string, body WatchDashboardStreamChecksJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWatchDashboardStreamChecksRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewWatchDashboardStreamChecksRequestWithBody constructs an http.Request for the WatchDashboardStreamChecks method, with any body, and a specified content type
+func NewWatchDashboardStreamChecksRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/dashboard/stream/watch")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -12228,10 +12475,53 @@ type ClientWithResponsesInterface interface {
 	// applies to every event on it. A client that changes its mind
 	// reconnects with the new value.
 	//
+	// A client that passes `sid` can also follow the job lists of the
+	// pull requests and default branches it has open, through
+	// `POST /api/dashboard/stream/watch`. Each list arrives as a named
+	// `checks` event on this stream, so a client that only listens for
+	// default messages never sees one. A reconnect reuses the same
+	// `sid` with nothing watched, so the client sends its watch again.
+	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboardWithResponse(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*StreamDashboardResponse, error)
+
+	// WatchDashboardStreamChecksWithBodyWithResponse Choose which job lists a dashboard stream sends
+	//
+	// Replaces the set of pull requests and default branches whose job
+	// lists the stream named by `streamId` sends as `checks` events.
+	// The server lists a subject when it is newly watched, when its row
+	// in a new snapshot changed (CI state, check counts, or a branch's
+	// run), and when `refresh` is true. Nothing else costs a forge
+	// request. A failed listing is sent as an event with `error` set,
+	// and every snapshot after it tries again, changed or not, until a
+	// listing works.
+	//
+	// The event is the JSON of the `CheckListEvent` schema.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+	WatchDashboardStreamChecksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchDashboardStreamChecksResponse, error)
+
+	// WatchDashboardStreamChecksWithResponse Choose which job lists a dashboard stream sends
+	//
+	// Replaces the set of pull requests and default branches whose job
+	// lists the stream named by `streamId` sends as `checks` events.
+	// The server lists a subject when it is newly watched, when its row
+	// in a new snapshot changed (CI state, check counts, or a branch's
+	// run), and when `refresh` is true. Nothing else costs a forge
+	// request. A failed listing is sent as an event with `error` set,
+	// and every snapshot after it tries again, changed or not, until a
+	// listing works.
+	//
+	// The event is the JSON of the `CheckListEvent` schema.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+	WatchDashboardStreamChecksWithResponse(ctx context.Context, body WatchDashboardStreamChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchDashboardStreamChecksResponse, error)
 
 	// CloseIssueWithBodyWithResponse Close one issue, on the signed-in user's behalf
 	//
@@ -14981,6 +15271,61 @@ func (r StreamDashboardResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r StreamDashboardResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type WatchDashboardStreamChecksResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r WatchDashboardStreamChecksResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r WatchDashboardStreamChecksResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r WatchDashboardStreamChecksResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r WatchDashboardStreamChecksResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r WatchDashboardStreamChecksResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WatchDashboardStreamChecksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r WatchDashboardStreamChecksResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -18735,6 +19080,13 @@ func (c *ClientWithResponses) RefreshDashboardWithResponse(ctx context.Context, 
 // applies to every event on it. A client that changes its mind
 // reconnects with the new value.
 //
+// A client that passes `sid` can also follow the job lists of the
+// pull requests and default branches it has open, through
+// `POST /api/dashboard/stream/watch`. Each list arrives as a named
+// `checks` event on this stream, so a client that only listens for
+// default messages never sees one. A reconnect reuses the same
+// `sid` with nothing watched, so the client sends its watch again.
+//
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
@@ -18744,6 +19096,54 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 		return nil, err
 	}
 	return ParseStreamDashboardResponse(rsp)
+}
+
+// WatchDashboardStreamChecksWithBodyWithResponse Choose which job lists a dashboard stream sends
+//
+// Replaces the set of pull requests and default branches whose job
+// lists the stream named by `streamId` sends as `checks` events.
+// The server lists a subject when it is newly watched, when its row
+// in a new snapshot changed (CI state, check counts, or a branch's
+// run), and when `refresh` is true. Nothing else costs a forge
+// request. A failed listing is sent as an event with `error` set,
+// and every snapshot after it tries again, changed or not, until a
+// listing works.
+//
+// The event is the JSON of the `CheckListEvent` schema.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+func (c *ClientWithResponses) WatchDashboardStreamChecksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchDashboardStreamChecksResponse, error) {
+	rsp, err := c.WatchDashboardStreamChecksWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWatchDashboardStreamChecksResponse(rsp)
+}
+
+// WatchDashboardStreamChecksWithResponse Choose which job lists a dashboard stream sends
+//
+// Replaces the set of pull requests and default branches whose job
+// lists the stream named by `streamId` sends as `checks` events.
+// The server lists a subject when it is newly watched, when its row
+// in a new snapshot changed (CI state, check counts, or a branch's
+// run), and when `refresh` is true. Nothing else costs a forge
+// request. A failed listing is sent as an event with `error` set,
+// and every snapshot after it tries again, changed or not, until a
+// listing works.
+//
+// The event is the JSON of the `CheckListEvent` schema.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+func (c *ClientWithResponses) WatchDashboardStreamChecksWithResponse(ctx context.Context, body WatchDashboardStreamChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchDashboardStreamChecksResponse, error) {
+	rsp, err := c.WatchDashboardStreamChecks(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWatchDashboardStreamChecksResponse(rsp)
 }
 
 // CloseIssueWithBodyWithResponse Close one issue, on the signed-in user's behalf
@@ -21774,6 +22174,49 @@ func ParseStreamDashboardResponse(rsp *http.Response) (*StreamDashboardResponse,
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWatchDashboardStreamChecksResponse parses an HTTP response from a WatchDashboardStreamChecksWithResponse call
+func ParseWatchDashboardStreamChecksResponse(rsp *http.Response) (*WatchDashboardStreamChecksResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WatchDashboardStreamChecksResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
