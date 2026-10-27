@@ -4294,7 +4294,8 @@ type ClientInterface interface {
 	// ignored for pull requests is left out, as on the pull requests page.
 	// Every other row is returned, whatever its status, and no tally comes
 	// with them, so a client filters, sorts and counts locally and its pill
-	// counts always match what each pill lists. Rows come in no particular order: the client orders them.
+	// counts always match what each pill lists. Rows come in no particular
+	// order: the client orders them.
 	//
 	// Served from the snapshot the background refresh already holds, so it
 	// never calls a forge. On GitHub the branch's check status rides the
@@ -6637,7 +6638,8 @@ func (c *Client) ReopenIssue(ctx context.Context, body ReopenIssueJSONRequestBod
 // ignored for pull requests is left out, as on the pull requests page.
 // Every other row is returned, whatever its status, and no tally comes
 // with them, so a client filters, sorts and counts locally and its pill
-// counts always match what each pill lists. Rows come in no particular order: the client orders them.
+// counts always match what each pill lists. Rows come in no particular
+// order: the client orders them.
 //
 // Served from the snapshot the background refresh already holds, so it
 // never calls a forge. On GitHub the branch's check status rides the
@@ -12399,7 +12401,8 @@ type ClientWithResponsesInterface interface {
 	// ignored for pull requests is left out, as on the pull requests page.
 	// Every other row is returned, whatever its status, and no tally comes
 	// with them, so a client filters, sorts and counts locally and its pill
-	// counts always match what each pill lists. Rows come in no particular order: the client orders them.
+	// counts always match what each pill lists. Rows come in no particular
+	// order: the client orders them.
 	//
 	// Served from the snapshot the background refresh already holds, so it
 	// never calls a forge. On GitHub the branch's check status rides the
@@ -18953,7 +18956,8 @@ func (c *ClientWithResponses) ReopenIssueWithResponse(ctx context.Context, body 
 // ignored for pull requests is left out, as on the pull requests page.
 // Every other row is returned, whatever its status, and no tally comes
 // with them, so a client filters, sorts and counts locally and its pill
-// counts always match what each pill lists. Rows come in no particular order: the client orders them.
+// counts always match what each pill lists. Rows come in no particular
+// order: the client orders them.
 //
 // Served from the snapshot the background refresh already holds, so it
 // never calls a forge. On GitHub the branch's check status rides the
