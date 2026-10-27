@@ -1418,10 +1418,10 @@ type Check struct {
 	RunAttempt *int `json:"runAttempt,omitempty"`
 
 	// RunId The Actions workflow run this job belongs to, to pass to
-	// `POST /api/checks/cancel-run`. Present only while the job is
-	// queued or running, and only for an Actions job: a finished job,
-	// a third-party check and a legacy commit status have none, and
-	// nothing is left to cancel.
+	// `POST /api/checks/cancel-run`. Present on every Actions job,
+	// finished or not; only a job that is queued or running has
+	// anything left to cancel, which a client reads from `state`. A
+	// third-party check and a legacy commit status have none.
 	//
 	// A Forgejo run whose jobs couldn't be read is listed as one check
 	// named for the run, with a `runId` and no `jobId`. A client treats
@@ -1430,12 +1430,14 @@ type Check struct {
 	RunId *int `json:"runId,omitempty"`
 
 	// RunName The name of that workflow run, for a client to say which run a
-	// cancel stops. Present with `runId`.
+	// cancel stops. Present with `runId`; on GitHub it can be absent
+	// when the lookup of the commit's runs failed or didn't list the run.
 	RunName *string `json:"runName,omitempty"`
 
 	// RunNumber The forge's own number for that run, the one in the run's page
 	// address. It tells two runs of one workflow apart. Present with
-	// `runId` when the forge says it.
+	// `runId` when the forge says it; on GitHub it can be absent when
+	// the lookup of the commit's runs failed or didn't list the run.
 	RunNumber *int `json:"runNumber,omitempty"`
 
 	// StartedAt When the forge says the job started. Absent until it has, and when
@@ -4033,10 +4035,10 @@ type ClientInterface interface {
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
 	// workflow. A client takes `runId` from a check in a `checks` event on
-	// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
-	// its run. A check with no `runId` (a third-party check, a legacy commit
-	// status, an external CI) belongs to no Actions run and can't be
-	// cancelled here.
+	// GET /api/dashboard/stream, from a job that is still queued or running.
+	// A check with no `runId` (a third-party check, a legacy commit status,
+	// an external CI) belongs to no Actions run and can't be cancelled
+	// here.
 	//
 	// It answers once the forge has accepted the cancel, not when the run
 	// has stopped, so a client shows the run as cancelling and lets the next
@@ -4069,10 +4071,10 @@ type ClientInterface interface {
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
 	// workflow. A client takes `runId` from a check in a `checks` event on
-	// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
-	// its run. A check with no `runId` (a third-party check, a legacy commit
-	// status, an external CI) belongs to no Actions run and can't be
-	// cancelled here.
+	// GET /api/dashboard/stream, from a job that is still queued or running.
+	// A check with no `runId` (a third-party check, a legacy commit status,
+	// an external CI) belongs to no Actions run and can't be cancelled
+	// here.
 	//
 	// It answers once the forge has accepted the cancel, not when the run
 	// has stopped, so a client shows the run as cancelling and lets the next
@@ -6240,10 +6242,10 @@ func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) 
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
 // workflow. A client takes `runId` from a check in a `checks` event on
-// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
-// its run. A check with no `runId` (a third-party check, a legacy commit
-// status, an external CI) belongs to no Actions run and can't be
-// cancelled here.
+// GET /api/dashboard/stream, from a job that is still queued or running.
+// A check with no `runId` (a third-party check, a legacy commit status,
+// an external CI) belongs to no Actions run and can't be cancelled
+// here.
 //
 // It answers once the forge has accepted the cancel, not when the run
 // has stopped, so a client shows the run as cancelling and lets the next
@@ -6286,10 +6288,10 @@ func (c *Client) CancelWorkflowRunWithBody(ctx context.Context, contentType stri
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
 // workflow. A client takes `runId` from a check in a `checks` event on
-// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
-// its run. A check with no `runId` (a third-party check, a legacy commit
-// status, an external CI) belongs to no Actions run and can't be
-// cancelled here.
+// GET /api/dashboard/stream, from a job that is still queued or running.
+// A check with no `runId` (a third-party check, a legacy commit status,
+// an external CI) belongs to no Actions run and can't be cancelled
+// here.
 //
 // It answers once the forge has accepted the cancel, not when the run
 // has stopped, so a client shows the run as cancelling and lets the next
@@ -12044,10 +12046,10 @@ type ClientWithResponsesInterface interface {
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
 	// workflow. A client takes `runId` from a check in a `checks` event on
-	// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
-	// its run. A check with no `runId` (a third-party check, a legacy commit
-	// status, an external CI) belongs to no Actions run and can't be
-	// cancelled here.
+	// GET /api/dashboard/stream, from a job that is still queued or running.
+	// A check with no `runId` (a third-party check, a legacy commit status,
+	// an external CI) belongs to no Actions run and can't be cancelled
+	// here.
 	//
 	// It answers once the forge has accepted the cancel, not when the run
 	// has stopped, so a client shows the run as cancelling and lets the next
@@ -12080,10 +12082,10 @@ type ClientWithResponsesInterface interface {
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
 	// workflow. A client takes `runId` from a check in a `checks` event on
-	// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
-	// its run. A check with no `runId` (a third-party check, a legacy commit
-	// status, an external CI) belongs to no Actions run and can't be
-	// cancelled here.
+	// GET /api/dashboard/stream, from a job that is still queued or running.
+	// A check with no `runId` (a third-party check, a legacy commit status,
+	// an external CI) belongs to no Actions run and can't be cancelled
+	// here.
 	//
 	// It answers once the forge has accepted the cancel, not when the run
 	// has stopped, so a client shows the run as cancelling and lets the next
@@ -18399,10 +18401,10 @@ func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEdi
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
 // workflow. A client takes `runId` from a check in a `checks` event on
-// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
-// its run. A check with no `runId` (a third-party check, a legacy commit
-// status, an external CI) belongs to no Actions run and can't be
-// cancelled here.
+// GET /api/dashboard/stream, from a job that is still queued or running.
+// A check with no `runId` (a third-party check, a legacy commit status,
+// an external CI) belongs to no Actions run and can't be cancelled
+// here.
 //
 // It answers once the forge has accepted the cancel, not when the run
 // has stopped, so a client shows the run as cancelling and lets the next
@@ -18441,10 +18443,10 @@ func (c *ClientWithResponses) CancelWorkflowRunWithBodyWithResponse(ctx context.
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
 // workflow. A client takes `runId` from a check in a `checks` event on
-// GET /api/dashboard/stream, where a job that is still queued or running carries the id and name of
-// its run. A check with no `runId` (a third-party check, a legacy commit
-// status, an external CI) belongs to no Actions run and can't be
-// cancelled here.
+// GET /api/dashboard/stream, from a job that is still queued or running.
+// A check with no `runId` (a third-party check, a legacy commit status,
+// an external CI) belongs to no Actions run and can't be cancelled
+// here.
 //
 // It answers once the forge has accepted the cancel, not when the run
 // has stopped, so a client shows the run as cancelling and lets the next
