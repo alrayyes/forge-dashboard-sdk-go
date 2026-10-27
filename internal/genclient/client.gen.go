@@ -365,24 +365,6 @@ func (e CheckConclusion) Valid() bool {
 	}
 }
 
-// Defines values for CheckListEventKind.
-const (
-	CheckListEventKindMainBranch  CheckListEventKind = "main_branch"
-	CheckListEventKindPullRequest CheckListEventKind = "pull_request"
-)
-
-// Valid indicates whether the value is a known member of the CheckListEventKind enum.
-func (e CheckListEventKind) Valid() bool {
-	switch e {
-	case CheckListEventKindMainBranch:
-		return true
-	case CheckListEventKindPullRequest:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CheckStatus.
 const (
 	CheckStatusCompleted  CheckStatus = "completed"
@@ -731,6 +713,24 @@ func (e ReviewStateDecision) Valid() bool {
 	case ReviewStateDecisionNone:
 		return true
 	case ReviewStateDecisionReviewRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunEventKind.
+const (
+	RunEventKindMainBranch  RunEventKind = "main_branch"
+	RunEventKindPullRequest RunEventKind = "pull_request"
+)
+
+// Valid indicates whether the value is a known member of the RunEventKind enum.
+func (e RunEventKind) Valid() bool {
+	switch e {
+	case RunEventKindMainBranch:
+		return true
+	case RunEventKindPullRequest:
 		return true
 	default:
 		return false
@@ -1537,25 +1537,6 @@ type CheckCounts struct {
 	Skipped int `json:"skipped"`
 	Waiting int `json:"waiting"`
 }
-
-// CheckListEvent The `data` of a `checks` event on the dashboard stream: one
-// subject and its job list, or why it could not be listed.
-type CheckListEvent struct {
-	// Checks Null when `error` is set.
-	Checks *[]Check `json:"checks"`
-	Error  *string  `json:"error,omitempty"`
-	Forge  string   `json:"forge"`
-
-	// FullName The repository, as `owner/repo`.
-	FullName string             `json:"fullName"`
-	Kind     CheckListEventKind `json:"kind"`
-
-	// Number The pull request number. Required for `pull_request`.
-	Number *int `json:"number,omitempty"`
-}
-
-// CheckListEventKind defines model for CheckListEvent.Kind.
-type CheckListEventKind string
 
 // CheckLog The output of one CI job.
 type CheckLog struct {
@@ -3255,6 +3236,47 @@ type ReviewState struct {
 // required or requested.
 type ReviewStateDecision string
 
+// RunEvent The `data` of a `run` event on the dashboard stream: the jobs of
+// one workflow run attempt of one subject, or one check that belongs
+// to no run. A later event with the same `key` replaces the earlier
+// one. An event with no `key` and no `checks` says the subject has
+// none. An event with `error` set stands in for the whole listing.
+type RunEvent struct {
+	// Checks Absent when `gone` or `error` is set.
+	Checks *[]Check `json:"checks,omitempty"`
+	Error  *string  `json:"error,omitempty"`
+
+	// Final Set on the last event of a listing, so a client can draw
+	// once the whole listing has arrived.
+	Final *bool  `json:"final,omitempty"`
+	Forge string `json:"forge"`
+
+	// FullName The repository, as `owner/repo`.
+	FullName string `json:"fullName"`
+
+	// Gone The unit named by `key` is no longer listed; drop it.
+	Gone *bool `json:"gone,omitempty"`
+
+	// Key Names the unit this event replaces: `run/<runId>/<attempt>`
+	// for a run attempt, `job/<url>|<name>` for a check with no
+	// run. Absent when the subject has no checks or on an error.
+	Key  *string      `json:"key,omitempty"`
+	Kind RunEventKind `json:"kind"`
+
+	// Number The pull request number. Required for `pull_request`.
+	Number *int `json:"number,omitempty"`
+
+	// RunAttempt Absent when the check has no run or the forge doesn't
+	// number attempts.
+	RunAttempt *int64 `json:"runAttempt,omitempty"`
+
+	// RunId Absent for a check with no run.
+	RunId *int64 `json:"runId,omitempty"`
+}
+
+// RunEventKind defines model for RunEvent.Kind.
+type RunEventKind string
+
 // SessionUser defines model for SessionUser.
 type SessionUser struct {
 	DisplayName string `json:"displayName"`
@@ -4056,7 +4078,7 @@ type ClientInterface interface {
 	//
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
-	// workflow. A client takes `runId` from a check in a `checks` event on
+	// workflow. A client takes `runId` from a check in a `run` event on
 	// GET /api/dashboard/stream, from a job that is still queued or running.
 	// A check with no `runId` (a third-party check, a legacy commit status,
 	// an external CI) belongs to no Actions run and can't be cancelled
@@ -4092,7 +4114,7 @@ type ClientInterface interface {
 	//
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
-	// workflow. A client takes `runId` from a check in a `checks` event on
+	// workflow. A client takes `runId` from a check in a `run` event on
 	// GET /api/dashboard/stream, from a job that is still queued or running.
 	// A check with no `runId` (a third-party check, a legacy commit status,
 	// an external CI) belongs to no Actions run and can't be cancelled
@@ -4219,10 +4241,11 @@ type ClientInterface interface {
 	//
 	// A client that passes `sid` can also follow the job lists of the
 	// pull requests and default branches it has open, through
-	// `POST /api/dashboard/stream/watch`. Each list arrives as a named
-	// `checks` event on this stream, so a client that only listens for
-	// default messages never sees one. A reconnect reuses the same
-	// `sid` with nothing watched, so the client sends its watch again.
+	// `POST /api/dashboard/stream/watch`. Each list arrives as named
+	// `run` events on this stream, one for each workflow run attempt, so a
+	// client that only listens for default messages never sees one. A
+	// reconnect reuses the same `sid` with nothing watched, so the client
+	// sends its watch again.
 	//
 	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4230,7 +4253,7 @@ type ClientInterface interface {
 	// WatchDashboardStreamChecksWithBody Choose which job lists a dashboard stream sends
 	//
 	// Replaces the set of pull requests and default branches whose job
-	// lists the stream named by `streamId` sends as `checks` events.
+	// lists the stream named by `streamId` sends as `run` events.
 	// The server lists a subject when it is newly watched, when its row
 	// in a new snapshot changed (CI state, check counts, or a branch's
 	// run), and when `refresh` is true. Nothing else costs a forge
@@ -4238,7 +4261,12 @@ type ClientInterface interface {
 	// and every snapshot after it tries again, changed or not, until a
 	// listing works.
 	//
-	// The event is the JSON of the `CheckListEvent` schema.
+	// A listing is one event for each workflow run attempt the subject
+	// holds, then one with `gone` set for each run attempt the last
+	// listing sent and this one lacks. The last event of a listing has
+	// `final` set. A rerun keeps its run id and takes a new attempt, so
+	// its event carries a new `key` and the first attempt's key comes
+	// back as gone. The event is the JSON of the `RunEvent` schema.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -4248,7 +4276,7 @@ type ClientInterface interface {
 	// WatchDashboardStreamChecks Choose which job lists a dashboard stream sends
 	//
 	// Replaces the set of pull requests and default branches whose job
-	// lists the stream named by `streamId` sends as `checks` events.
+	// lists the stream named by `streamId` sends as `run` events.
 	// The server lists a subject when it is newly watched, when its row
 	// in a new snapshot changed (CI state, check counts, or a branch's
 	// run), and when `refresh` is true. Nothing else costs a forge
@@ -4256,7 +4284,12 @@ type ClientInterface interface {
 	// and every snapshot after it tries again, changed or not, until a
 	// listing works.
 	//
-	// The event is the JSON of the `CheckListEvent` schema.
+	// A listing is one event for each workflow run attempt the subject
+	// holds, then one with `gone` set for each run attempt the last
+	// listing sent and this one lacks. The last event of a listing has
+	// `final` set. A rerun keeps its run id and takes a new attempt, so
+	// its event carries a new `key` and the first attempt's key comes
+	// back as gone. The event is the JSON of the `RunEvent` schema.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -6263,7 +6296,7 @@ func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) 
 //
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
-// workflow. A client takes `runId` from a check in a `checks` event on
+// workflow. A client takes `runId` from a check in a `run` event on
 // GET /api/dashboard/stream, from a job that is still queued or running.
 // A check with no `runId` (a third-party check, a legacy commit status,
 // an external CI) belongs to no Actions run and can't be cancelled
@@ -6309,7 +6342,7 @@ func (c *Client) CancelWorkflowRunWithBody(ctx context.Context, contentType stri
 //
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
-// workflow. A client takes `runId` from a check in a `checks` event on
+// workflow. A client takes `runId` from a check in a `run` event on
 // GET /api/dashboard/stream, from a job that is still queued or running.
 // A check with no `runId` (a third-party check, a legacy commit status,
 // an external CI) belongs to no Actions run and can't be cancelled
@@ -6476,10 +6509,11 @@ func (c *Client) RefreshDashboard(ctx context.Context, params *RefreshDashboardP
 //
 // A client that passes `sid` can also follow the job lists of the
 // pull requests and default branches it has open, through
-// `POST /api/dashboard/stream/watch`. Each list arrives as a named
-// `checks` event on this stream, so a client that only listens for
-// default messages never sees one. A reconnect reuses the same
-// `sid` with nothing watched, so the client sends its watch again.
+// `POST /api/dashboard/stream/watch`. Each list arrives as named
+// `run` events on this stream, one for each workflow run attempt, so a
+// client that only listens for default messages never sees one. A
+// reconnect reuses the same `sid` with nothing watched, so the client
+// sends its watch again.
 //
 // Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
 func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -6497,7 +6531,7 @@ func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardPar
 // WatchDashboardStreamChecksWithBody Choose which job lists a dashboard stream sends
 //
 // Replaces the set of pull requests and default branches whose job
-// lists the stream named by `streamId` sends as `checks` events.
+// lists the stream named by `streamId` sends as `run` events.
 // The server lists a subject when it is newly watched, when its row
 // in a new snapshot changed (CI state, check counts, or a branch's
 // run), and when `refresh` is true. Nothing else costs a forge
@@ -6505,7 +6539,12 @@ func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardPar
 // and every snapshot after it tries again, changed or not, until a
 // listing works.
 //
-// The event is the JSON of the `CheckListEvent` schema.
+// A listing is one event for each workflow run attempt the subject
+// holds, then one with `gone` set for each run attempt the last
+// listing sent and this one lacks. The last event of a listing has
+// `final` set. A rerun keeps its run id and takes a new attempt, so
+// its event carries a new `key` and the first attempt's key comes
+// back as gone. The event is the JSON of the `RunEvent` schema.
 //
 // Takes any type of body and a specified content type.
 //
@@ -6525,7 +6564,7 @@ func (c *Client) WatchDashboardStreamChecksWithBody(ctx context.Context, content
 // WatchDashboardStreamChecks Choose which job lists a dashboard stream sends
 //
 // Replaces the set of pull requests and default branches whose job
-// lists the stream named by `streamId` sends as `checks` events.
+// lists the stream named by `streamId` sends as `run` events.
 // The server lists a subject when it is newly watched, when its row
 // in a new snapshot changed (CI state, check counts, or a branch's
 // run), and when `refresh` is true. Nothing else costs a forge
@@ -6533,7 +6572,12 @@ func (c *Client) WatchDashboardStreamChecksWithBody(ctx context.Context, content
 // and every snapshot after it tries again, changed or not, until a
 // listing works.
 //
-// The event is the JSON of the `CheckListEvent` schema.
+// A listing is one event for each workflow run attempt the subject
+// holds, then one with `gone` set for each run attempt the last
+// listing sent and this one lacks. The last event of a listing has
+// `final` set. A rerun keeps its run id and takes a new attempt, so
+// its event carries a new `key` and the first attempt's key comes
+// back as gone. The event is the JSON of the `RunEvent` schema.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -12067,7 +12111,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
-	// workflow. A client takes `runId` from a check in a `checks` event on
+	// workflow. A client takes `runId` from a check in a `run` event on
 	// GET /api/dashboard/stream, from a job that is still queued or running.
 	// A check with no `runId` (a third-party check, a legacy commit status,
 	// an external CI) belongs to no Actions run and can't be cancelled
@@ -12103,7 +12147,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
-	// workflow. A client takes `runId` from a check in a `checks` event on
+	// workflow. A client takes `runId` from a check in a `run` event on
 	// GET /api/dashboard/stream, from a job that is still queued or running.
 	// A check with no `runId` (a third-party check, a legacy commit status,
 	// an external CI) belongs to no Actions run and can't be cancelled
@@ -12236,10 +12280,11 @@ type ClientWithResponsesInterface interface {
 	//
 	// A client that passes `sid` can also follow the job lists of the
 	// pull requests and default branches it has open, through
-	// `POST /api/dashboard/stream/watch`. Each list arrives as a named
-	// `checks` event on this stream, so a client that only listens for
-	// default messages never sees one. A reconnect reuses the same
-	// `sid` with nothing watched, so the client sends its watch again.
+	// `POST /api/dashboard/stream/watch`. Each list arrives as named
+	// `run` events on this stream, one for each workflow run attempt, so a
+	// client that only listens for default messages never sees one. A
+	// reconnect reuses the same `sid` with nothing watched, so the client
+	// sends its watch again.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -12249,7 +12294,7 @@ type ClientWithResponsesInterface interface {
 	// WatchDashboardStreamChecksWithBodyWithResponse Choose which job lists a dashboard stream sends
 	//
 	// Replaces the set of pull requests and default branches whose job
-	// lists the stream named by `streamId` sends as `checks` events.
+	// lists the stream named by `streamId` sends as `run` events.
 	// The server lists a subject when it is newly watched, when its row
 	// in a new snapshot changed (CI state, check counts, or a branch's
 	// run), and when `refresh` is true. Nothing else costs a forge
@@ -12257,7 +12302,12 @@ type ClientWithResponsesInterface interface {
 	// and every snapshot after it tries again, changed or not, until a
 	// listing works.
 	//
-	// The event is the JSON of the `CheckListEvent` schema.
+	// A listing is one event for each workflow run attempt the subject
+	// holds, then one with `gone` set for each run attempt the last
+	// listing sent and this one lacks. The last event of a listing has
+	// `final` set. A rerun keeps its run id and takes a new attempt, so
+	// its event carries a new `key` and the first attempt's key comes
+	// back as gone. The event is the JSON of the `RunEvent` schema.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -12267,7 +12317,7 @@ type ClientWithResponsesInterface interface {
 	// WatchDashboardStreamChecksWithResponse Choose which job lists a dashboard stream sends
 	//
 	// Replaces the set of pull requests and default branches whose job
-	// lists the stream named by `streamId` sends as `checks` events.
+	// lists the stream named by `streamId` sends as `run` events.
 	// The server lists a subject when it is newly watched, when its row
 	// in a new snapshot changed (CI state, check counts, or a branch's
 	// run), and when `refresh` is true. Nothing else costs a forge
@@ -12275,7 +12325,12 @@ type ClientWithResponsesInterface interface {
 	// and every snapshot after it tries again, changed or not, until a
 	// listing works.
 	//
-	// The event is the JSON of the `CheckListEvent` schema.
+	// A listing is one event for each workflow run attempt the subject
+	// holds, then one with `gone` set for each run attempt the last
+	// listing sent and this one lacks. The last event of a listing has
+	// `final` set. A rerun keeps its run id and takes a new attempt, so
+	// its event carries a new `key` and the first attempt's key comes
+	// back as gone. The event is the JSON of the `RunEvent` schema.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -18422,7 +18477,7 @@ func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEdi
 //
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
-// workflow. A client takes `runId` from a check in a `checks` event on
+// workflow. A client takes `runId` from a check in a `run` event on
 // GET /api/dashboard/stream, from a job that is still queued or running.
 // A check with no `runId` (a third-party check, a legacy commit status,
 // an external CI) belongs to no Actions run and can't be cancelled
@@ -18464,7 +18519,7 @@ func (c *ClientWithResponses) CancelWorkflowRunWithBodyWithResponse(ctx context.
 //
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
-// workflow. A client takes `runId` from a check in a `checks` event on
+// workflow. A client takes `runId` from a check in a `run` event on
 // GET /api/dashboard/stream, from a job that is still queued or running.
 // A check with no `runId` (a third-party check, a legacy commit status,
 // an external CI) belongs to no Actions run and can't be cancelled
@@ -18621,10 +18676,11 @@ func (c *ClientWithResponses) RefreshDashboardWithResponse(ctx context.Context, 
 //
 // A client that passes `sid` can also follow the job lists of the
 // pull requests and default branches it has open, through
-// `POST /api/dashboard/stream/watch`. Each list arrives as a named
-// `checks` event on this stream, so a client that only listens for
-// default messages never sees one. A reconnect reuses the same
-// `sid` with nothing watched, so the client sends its watch again.
+// `POST /api/dashboard/stream/watch`. Each list arrives as named
+// `run` events on this stream, one for each workflow run attempt, so a
+// client that only listens for default messages never sees one. A
+// reconnect reuses the same `sid` with nothing watched, so the client
+// sends its watch again.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -18640,7 +18696,7 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 // WatchDashboardStreamChecksWithBodyWithResponse Choose which job lists a dashboard stream sends
 //
 // Replaces the set of pull requests and default branches whose job
-// lists the stream named by `streamId` sends as `checks` events.
+// lists the stream named by `streamId` sends as `run` events.
 // The server lists a subject when it is newly watched, when its row
 // in a new snapshot changed (CI state, check counts, or a branch's
 // run), and when `refresh` is true. Nothing else costs a forge
@@ -18648,7 +18704,12 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 // and every snapshot after it tries again, changed or not, until a
 // listing works.
 //
-// The event is the JSON of the `CheckListEvent` schema.
+// A listing is one event for each workflow run attempt the subject
+// holds, then one with `gone` set for each run attempt the last
+// listing sent and this one lacks. The last event of a listing has
+// `final` set. A rerun keeps its run id and takes a new attempt, so
+// its event carries a new `key` and the first attempt's key comes
+// back as gone. The event is the JSON of the `RunEvent` schema.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -18664,7 +18725,7 @@ func (c *ClientWithResponses) WatchDashboardStreamChecksWithBodyWithResponse(ctx
 // WatchDashboardStreamChecksWithResponse Choose which job lists a dashboard stream sends
 //
 // Replaces the set of pull requests and default branches whose job
-// lists the stream named by `streamId` sends as `checks` events.
+// lists the stream named by `streamId` sends as `run` events.
 // The server lists a subject when it is newly watched, when its row
 // in a new snapshot changed (CI state, check counts, or a branch's
 // run), and when `refresh` is true. Nothing else costs a forge
@@ -18672,7 +18733,12 @@ func (c *ClientWithResponses) WatchDashboardStreamChecksWithBodyWithResponse(ctx
 // and every snapshot after it tries again, changed or not, until a
 // listing works.
 //
-// The event is the JSON of the `CheckListEvent` schema.
+// A listing is one event for each workflow run attempt the subject
+// holds, then one with `gone` set for each run attempt the last
+// listing sent and this one lacks. The last event of a listing has
+// `final` set. A rerun keeps its run id and takes a new attempt, so
+// its event carries a new `key` and the first attempt's key comes
+// back as gone. The event is the JSON of the `RunEvent` schema.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
