@@ -1393,7 +1393,7 @@ type CancelRunRequest struct {
 // Check One job/check run against a pull request's head commit.
 type Check struct {
 	// CompletedAt When the forge says the job finished. Absent while it runs, and
-	// when the forge doesn't say. GitHub only, like `startedAt`.
+	// when the forge doesn't say.
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 
 	// Conclusion How a finished job ended. Sent only when `status` is "completed".
@@ -1430,10 +1430,12 @@ type Check struct {
 	// mapped to a protection entry. Absent is not the same as false.
 	Required *bool `json:"required,omitempty"`
 
-	// RunAttempt Which attempt of its workflow run the job belongs to. Forgejo
-	// only: it keeps a job's id and page when a run is retried, so this
-	// is what tells a retry's output from the first attempt's. Absent
-	// when the forge doesn't number attempts.
+	// RunAttempt Which attempt of its workflow run the job belongs to. Both
+	// forges keep a run's id when it is retried, and Forgejo keeps the
+	// job's id and page too, so this is what tells a retry's output
+	// from the first attempt's. On GitHub it is absent for a check that
+	// isn't an Actions job, and when neither the job's page address nor
+	// the lookup of the commit's runs gives one.
 	RunAttempt *int `json:"runAttempt,omitempty"`
 
 	// RunId The Actions workflow run this job belongs to, to pass to
@@ -1460,9 +1462,8 @@ type Check struct {
 	RunNumber *int `json:"runNumber,omitempty"`
 
 	// StartedAt When the forge says the job started. Absent until it has, and when
-	// the forge doesn't say. GitHub only: Forgejo's API doesn't give a
-	// job's timing. A client works out how long a job ran from this and
-	// `completedAt`.
+	// the forge doesn't say. A client works out how long a job ran from
+	// this and `completedAt`.
 	StartedAt *time.Time `json:"startedAt,omitempty"`
 
 	// Status How far one job has got, as a fact. The page works out what to show
