@@ -4497,6 +4497,11 @@ type ClientInterface interface {
 	// counts always match what each pill lists. Rows come in no particular
 	// order: the client orders them.
 	//
+	// A row's `checks` counts tally the jobs `get_main_branch_checks`
+	// lists; the `CheckCounts` schema says how cancelled and held runs
+	// count. On GitHub the two are read separately, so they can differ
+	// briefly.
+	//
 	// Served from the snapshot the background refresh already holds, so it
 	// never calls a forge. On GitHub the branch's check status rides the
 	// repository query the refresh already makes (no extra request); on
@@ -6864,6 +6869,11 @@ func (c *Client) ReopenIssue(ctx context.Context, body ReopenIssueJSONRequestBod
 // with them, so a client filters, sorts and counts locally and its pill
 // counts always match what each pill lists. Rows come in no particular
 // order: the client orders them.
+//
+// A row's `checks` counts tally the jobs `get_main_branch_checks`
+// lists; the `CheckCounts` schema says how cancelled and held runs
+// count. On GitHub the two are read separately, so they can differ
+// briefly.
 //
 // Served from the snapshot the background refresh already holds, so it
 // never calls a forge. On GitHub the branch's check status rides the
@@ -12539,6 +12549,11 @@ type ClientWithResponsesInterface interface {
 	// with them, so a client filters, sorts and counts locally and its pill
 	// counts always match what each pill lists. Rows come in no particular
 	// order: the client orders them.
+	//
+	// A row's `checks` counts tally the jobs `get_main_branch_checks`
+	// lists; the `CheckCounts` schema says how cancelled and held runs
+	// count. On GitHub the two are read separately, so they can differ
+	// briefly.
 	//
 	// Served from the snapshot the background refresh already holds, so it
 	// never calls a forge. On GitHub the branch's check status rides the
@@ -18995,6 +19010,11 @@ func (c *ClientWithResponses) ReopenIssueWithResponse(ctx context.Context, body 
 // with them, so a client filters, sorts and counts locally and its pill
 // counts always match what each pill lists. Rows come in no particular
 // order: the client orders them.
+//
+// A row's `checks` counts tally the jobs `get_main_branch_checks`
+// lists; the `CheckCounts` schema says how cancelled and held runs
+// count. On GitHub the two are read separately, so they can differ
+// briefly.
 //
 // Served from the snapshot the background refresh already holds, so it
 // never calls a forge. On GitHub the branch's check status rides the
