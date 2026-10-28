@@ -1511,7 +1511,8 @@ type CheckConclusion = string
 // `skipped` is a newer field and says how many of the `passed` checks
 // were skipped. It never exceeds `passed`: it is inside `passed`, not
 // beside it, so `passed` still counts every check that needs nothing more
-// and the four states still add up to the checks the pipeline lists. The
+// and the four states still add up to the checks the pipeline lists, bar
+// the blocked jobs of a failed Forgejo run described below. The
 // server always sends it, which is why it is required; a client that may
 // talk to an older server may read a missing one as zero. A neutral or bare
 // completed check is passed without being skipped. A client that draws the
@@ -1523,7 +1524,7 @@ type CheckConclusion = string
 // for a pull request and a branch alike; on Forgejo a pull request counts
 // the statuses of the combined commit status, which only say pending, and
 // takes the running ones out of the pending count by reading the jobs of
-// the commit's runs that are still going. When a check has failed, a
+// the commit's runs that are still going. When a run has failed, a
 // pending status of a job in a run that has failed is no wait: its
 // needs failed, so Forgejo leaves it blocked and nothing will start it,
 // and it is in none of the four. A default branch holds to the same: it
@@ -2055,7 +2056,8 @@ type LinkedPullRequest struct {
 	// `skipped` is a newer field and says how many of the `passed` checks
 	// were skipped. It never exceeds `passed`: it is inside `passed`, not
 	// beside it, so `passed` still counts every check that needs nothing more
-	// and the four states still add up to the checks the pipeline lists. The
+	// and the four states still add up to the checks the pipeline lists, bar
+	// the blocked jobs of a failed Forgejo run described below. The
 	// server always sends it, which is why it is required; a client that may
 	// talk to an older server may read a missing one as zero. A neutral or bare
 	// completed check is passed without being skipped. A client that draws the
@@ -2067,7 +2069,7 @@ type LinkedPullRequest struct {
 	// for a pull request and a branch alike; on Forgejo a pull request counts
 	// the statuses of the combined commit status, which only say pending, and
 	// takes the running ones out of the pending count by reading the jobs of
-	// the commit's runs that are still going. When a check has failed, a
+	// the commit's runs that are still going. When a run has failed, a
 	// pending status of a job in a run that has failed is no wait: its
 	// needs failed, so Forgejo leaves it blocked and nothing will start it,
 	// and it is in none of the four. A default branch holds to the same: it
@@ -2147,7 +2149,8 @@ type MainBranch struct {
 	// `skipped` is a newer field and says how many of the `passed` checks
 	// were skipped. It never exceeds `passed`: it is inside `passed`, not
 	// beside it, so `passed` still counts every check that needs nothing more
-	// and the four states still add up to the checks the pipeline lists. The
+	// and the four states still add up to the checks the pipeline lists, bar
+	// the blocked jobs of a failed Forgejo run described below. The
 	// server always sends it, which is why it is required; a client that may
 	// talk to an older server may read a missing one as zero. A neutral or bare
 	// completed check is passed without being skipped. A client that draws the
@@ -2159,7 +2162,7 @@ type MainBranch struct {
 	// for a pull request and a branch alike; on Forgejo a pull request counts
 	// the statuses of the combined commit status, which only say pending, and
 	// takes the running ones out of the pending count by reading the jobs of
-	// the commit's runs that are still going. When a check has failed, a
+	// the commit's runs that are still going. When a run has failed, a
 	// pending status of a job in a run that has failed is no wait: its
 	// needs failed, so Forgejo leaves it blocked and nothing will start it,
 	// and it is in none of the four. A default branch holds to the same: it
@@ -2545,7 +2548,8 @@ type PullRequest struct {
 	// `skipped` is a newer field and says how many of the `passed` checks
 	// were skipped. It never exceeds `passed`: it is inside `passed`, not
 	// beside it, so `passed` still counts every check that needs nothing more
-	// and the four states still add up to the checks the pipeline lists. The
+	// and the four states still add up to the checks the pipeline lists, bar
+	// the blocked jobs of a failed Forgejo run described below. The
 	// server always sends it, which is why it is required; a client that may
 	// talk to an older server may read a missing one as zero. A neutral or bare
 	// completed check is passed without being skipped. A client that draws the
@@ -2557,7 +2561,7 @@ type PullRequest struct {
 	// for a pull request and a branch alike; on Forgejo a pull request counts
 	// the statuses of the combined commit status, which only say pending, and
 	// takes the running ones out of the pending count by reading the jobs of
-	// the commit's runs that are still going. When a check has failed, a
+	// the commit's runs that are still going. When a run has failed, a
 	// pending status of a job in a run that has failed is no wait: its
 	// needs failed, so Forgejo leaves it blocked and nothing will start it,
 	// and it is in none of the four. A default branch holds to the same: it
