@@ -1350,6 +1350,15 @@ type BranchDeletionReason string
 // CIStatus The combined result across every check reported against the pull
 // request's head commit. "none" means neither forge reported any
 // check at all, not that one failed.
+//
+// This is the server's answer, and the server's rules read it: what a
+// pull request may do, auto-merge, the quick filters, the navigation
+// counts and the CI poll. The page draws it for a row it has no job
+// facts for. For a row it has them for (the rows in view on the live
+// stream), the page folds the jobs itself, so the pill it draws can
+// differ from this field until the next refresh. A run that was only
+// cancelled reads as cancelled in that fold; GitHub's rollup says
+// `failure` and Forgejo's says `none` or `success` here.
 type CIStatus string
 
 // CancelRunRequest defines model for CancelRunRequest.
@@ -2088,6 +2097,15 @@ type LinkedPullRequest struct {
 	// Ci The combined result across every check reported against the pull
 	// request's head commit. "none" means neither forge reported any
 	// check at all, not that one failed.
+	//
+	// This is the server's answer, and the server's rules read it: what a
+	// pull request may do, auto-merge, the quick filters, the navigation
+	// counts and the CI poll. The page draws it for a row it has no job
+	// facts for. For a row it has them for (the rows in view on the live
+	// stream), the page folds the jobs itself, so the pill it draws can
+	// differ from this field until the next refresh. A run that was only
+	// cancelled reads as cancelled in that fold; GitHub's rollup says
+	// `failure` and Forgejo's says `none` or `success` here.
 	Ci CIStatus `json:"ci"`
 
 	// Draft True while the pull request is a draft. Otherwise it is open.
@@ -2234,6 +2252,12 @@ type MainBranch struct {
 	// a maintainer approves them (they create no check runs, so nothing
 	// runs), "passed" when all finished green, "none" when the commit has
 	// no pipeline at all (or the repository has no commit yet).
+	//
+	// This is the server's answer, and the CI poll and the MCP tools read
+	// it. The page folds the branch's `runs` into the pill, the counts and
+	// the failing jobs itself, and draws this field only for a row with no
+	// `runs` or whose job list was cut short (`jobsTruncated`). A branch
+	// whose only trouble is a cancelled run reads as cancelled in both.
 	Status MainBranchStatus `json:"status"`
 
 	// Url The repository's own page on its forge.
@@ -2316,6 +2340,12 @@ type MainBranchRun struct {
 // a maintainer approves them (they create no check runs, so nothing
 // runs), "passed" when all finished green, "none" when the commit has
 // no pipeline at all (or the repository has no commit yet).
+//
+// This is the server's answer, and the CI poll and the MCP tools read
+// it. The page folds the branch's `runs` into the pill, the counts and
+// the failing jobs itself, and draws this field only for a row with no
+// `runs` or whose job list was cut short (`jobsTruncated`). A branch
+// whose only trouble is a cancelled run reads as cancelled in both.
 type MainBranchStatus string
 
 // MainBranches Every default branch the page lists, in no particular order. There is
@@ -2625,6 +2655,15 @@ type PullRequest struct {
 	// Ci The combined result across every check reported against the pull
 	// request's head commit. "none" means neither forge reported any
 	// check at all, not that one failed.
+	//
+	// This is the server's answer, and the server's rules read it: what a
+	// pull request may do, auto-merge, the quick filters, the navigation
+	// counts and the CI poll. The page draws it for a row it has no job
+	// facts for. For a row it has them for (the rows in view on the live
+	// stream), the page folds the jobs itself, so the pill it draws can
+	// differ from this field until the next refresh. A run that was only
+	// cancelled reads as cancelled in that fold; GitHub's rollup says
+	// `failure` and Forgejo's says `none` or `success` here.
 	Ci CIStatus `json:"ci"`
 
 	// ClosesIssues The issues the pull request will close when it merges. Always
