@@ -2286,6 +2286,13 @@ type MainBranchRun struct {
 	// Conclusion How the run attempt ended, once its `status` is "completed". Absent whenever `status` is.
 	Conclusion *CheckConclusion `json:"conclusion,omitempty"`
 
+	// JobsTruncated True when the forge has more jobs for this run attempt than `checks`
+	// lists, because the job list was cut short. Absent when the list is
+	// whole. A page that folds jobs can't tell a cut list from a whole one,
+	// so it keeps the row's own `status` and `checks` while any run says
+	// this.
+	JobsTruncated *bool `json:"jobsTruncated,omitempty"`
+
 	// RunAttempt Absent when the forge doesn't number attempts.
 	RunAttempt *int64 `json:"runAttempt,omitempty"`
 
