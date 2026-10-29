@@ -2209,6 +2209,16 @@ type MainBranch struct {
 	// the repository's `url`.
 	RunUrl string `json:"runUrl"`
 
+	// Runs What each workflow run attempt on the newest commit did, the
+	// facts `status`, `failingJobs` and `checks` were worked out from,
+	// in the order the forge listed them. A client can fold them into
+	// its own pill. They are the jobs `GET /api/main-branches/checks`
+	// lists, grouped as the stream's `run` events group them. Present
+	// for a Forgejo repository with at least one run; absent for a
+	// GitHub repository, whose refresh reads counts rather than runs,
+	// and for a repository with no run.
+	Runs *[]MainBranchRun `json:"runs,omitempty"`
+
 	// StaleSince Set when this row is the last known one because its forge couldn't
 	// be read or its rate limit is spent: the time it was last fetched.
 	// Null otherwise. A client offers no write on a stale row.
@@ -2260,6 +2270,33 @@ type MainBranchRerunRequest struct {
 
 	// FullName "owner/repo", matching a MainBranch.fullName from GET /api/main-branches.
 	FullName string `json:"fullName"`
+}
+
+// MainBranchRun The jobs of one workflow run attempt on a default branch's newest
+// commit, shaped like the stream's `RunEvent` without its subject, key
+// and listing markers. The server works nothing out from them; the page
+// decides what they add up to.
+type MainBranchRun struct {
+	// Checks The run attempt's jobs, or the run itself as one check when its jobs couldn't be read.
+	Checks []Check `json:"checks"`
+
+	// CompletedAt When the forge says the run attempt finished. Absent until it has.
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+
+	// Conclusion How the run attempt ended, once its `status` is "completed". Absent whenever `status` is.
+	Conclusion *CheckConclusion `json:"conclusion,omitempty"`
+
+	// RunAttempt Absent when the forge doesn't number attempts.
+	RunAttempt *int64 `json:"runAttempt,omitempty"`
+
+	// RunId Absent for a check that belongs to no run.
+	RunId *int64 `json:"runId,omitempty"`
+
+	// StartedAt When the forge says the run attempt started. Absent until it has.
+	StartedAt *time.Time `json:"startedAt,omitempty"`
+
+	// Status How far the run attempt itself has got, as the forge reports it. Absent when the forge gave none.
+	Status *CheckStatus `json:"status,omitempty"`
 }
 
 // MainBranchStatus The result of the latest pipeline on a default branch's newest
