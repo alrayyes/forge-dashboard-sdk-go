@@ -1230,7 +1230,7 @@ type AutoMergedPullRequest struct {
 
 // AutoUpdate Whether the dashboard brings this pull request's branch up to date by
 // itself: the pull request's own choice when it has one
-// (`POST /api/pull-requests/auto-update`), else its repo's
+// (`POST /api/v1/pull-requests/auto-update`), else its repo's
 // auto-update setting. Always present.
 type AutoUpdate struct {
 	// Enabled What the background pass does with this pull request. Always
@@ -1404,8 +1404,8 @@ type Check struct {
 	// the first five failed jobs of a list, in the list's order.
 	// Forgejo never fills it in a list, since that would read a log
 	// while the list is built: ask for it through
-	// GET /api/checks/log with `excerpt=true`. The whole output is read
-	// through GET /api/checks/log.
+	// GET /api/v1/checks/log with `excerpt=true`. The whole output is read
+	// through GET /api/v1/checks/log.
 	Excerpt *string `json:"excerpt,omitempty"`
 
 	// FailedStep The name of the step of a failed job that broke. Absent when
@@ -1413,7 +1413,7 @@ type Check struct {
 	// a forge with no step data, a token without access).
 	FailedStep *string `json:"failedStep,omitempty"`
 
-	// JobId The Actions job (or check run) id to pass to GET /api/checks/log.
+	// JobId The Actions job (or check run) id to pass to GET /api/v1/checks/log.
 	// Absent for a legacy commit status and for a workflow held for
 	// approval, which have no output to read.
 	JobId *int   `json:"jobId,omitempty"`
@@ -1435,7 +1435,7 @@ type Check struct {
 	RunAttempt *int `json:"runAttempt,omitempty"`
 
 	// RunId The Actions workflow run this job belongs to, to pass to
-	// `POST /api/checks/cancel-run`. Present on every Actions job,
+	// `POST /api/v1/checks/cancel-run`. Present on every Actions job,
 	// finished or not; only a job that is queued or running has
 	// anything left to cancel, which a client reads from `status`. A
 	// third-party check and a legacy commit status have none.
@@ -1623,7 +1623,7 @@ type Credential struct {
 	// Id This passkey's own credential ID (base64url), distinct from the account's user ID.
 	Id string `json:"id"`
 
-	// Label The passkey's name, given at registration and changeable with `PATCH /api/auth/credentials/{id}`. Empty when it was never named; clients then fall back to `createdAt`.
+	// Label The passkey's name, given at registration and changeable with `PATCH /api/v1/auth/credentials/{id}`. Empty when it was never named; clients then fall back to `createdAt`.
 	Label string `json:"label"`
 }
 
@@ -1646,7 +1646,7 @@ type Dashboard struct {
 	// last run: those rows are on the page, and their forge reports
 	// `reachable: false` with `staleSince` until the first refresh
 	// succeeds. The same
-	// on `GET /api/dashboard`, the stream and the MCP `get_dashboard`
+	// on `GET /api/v1/dashboard`, the stream and the MCP `get_dashboard`
 	// output. Always present. A client of an older server that
 	// lacks it should treat a missing flag as true (loaded).
 	FirstRefreshDone bool          `json:"firstRefreshDone"`
@@ -1669,7 +1669,7 @@ type Dashboard struct {
 	HiddenPullRequests *int    `json:"hiddenPullRequests,omitempty"`
 	Issues             []Issue `json:"issues"`
 
-	// MainBranchPage What `GET /api/main-branches` answers, from the same snapshot and
+	// MainBranchPage What `GET /api/v1/main-branches` answers, from the same snapshot and
 	// with the same ignore list, so the Main branches page redraws from
 	// the message every other page reads. It reads the endpoint itself only
 	// while the stream is down or just back.
@@ -1696,13 +1696,13 @@ type Dashboard struct {
 	PullRequests   []PullRequest `json:"pullRequests"`
 
 	// QueuedActions The signed-in user's queued actions, waiting and finished in the
-	// last 24 hours (GET /api/queued-actions), so a client lists them in
+	// last 24 hours (GET /api/v1/queued-actions), so a client lists them in
 	// its Activity panel and learns an outcome from the stream it
 	// already reads. Always present, empty when there are none.
 	QueuedActions []QueuedAction `json:"queuedActions"`
 
 	// ReadIntervalSeconds How often, in seconds, a client should re-read GET
-	// /api/dashboard. The server's advice, so a client needs no
+	// /api/v1/dashboard. The server's advice, so a client needs no
 	// interval of its own. The read is cheap and never calls a
 	// forge; this is not the backend's refresh schedule. It is
 	// shorter (2) until the viewer's first refresh has finished, so a
@@ -1973,10 +1973,10 @@ type Issue struct {
 type IssueActionRequest struct {
 	Forge Forge `json:"forge"`
 
-	// FullName "owner/repo", matching an Issue.repo from GET /api/dashboard.
+	// FullName "owner/repo", matching an Issue.repo from GET /api/v1/dashboard.
 	FullName string `json:"fullName"`
 
-	// Number Matching an Issue.number from GET /api/dashboard.
+	// Number Matching an Issue.number from GET /api/v1/dashboard.
 	Number int `json:"number"`
 }
 
@@ -1986,10 +1986,10 @@ type IssueCommentRequest struct {
 	Body  string `json:"body"`
 	Forge Forge  `json:"forge"`
 
-	// FullName "owner/repo", matching an Issue.repo from GET /api/dashboard.
+	// FullName "owner/repo", matching an Issue.repo from GET /api/v1/dashboard.
 	FullName string `json:"fullName"`
 
-	// Number Matching an Issue.number from GET /api/dashboard.
+	// Number Matching an Issue.number from GET /api/v1/dashboard.
 	Number int `json:"number"`
 }
 
@@ -2212,7 +2212,7 @@ type MainBranch struct {
 	FinishedAt *time.Time `json:"finishedAt"`
 	Forge      Forge      `json:"forge"`
 
-	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.
 	FullName string `json:"fullName"`
 
 	// LatestRelease The repository's latest published release, for a link to its
@@ -2230,7 +2230,7 @@ type MainBranch struct {
 	// Runs What each workflow run attempt on the newest commit did, the
 	// facts `status`, `failingJobs` and `checks` were worked out from,
 	// in the order the forge listed them. A client can fold them into
-	// its own pill. They are the jobs `GET /api/main-branches/checks`
+	// its own pill. They are the jobs `GET /api/v1/main-branches/checks`
 	// lists, grouped as the stream's `run` events group them. Present
 	// for a repository with at least one check. On GitHub they are the
 	// first 50 checks of the newest commit, grouped by the workflow run
@@ -2293,7 +2293,7 @@ type MainBranchRelease struct {
 type MainBranchRerunRequest struct {
 	Forge Forge `json:"forge"`
 
-	// FullName "owner/repo", matching a MainBranch.fullName from GET /api/main-branches.
+	// FullName "owner/repo", matching a MainBranch.fullName from GET /api/v1/main-branches.
 	FullName string `json:"fullName"`
 }
 
@@ -2563,7 +2563,7 @@ type PullRequest struct {
 
 	// AutoUpdate Whether the dashboard brings this pull request's branch up to date by
 	// itself: the pull request's own choice when it has one
-	// (`POST /api/pull-requests/auto-update`), else its repo's
+	// (`POST /api/v1/pull-requests/auto-update`), else its repo's
 	// auto-update setting. Always present.
 	AutoUpdate AutoUpdate `json:"autoUpdate"`
 
@@ -2913,10 +2913,10 @@ type PullRequestKind string
 type PullRequestActionRequest struct {
 	Forge Forge `json:"forge"`
 
-	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.
 	FullName string `json:"fullName"`
 
-	// Number Matching a PullRequest.number from GET /api/dashboard.
+	// Number Matching a PullRequest.number from GET /api/v1/dashboard.
 	Number int `json:"number"`
 }
 
@@ -2929,10 +2929,10 @@ type PullRequestAutoUpdateRequest struct {
 	Enabled *bool `json:"enabled,omitempty"`
 	Forge   Forge `json:"forge"`
 
-	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.
 	FullName string `json:"fullName"`
 
-	// Number Matching a PullRequest.number from GET /api/dashboard.
+	// Number Matching a PullRequest.number from GET /api/v1/dashboard.
 	Number int `json:"number"`
 }
 
@@ -2942,10 +2942,10 @@ type PullRequestDependabotActionRequest struct {
 	Action PullRequestDependabotActionRequestAction `json:"action"`
 	Forge  Forge                                    `json:"forge"`
 
-	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.
 	FullName string `json:"fullName"`
 
-	// Number Matching a PullRequest.number from GET /api/dashboard.
+	// Number Matching a PullRequest.number from GET /api/v1/dashboard.
 	Number int `json:"number"`
 }
 
@@ -2980,10 +2980,10 @@ type PullRequestHideRequest struct {
 	Days  *int  `json:"days,omitempty"`
 	Forge Forge `json:"forge"`
 
-	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.
 	FullName string `json:"fullName"`
 
-	// Number Matching a PullRequest.number from GET /api/dashboard.
+	// Number Matching a PullRequest.number from GET /api/v1/dashboard.
 	Number int `json:"number"`
 }
 
@@ -2993,10 +2993,10 @@ type PullRequestMergeRequest struct {
 	DeleteBranch *bool `json:"deleteBranch,omitempty"`
 	Forge        Forge `json:"forge"`
 
-	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.
 	FullName string `json:"fullName"`
 
-	// Number Matching a PullRequest.number from GET /api/dashboard.
+	// Number Matching a PullRequest.number from GET /api/v1/dashboard.
 	Number int `json:"number"`
 }
 
@@ -3054,7 +3054,7 @@ type QueuedAction struct {
 	// FullName "owner/repo".
 	FullName string `json:"fullName"`
 
-	// Id Opaque. What DELETE /api/queued-actions/{id} takes.
+	// Id Opaque. What DELETE /api/v1/queued-actions/{id} takes.
 	Id string `json:"id"`
 
 	// Message Only on `skipped` and `failed`. Plain words safe to show a person.
@@ -3093,10 +3093,10 @@ type QueuedActionRequest struct {
 	Action QueuedActionRequestAction `json:"action"`
 	Forge  Forge                     `json:"forge"`
 
-	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.
 	FullName string `json:"fullName"`
 
-	// Number Matching a PullRequest.number from GET /api/dashboard.
+	// Number Matching a PullRequest.number from GET /api/v1/dashboard.
 	Number int `json:"number"`
 }
 
@@ -3179,11 +3179,11 @@ type RenameCredentialRequest struct {
 // RepoIgnoreRequest Which repo to ignore, and in which scope(s). At least one
 // of prs/issues must be true — a request with both false is
 // rejected with 400 rather than silently doing nothing; use POST
-// /api/repos/unignore to clear both at once instead.
+// /api/v1/repos/unignore to clear both at once instead.
 type RepoIgnoreRequest struct {
 	Forge Forge `json:"forge"`
 
-	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.
 	FullName string `json:"fullName"`
 
 	// Issues Whether to ignore this repo's issues.
@@ -3433,7 +3433,7 @@ type SessionUser struct {
 // 0 or omitted really does disconnect the App. Rejected (400) if
 // the server has no GitHub App configured (see
 // SettingsResponse.githubAppConfigured). Theme isn't settable
-// here at all — see PUT /api/settings/theme.
+// here at all — see PUT /api/v1/settings/theme.
 type SettingsRequest struct {
 	ForgejoToken *string `json:"forgejoToken,omitempty"`
 
@@ -3519,7 +3519,7 @@ type SettingsResponse struct {
 
 	// HideDependencyDashboard Whether the user hides the bot-kept "Dependency Dashboard" issue
 	// everywhere: the server leaves a `housekeeping` issue out of the
-	// `issues` of GET /api/dashboard and its stream, and out of every
+	// `issues` of GET /api/v1/dashboard and its stream, and out of every
 	// count and total built from them (`navCounts`, Insights). Always
 	// present once the server applies it.
 	HideDependencyDashboard *bool `json:"hideDependencyDashboard,omitempty"`
@@ -3565,13 +3565,13 @@ type SettingsResponse struct {
 	// means "system" — follow the browser's prefers-color-scheme
 	// rather than a saved choice. Set only from Settings; every
 	// other page reads it via the lightweight
-	// GET /api/settings/theme instead of this endpoint.
+	// GET /api/v1/settings/theme instead of this endpoint.
 	Theme SettingsResponseTheme `json:"theme"`
 
 	// Timezone The signed-in user's own time zone as an IANA name such as
 	// `Europe/Amsterdam`. Empty means the browser's own zone. Set only
-	// from Settings (PUT /api/settings/timezone); every other page reads
-	// it via GET /api/settings/timezone.
+	// from Settings (PUT /api/v1/settings/timezone); every other page reads
+	// it via GET /api/v1/settings/timezone.
 	Timezone *string `json:"timezone,omitempty"`
 
 	// WebhookSecret Pasted into the forge's own webhook "Secret" field, used to
@@ -3590,10 +3590,10 @@ type SettingsResponse struct {
 // means "system" — follow the browser's prefers-color-scheme
 // rather than a saved choice. Set only from Settings; every
 // other page reads it via the lightweight
-// GET /api/settings/theme instead of this endpoint.
+// GET /api/v1/settings/theme instead of this endpoint.
 type SettingsResponseTheme string
 
-// SettingsSummary The signed-in user's settings as `GET /api/settings/summary` and the
+// SettingsSummary The signed-in user's settings as `GET /api/v1/settings/summary` and the
 // `get_settings` MCP tool return them: every field of
 // SettingsResponse except `webhookToken` and `webhookSecret`, which are
 // never part of it, plus `webhookConfigured`. No forge token appears,
@@ -3617,7 +3617,7 @@ type SettingsSummary struct {
 
 	// WebhookConfigured Whether this user's webhook token and secret exist. They are
 	// created the first time the Settings page reads
-	// `GET /api/settings`, never by this read, so this is false for a
+	// `GET /api/v1/settings`, never by this read, so this is false for a
 	// user who has not opened Settings yet.
 	WebhookConfigured bool `json:"webhookConfigured"`
 }
@@ -3653,7 +3653,7 @@ type StreamWatchRequest struct {
 	Subjects []CheckSubject `json:"subjects"`
 }
 
-// ThemeRequest See PUT /api/settings/theme's own description.
+// ThemeRequest See PUT /api/v1/settings/theme's own description.
 type ThemeRequest struct {
 	Theme ThemeRequestTheme `json:"theme"`
 }
@@ -3661,7 +3661,7 @@ type ThemeRequest struct {
 // ThemeRequestTheme defines model for ThemeRequest.Theme.
 type ThemeRequestTheme string
 
-// ThemeResponse See GET /api/settings/theme's own description.
+// ThemeResponse See GET /api/v1/settings/theme's own description.
 type ThemeResponse struct {
 	Theme ThemeResponseTheme `json:"theme"`
 }
@@ -3669,13 +3669,13 @@ type ThemeResponse struct {
 // ThemeResponseTheme defines model for ThemeResponse.Theme.
 type ThemeResponseTheme string
 
-// TimezoneRequest See PUT /api/settings/timezone's own description.
+// TimezoneRequest See PUT /api/v1/settings/timezone's own description.
 type TimezoneRequest struct {
 	// Timezone An IANA zone name, or empty for the browser's own. `Local` is refused.
 	Timezone string `json:"timezone"`
 }
 
-// TimezoneResponse See GET /api/settings/timezone's own description.
+// TimezoneResponse See GET /api/v1/settings/timezone's own description.
 type TimezoneResponse struct {
 	// Timezone An IANA zone name such as `Europe/Amsterdam`, or empty for the browser's own.
 	//
@@ -3705,6 +3705,13 @@ type UpdateRequestPhase string
 
 // Version defines model for Version.
 type Version struct {
+	// ApiVersion The API's current major version, such as v1: the path segment
+	// the versioned operations live under. It is one value, not a list.
+	//
+	//
+	// Examples: v1
+	ApiVersion string `json:"apiVersion"`
+
 	// Version The release tag this binary was built from, with no leading
 	// "v" — or "dev" for a build outside the release pipeline.
 	//
@@ -3725,7 +3732,7 @@ type WebAuthnCeremonyOptions map[string]interface{}
 type WebhookEnsureRequest struct {
 	Forge Forge `json:"forge"`
 
-	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.
 	FullName string `json:"fullName"`
 }
 
@@ -3781,7 +3788,7 @@ type GetDashboardParams struct {
 	// parameter, so every snapshot a client receives follows one rule.
 	IncludeDrafts *QueryIncludeDrafts `form:"includeDrafts,omitempty" json:"includeDrafts,omitempty"`
 
-	// IncludeHidden Whether pull requests the user hid (`POST /api/pull-requests/hide`)
+	// IncludeHidden Whether pull requests the user hid (`POST /api/v1/pull-requests/hide`)
 	// are in `pullRequests`, marked `hidden: true`. Defaults to `false`: a
 	// hidden pull request is left out and counted in the response's
 	// `hiddenPullRequests`. A client lists the hidden ones, to offer a
@@ -3805,7 +3812,7 @@ type RefreshDashboardParams struct {
 	// parameter, so every snapshot a client receives follows one rule.
 	IncludeDrafts *QueryIncludeDrafts `form:"includeDrafts,omitempty" json:"includeDrafts,omitempty"`
 
-	// IncludeHidden Whether pull requests the user hid (`POST /api/pull-requests/hide`)
+	// IncludeHidden Whether pull requests the user hid (`POST /api/v1/pull-requests/hide`)
 	// are in `pullRequests`, marked `hidden: true`. Defaults to `false`: a
 	// hidden pull request is left out and counted in the response's
 	// `hiddenPullRequests`. A client lists the hidden ones, to offer a
@@ -3823,7 +3830,7 @@ type StreamDashboardParams struct {
 	// parameter, so every snapshot a client receives follows one rule.
 	IncludeDrafts *QueryIncludeDrafts `form:"includeDrafts,omitempty" json:"includeDrafts,omitempty"`
 
-	// IncludeHidden Whether pull requests the user hid (`POST /api/pull-requests/hide`)
+	// IncludeHidden Whether pull requests the user hid (`POST /api/v1/pull-requests/hide`)
 	// are in `pullRequests`, marked `hidden: true`. Defaults to `false`: a
 	// hidden pull request is left out and counted in the response's
 	// `hiddenPullRequests`. A client lists the hidden ones, to offer a
@@ -3841,10 +3848,10 @@ type StreamDashboardParams struct {
 type GetIssueDetailsParams struct {
 	Forge Forge `form:"forge" json:"forge"`
 
-	// FullName "owner/repo", matching an Issue.repo from GET /api/dashboard.
+	// FullName "owner/repo", matching an Issue.repo from GET /api/v1/dashboard.
 	FullName string `form:"fullName" json:"fullName"`
 
-	// Number Matching an Issue.number from GET /api/dashboard.
+	// Number Matching an Issue.number from GET /api/v1/dashboard.
 	Number int `form:"number" json:"number"`
 }
 
@@ -3852,7 +3859,7 @@ type GetIssueDetailsParams struct {
 type ListAdvisoriesParams struct {
 	Forge Forge `form:"forge" json:"forge"`
 
-	// FullName "owner/repo", matching a MainBranch.fullName from GET /api/main-branches.
+	// FullName "owner/repo", matching a MainBranch.fullName from GET /api/v1/main-branches.
 	FullName string `form:"fullName" json:"fullName"`
 }
 
@@ -3860,10 +3867,10 @@ type ListAdvisoriesParams struct {
 type GetPullRequestDetailsParams struct {
 	Forge Forge `form:"forge" json:"forge"`
 
-	// FullName "owner/repo", matching a Repo.fullName from GET /api/dashboard.
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.
 	FullName string `form:"fullName" json:"fullName"`
 
-	// Number Matching a PullRequest.number from GET /api/dashboard.
+	// Number Matching a PullRequest.number from GET /api/v1/dashboard.
 	Number int `form:"number" json:"number"`
 }
 
@@ -3871,10 +3878,10 @@ type GetPullRequestDetailsParams struct {
 type GetReleaseDetailsParams struct {
 	Forge Forge `form:"forge" json:"forge"`
 
-	// FullName "owner/repo", matching a MainBranch.fullName from GET /api/main-branches.
+	// FullName "owner/repo", matching a MainBranch.fullName from GET /api/v1/main-branches.
 	FullName string `form:"fullName" json:"fullName"`
 
-	// Tag Matching a MainBranchRelease.tag from GET /api/main-branches.
+	// Tag Matching a MainBranchRelease.tag from GET /api/v1/main-branches.
 	Tag string `form:"tag" json:"tag"`
 }
 
@@ -4080,32 +4087,32 @@ type ClientInterface interface {
 	// Every passkey on the account, oldest first — not just the
 	// one used to establish the current session.
 	//
-	// Corresponds with GET /api/auth/credentials (the `ListCredentials` operationId).
+	// Corresponds with GET /api/v1/auth/credentials (the `ListCredentials` operationId).
 	ListCredentials(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// BeginAddCredential Start a ceremony to add another passkey to the signed-in account
 	//
-	// The authenticated counterpart to POST /api/auth/register/begin —
+	// The authenticated counterpart to POST /api/v1/auth/register/begin —
 	// that one only ever works for a brand-new, credential-less
 	// account; this is how an already-registered user adds a second
 	// (or third...) passkey, e.g. a laptop and a security key. Like the
 	// first registration it requires a resident key.
 	//
-	// Corresponds with POST /api/auth/credentials/begin (the `BeginAddCredential` operationId).
+	// Corresponds with POST /api/v1/auth/credentials/begin (the `BeginAddCredential` operationId).
 	BeginAddCredential(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// FinishAddCredentialWithBody Complete an add-credential ceremony
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/auth/credentials/finish (the `FinishAddCredential` operationId).
+	// Corresponds with POST /api/v1/auth/credentials/finish (the `FinishAddCredential` operationId).
 	FinishAddCredentialWithBody(ctx context.Context, params *FinishAddCredentialParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// FinishAddCredential Complete an add-credential ceremony
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/auth/credentials/finish (the `FinishAddCredential` operationId).
+	// Corresponds with POST /api/v1/auth/credentials/finish (the `FinishAddCredential` operationId).
 	FinishAddCredential(ctx context.Context, params *FinishAddCredentialParams, body FinishAddCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteCredential Remove one of the signed-in user's own passkeys
@@ -4114,7 +4121,7 @@ type ClientInterface interface {
 	// app is WebAuthn-only with no password fallback, so deleting it
 	// would lock the account out entirely.
 	//
-	// Corresponds with DELETE /api/auth/credentials/{id} (the `DeleteCredential` operationId).
+	// Corresponds with DELETE /api/v1/auth/credentials/{id} (the `DeleteCredential` operationId).
 	DeleteCredential(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RenameCredentialWithBody Rename one of the signed-in user's own passkeys
@@ -4127,7 +4134,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+	// Corresponds with PATCH /api/v1/auth/credentials/{id} (the `RenameCredential` operationId).
 	RenameCredentialWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RenameCredential Rename one of the signed-in user's own passkeys
@@ -4140,7 +4147,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+	// Corresponds with PATCH /api/v1/auth/credentials/{id} (the `RenameCredential` operationId).
 	RenameCredential(ctx context.Context, id string, body RenameCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// BeginLogin Start a passkey login ceremony
@@ -4150,52 +4157,52 @@ type ClientInterface interface {
 	// browser offers whichever discoverable passkey it holds for the site
 	// and nothing about the account is revealed to a visitor.
 	//
-	// Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
+	// Corresponds with POST /api/v1/auth/login/begin (the `BeginLogin` operationId).
 	BeginLogin(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// FinishLoginWithBody Complete a passkey login ceremony
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
+	// Corresponds with POST /api/v1/auth/login/finish (the `FinishLogin` operationId).
 	FinishLoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// FinishLogin Complete a passkey login ceremony
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
+	// Corresponds with POST /api/v1/auth/login/finish (the `FinishLogin` operationId).
 	FinishLogin(ctx context.Context, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// Logout End the current session
 	//
-	// Corresponds with POST /api/auth/logout (the `Logout` operationId).
+	// Corresponds with POST /api/v1/auth/logout (the `Logout` operationId).
 	Logout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// BeginRegistration Start a passkey registration ceremony
 	//
 	// An instance has one user. The first registration on a fresh
-	// instance (see GET /api/auth/registration-status) creates that
+	// instance (see GET /api/v1/auth/registration-status) creates that
 	// user and the server names it, so the request carries no body. The
 	// options require a resident key, so the passkey can be found at
 	// sign-in without being named. Once any account holds a passkey, this
 	// answers 403.
 	//
-	// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
+	// Corresponds with POST /api/v1/auth/register/begin (the `BeginRegistration` operationId).
 	BeginRegistration(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// FinishRegistrationWithBody Complete a passkey registration ceremony
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
+	// Corresponds with POST /api/v1/auth/register/finish (the `FinishRegistration` operationId).
 	FinishRegistrationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// FinishRegistration Complete a passkey registration ceremony
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
+	// Corresponds with POST /api/v1/auth/register/finish (the `FinishRegistration` operationId).
 	FinishRegistration(ctx context.Context, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetRegistrationStatus Whether self-registration is open
@@ -4207,12 +4214,12 @@ type ClientInterface interface {
 	// registration is closed for good. More passkeys for that account are
 	// added from Settings.
 	//
-	// Corresponds with GET /api/auth/registration-status (the `GetRegistrationStatus` operationId).
+	// Corresponds with GET /api/v1/auth/registration-status (the `GetRegistrationStatus` operationId).
 	GetRegistrationStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSession Who, if anyone, the current session cookie belongs to
 	//
-	// Corresponds with GET /api/auth/session (the `GetSession` operationId).
+	// Corresponds with GET /api/v1/auth/session (the `GetSession` operationId).
 	GetSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CancelWorkflowRunWithBody Cancel one running or queued Actions workflow run, on the signed-in user's behalf
@@ -4220,7 +4227,7 @@ type ClientInterface interface {
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
 	// workflow. A client takes `runId` from a check in a `run` event on
-	// GET /api/dashboard/stream, from a job that is still queued or running.
+	// GET /api/v1/dashboard/stream, from a job that is still queued or running.
 	// A check with no `runId` (a third-party check, a legacy commit status,
 	// an external CI) belongs to no Actions run and can't be cancelled
 	// here.
@@ -4248,7 +4255,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+	// Corresponds with POST /api/v1/checks/cancel-run (the `CancelWorkflowRun` operationId).
 	CancelWorkflowRunWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CancelWorkflowRun Cancel one running or queued Actions workflow run, on the signed-in user's behalf
@@ -4256,7 +4263,7 @@ type ClientInterface interface {
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
 	// workflow. A client takes `runId` from a check in a `run` event on
-	// GET /api/dashboard/stream, from a job that is still queued or running.
+	// GET /api/v1/dashboard/stream, from a job that is still queued or running.
 	// A check with no `runId` (a third-party check, a legacy commit status,
 	// an external CI) belongs to no Actions run and can't be cancelled
 	// here.
@@ -4284,7 +4291,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+	// Corresponds with POST /api/v1/checks/cancel-run (the `CancelWorkflowRun` operationId).
 	CancelWorkflowRun(ctx context.Context, body CancelWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetCheckLog Read the output of one CI job, on demand
@@ -4318,7 +4325,7 @@ type ClientInterface interface {
 	// to show (the panel asks for the newest five), not for every job of a
 	// list.
 	//
-	// Corresponds with GET /api/checks/log (the `GetCheckLog` operationId).
+	// Corresponds with GET /api/v1/checks/log (the `GetCheckLog` operationId).
 	GetCheckLog(ctx context.Context, params *GetCheckLogParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetDashboard The aggregated view
@@ -4334,7 +4341,7 @@ type ClientInterface interface {
 	// `hiddenDrafts` counts only the drafts in repos the user hasn't
 	// ignored, the same repos whose other pull requests show.
 	//
-	// Corresponds with GET /api/dashboard (the `GetDashboard` operationId).
+	// Corresponds with GET /api/v1/dashboard (the `GetDashboard` operationId).
 	GetDashboard(ctx context.Context, params *GetDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RefreshDashboard Trigger an immediate refresh of the signed-in user's own dashboard
@@ -4359,7 +4366,7 @@ type ClientInterface interface {
 	// current snapshot and `Retry-After`, instead of waiting for that
 	// refresh to finish.
 	//
-	// Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
+	// Corresponds with POST /api/v1/dashboard/refresh (the `RefreshDashboard` operationId).
 	RefreshDashboard(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StreamDashboard Server-Sent Events stream of the signed-in user's own dashboard
@@ -4370,7 +4377,7 @@ type ClientInterface interface {
 	// one, which is what turns that into a live update instead of
 	// something only the next scheduled refresh picks up.
 	//
-	// The frontend's own 30-second poll against GET /api/dashboard
+	// The frontend's own 30-second poll against GET /api/v1/dashboard
 	// keeps running unconditionally, connected or not — a browser or
 	// proxy that can't hold an SSE connection open just never
 	// benefits from this, rather than the dashboard going stale
@@ -4382,13 +4389,13 @@ type ClientInterface interface {
 	//
 	// A client that passes `sid` can also follow the job lists of the
 	// pull requests and default branches it has open, through
-	// `POST /api/dashboard/stream/watch`. Each list arrives as named
+	// `POST /api/v1/dashboard/stream/watch`. Each list arrives as named
 	// `run` events on this stream, one for each workflow run attempt, so a
 	// client that only listens for default messages never sees one. A
 	// reconnect reuses the same `sid` with nothing watched, so the client
 	// sends its watch again.
 	//
-	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
+	// Corresponds with GET /api/v1/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WatchDashboardStreamChecksWithBody Choose which job lists a dashboard stream sends
@@ -4411,7 +4418,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+	// Corresponds with POST /api/v1/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
 	WatchDashboardStreamChecksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WatchDashboardStreamChecks Choose which job lists a dashboard stream sends
@@ -4434,13 +4441,13 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+	// Corresponds with POST /api/v1/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
 	WatchDashboardStreamChecks(ctx context.Context, body WatchDashboardStreamChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CloseIssueWithBody Close one issue, on the signed-in user's behalf
 	//
 	// Closes the named issue. The Issues page's dialog offers it, on its own
-	// or after posting a comment with `POST /api/issues/comment`. Closing an
+	// or after posting a comment with `POST /api/v1/issues/comment`. Closing an
 	// issue that is already closed is not refused: both forges treat it as
 	// done, so the call succeeds and there is no `already_closed` answer.
 	//
@@ -4458,13 +4465,13 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+	// Corresponds with POST /api/v1/issues/close (the `CloseIssue` operationId).
 	CloseIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CloseIssue Close one issue, on the signed-in user's behalf
 	//
 	// Closes the named issue. The Issues page's dialog offers it, on its own
-	// or after posting a comment with `POST /api/issues/comment`. Closing an
+	// or after posting a comment with `POST /api/v1/issues/comment`. Closing an
 	// issue that is already closed is not refused: both forges treat it as
 	// done, so the call succeeds and there is no `already_closed` answer.
 	//
@@ -4482,7 +4489,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+	// Corresponds with POST /api/v1/issues/close (the `CloseIssue` operationId).
 	CloseIssue(ctx context.Context, body CloseIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CommentOnIssueWithBody Post a comment on one issue, on the signed-in user's behalf
@@ -4504,7 +4511,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+	// Corresponds with POST /api/v1/issues/comment (the `CommentOnIssue` operationId).
 	CommentOnIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CommentOnIssue Post a comment on one issue, on the signed-in user's behalf
@@ -4526,16 +4533,16 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+	// Corresponds with POST /api/v1/issues/comment (the `CommentOnIssue` operationId).
 	CommentOnIssue(ctx context.Context, body CommentOnIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetIssueDetails Read an issue's description, comments and reactions, on demand
 	//
 	// What the issue dialog shows: the description, the conversation in
 	// order, and the thumbs up and thumbs down reactions on each with who
-	// gave them. The same shape and rules as GET /api/pull-requests/details
+	// gave them. The same shape and rules as GET /api/v1/pull-requests/details
 	// without the release notes, which only a pull request has. Fetched live
-	// on every call, never as part of GET /api/dashboard's snapshot.
+	// on every call, never as part of GET /api/v1/dashboard's snapshot.
 	//
 	// GitHub answers with one GraphQL query. Forgejo costs one call for the
 	// issue, one for its comments, one for the description's reactions and
@@ -4551,11 +4558,11 @@ type ClientInterface interface {
 	// number. An avatar is the forge's own URL, passed through unchanged and
 	// never proxied.
 	//
-	// The error answers are those of GET /api/pull-requests/details, with
+	// The error answers are those of GET /api/v1/pull-requests/details, with
 	// the same codes. An issue that doesn't exist is a 404, and a forge that
 	// can't be read is an error, never an empty thread.
 	//
-	// Corresponds with GET /api/issues/details (the `GetIssueDetails` operationId).
+	// Corresponds with GET /api/v1/issues/details (the `GetIssueDetails` operationId).
 	GetIssueDetails(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReopenIssueWithBody Reopen one issue that was closed, on the signed-in user's behalf
@@ -4574,7 +4581,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+	// Corresponds with POST /api/v1/issues/reopen (the `ReopenIssue` operationId).
 	ReopenIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReopenIssue Reopen one issue that was closed, on the signed-in user's behalf
@@ -4593,7 +4600,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+	// Corresponds with POST /api/v1/issues/reopen (the `ReopenIssue` operationId).
 	ReopenIssue(ctx context.Context, body ReopenIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetMainBranches The CI status of every tracked repository's default branch
@@ -4619,7 +4626,7 @@ type ClientInterface interface {
 	//
 	// A forge that can't be reached keeps its last known rows, each marked
 	// `staleSince`, the same carry-over `forges[].staleSince`
-	// on GET /api/dashboard reports. A forge whose rate-limit budget is
+	// on GET /api/v1/dashboard reports. A forge whose rate-limit budget is
 	// spent is skipped until it resets and its rows are kept the same way.
 	// Only the signed-in user's own repositories.
 	//
@@ -4627,7 +4634,7 @@ type ClientInterface interface {
 	// status `none`. Unauthenticated GitHub access (a username with no
 	// token) has no rows: its budget is too small to spend on this.
 	//
-	// Corresponds with GET /api/main-branches (the `GetMainBranches` operationId).
+	// Corresponds with GET /api/v1/main-branches (the `GetMainBranches` operationId).
 	GetMainBranches(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListAdvisories List a repository's open dependency advisories in full, on demand
@@ -4636,7 +4643,7 @@ type ClientInterface interface {
 	// repository: each open Dependabot alert with the fields GitHub's own
 	// alert page shows. The list and the detail view are the same answer, so
 	// opening one advisory costs no second call. Fetched live on every call,
-	// never as part of GET /api/main-branches' snapshot, so a repository
+	// never as part of GET /api/v1/main-branches' snapshot, so a repository
 	// nobody opens costs no budget.
 	//
 	// Sorted by severity, highest first, then newest first. GitHub reads them
@@ -4664,12 +4671,12 @@ type ClientInterface interface {
 	// The same answer is the `get_repository_advisories` tool, over MCP and
 	// WebMCP.
 	//
-	// Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
+	// Corresponds with GET /api/v1/main-branches/advisories (the `ListAdvisories` operationId).
 	ListAdvisories(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RerunMainBranchChecksWithBody Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 	//
-	// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
+	// The branch twin of POST /api/v1/pull-requests/rerun-checks. Asks the forge
 	// to rerun the failed jobs of the Actions workflow runs on the commit
 	// the branch's job list shows, and nothing that passed. It
 	// answers once the forge has queued them, not when they finish, so a
@@ -4687,12 +4694,12 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
+	// Corresponds with POST /api/v1/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
 	RerunMainBranchChecksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RerunMainBranchChecks Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 	//
-	// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
+	// The branch twin of POST /api/v1/pull-requests/rerun-checks. Asks the forge
 	// to rerun the failed jobs of the Actions workflow runs on the commit
 	// the branch's job list shows, and nothing that passed. It
 	// answers once the forge has queued them, not when they finish, so a
@@ -4710,7 +4717,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
+	// Corresponds with POST /api/v1/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
 	RerunMainBranchChecks(ctx context.Context, body RerunMainBranchChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReportDashboardPresenceWithBody Say whether a browser tab of the dashboard is being looked at
@@ -4740,7 +4747,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+	// Corresponds with POST /api/v1/presence (the `ReportDashboardPresence` operationId).
 	ReportDashboardPresenceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReportDashboardPresence Say whether a browser tab of the dashboard is being looked at
@@ -4770,7 +4777,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+	// Corresponds with POST /api/v1/presence (the `ReportDashboardPresence` operationId).
 	ReportDashboardPresence(ctx context.Context, body ReportDashboardPresenceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EnablePullRequestAutoMergeWithBody Arm auto-merge on a pull request, on the signed-in user's behalf
@@ -4814,7 +4821,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
 	EnablePullRequestAutoMergeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EnablePullRequestAutoMerge Arm auto-merge on a pull request, on the signed-in user's behalf
@@ -4858,12 +4865,12 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
 	EnablePullRequestAutoMerge(ctx context.Context, body EnablePullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CancelPullRequestAutoMergeWithBody Cancel auto-merge on a pull request, on the signed-in user's behalf
 	//
-	// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+	// Forgejo: removes the intent stored by `POST /api/v1/pull-requests/auto-merge`,
 	// so the background pass never merges the pull request. Nothing is sent
 	// to the forge. Idempotent: a pull request with no intent is a 204 too.
 	//
@@ -4875,12 +4882,12 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 	CancelPullRequestAutoMergeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CancelPullRequestAutoMerge Cancel auto-merge on a pull request, on the signed-in user's behalf
 	//
-	// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+	// Forgejo: removes the intent stored by `POST /api/v1/pull-requests/auto-merge`,
 	// so the background pass never merges the pull request. Nothing is sent
 	// to the forge. Idempotent: a pull request with no intent is a 204 too.
 	//
@@ -4892,47 +4899,47 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 	CancelPullRequestAutoMerge(ctx context.Context, body CancelPullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetPullRequestAutoUpdateWithBody Turn the automatic branch update on or off for one pull request
 	//
 	// A pure local write: nothing is sent to the forge. The choice is kept
 	// only while it differs from the repo's auto-update setting
-	// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+	// (`/api/v1/repos/auto-update-branch/enable`), so a choice that matches
 	// the repo is dropped and the pull request follows the repo again, and
 	// a later change to the repo's setting reaches it. With `enabled`
 	// `null` or absent the pull request goes back to its repo's setting.
 	// Idempotent. A draft and a release-please pull request are never
 	// updated automatically, whatever is chosen: `autoUpdate.unavailable`
-	// in GET /api/dashboard says so. The server forgets the choice once
+	// in GET /api/v1/dashboard says so. The server forgets the choice once
 	// the pull request is no longer open, its repo is no longer tracked, or
 	// the repo's setting changes to match it. A pull request the dashboard
 	// doesn't hold is a 404.
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
 	SetPullRequestAutoUpdateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetPullRequestAutoUpdate Turn the automatic branch update on or off for one pull request
 	//
 	// A pure local write: nothing is sent to the forge. The choice is kept
 	// only while it differs from the repo's auto-update setting
-	// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+	// (`/api/v1/repos/auto-update-branch/enable`), so a choice that matches
 	// the repo is dropped and the pull request follows the repo again, and
 	// a later change to the repo's setting reaches it. With `enabled`
 	// `null` or absent the pull request goes back to its repo's setting.
 	// Idempotent. A draft and a release-please pull request are never
 	// updated automatically, whatever is chosen: `autoUpdate.unavailable`
-	// in GET /api/dashboard says so. The server forgets the choice once
+	// in GET /api/v1/dashboard says so. The server forgets the choice once
 	// the pull request is no longer open, its repo is no longer tracked, or
 	// the repo's setting changes to match it. A pull request the dashboard
 	// doesn't hold is a 404.
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
 	SetPullRequestAutoUpdate(ctx context.Context, body SetPullRequestAutoUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ClosePullRequestWithBody Close one pull request without merging it, on the signed-in user's behalf
@@ -4952,7 +4959,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/close (the `ClosePullRequest` operationId).
 	ClosePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ClosePullRequest Close one pull request without merging it, on the signed-in user's behalf
@@ -4972,7 +4979,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/close (the `ClosePullRequest` operationId).
 	ClosePullRequest(ctx context.Context, body ClosePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostPullRequestDependabotActionWithBody Post one of Dependabot's own documented PR-comment commands on a pull request, on the signed-in user's behalf
@@ -4993,7 +5000,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
+	// Corresponds with POST /api/v1/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
 	PostPullRequestDependabotActionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostPullRequestDependabotAction Post one of Dependabot's own documented PR-comment commands on a pull request, on the signed-in user's behalf
@@ -5014,7 +5021,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
+	// Corresponds with POST /api/v1/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
 	PostPullRequestDependabotAction(ctx context.Context, body PostPullRequestDependabotActionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetPullRequestDetails Read a pull request's description, comments and reactions, on demand
@@ -5023,7 +5030,7 @@ type ClientInterface interface {
 	// conversation in order, the thumbs up and thumbs down reactions on each
 	// with who gave them, and, for a release pull request, the release
 	// notes. Fetched live on every call, never as part of GET
-	// /api/dashboard's snapshot: comments and reactions for every row would
+	// /api/v1/dashboard's snapshot: comments and reactions for every row would
 	// spend the forge's budget on rows nobody opens.
 	//
 	// GitHub answers with one GraphQL query. Forgejo costs one call for the
@@ -5043,23 +5050,23 @@ type ClientInterface interface {
 	// the browser loads it directly. A future policy's `img-src` has to
 	// allow avatars.githubusercontent.com, repository-images.githubusercontent.com
 	// (a GitHub repository's logo, see `logoUrl` on a repo in GET
-	// /api/dashboard) and the Forgejo host.
+	// /api/v1/dashboard) and the Forgejo host.
 	//
 	// A forge that can't be read is an error, never an empty thread.
 	//
-	// Corresponds with GET /api/pull-requests/details (the `GetPullRequestDetails` operationId).
+	// Corresponds with GET /api/v1/pull-requests/details (the `GetPullRequestDetails` operationId).
 	GetPullRequestDetails(ctx context.Context, params *GetPullRequestDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// HidePullRequestWithBody Hide one pull request from the signed-in user's dashboard
 	//
 	// Reversible, not destructive, like ignoring a repo: nothing is sent to
 	// the forge. A hidden pull request leaves `pullRequests` in
-	// GET /api/dashboard and everything counted from it, and is counted in
+	// GET /api/v1/dashboard and everything counted from it, and is counted in
 	// `hiddenPullRequests` instead. It stays listed for
 	// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
 	//
 	// With `days`, the hide ends by itself that many days from now. Without
-	// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+	// it the pull request stays hidden until `POST /api/v1/pull-requests/unhide`.
 	// A repeat call replaces the earlier choice (hide until restored, then
 	// hide for 7 days, ends with the 7 days). The server forgets the record
 	// once the pull request is no longer open, so the list never grows
@@ -5068,19 +5075,19 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/hide (the `HidePullRequest` operationId).
 	HidePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// HidePullRequest Hide one pull request from the signed-in user's dashboard
 	//
 	// Reversible, not destructive, like ignoring a repo: nothing is sent to
 	// the forge. A hidden pull request leaves `pullRequests` in
-	// GET /api/dashboard and everything counted from it, and is counted in
+	// GET /api/v1/dashboard and everything counted from it, and is counted in
 	// `hiddenPullRequests` instead. It stays listed for
 	// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
 	//
 	// With `days`, the hide ends by itself that many days from now. Without
-	// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+	// it the pull request stays hidden until `POST /api/v1/pull-requests/unhide`.
 	// A repeat call replaces the earlier choice (hide until restored, then
 	// hide for 7 days, ends with the 7 days). The server forgets the record
 	// once the pull request is no longer open, so the list never grows
@@ -5089,7 +5096,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/hide (the `HidePullRequest` operationId).
 	HidePullRequest(ctx context.Context, body HidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// MergePullRequestWithBody Merge one pull request, on the signed-in user's behalf
@@ -5123,7 +5130,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/merge (the `MergePullRequest` operationId).
 	MergePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// MergePullRequest Merge one pull request, on the signed-in user's behalf
@@ -5157,7 +5164,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/merge (the `MergePullRequest` operationId).
 	MergePullRequest(ctx context.Context, body MergePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostPullRequestRenovateRebaseWithBody Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
@@ -5184,7 +5191,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
+	// Corresponds with POST /api/v1/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 	PostPullRequestRenovateRebaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostPullRequestRenovateRebase Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
@@ -5211,7 +5218,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
+	// Corresponds with POST /api/v1/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 	PostPullRequestRenovateRebase(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CancelPullRequestRenovateRebaseWithBody Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
@@ -5231,7 +5238,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+	// Corresponds with POST /api/v1/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
 	CancelPullRequestRenovateRebaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CancelPullRequestRenovateRebase Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
@@ -5251,7 +5258,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+	// Corresponds with POST /api/v1/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
 	CancelPullRequestRenovateRebase(ctx context.Context, body CancelPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReopenPullRequestWithBody Reopen one pull request that was closed without merging, on the signed-in user's behalf
@@ -5276,7 +5283,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/reopen (the `ReopenPullRequest` operationId).
 	ReopenPullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReopenPullRequest Reopen one pull request that was closed without merging, on the signed-in user's behalf
@@ -5301,7 +5308,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/reopen (the `ReopenPullRequest` operationId).
 	ReopenPullRequest(ctx context.Context, body ReopenPullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RerunPullRequestChecksWithBody Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
@@ -5351,7 +5358,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+	// Corresponds with POST /api/v1/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 	RerunPullRequestChecksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RerunPullRequestChecks Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
@@ -5401,27 +5408,27 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+	// Corresponds with POST /api/v1/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 	RerunPullRequestChecks(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UnhidePullRequestWithBody Bring a hidden pull request back onto the signed-in user's dashboard
 	//
-	// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+	// The reverse of POST /api/v1/pull-requests/hide. Idempotent: restoring a
 	// pull request that isn't hidden is a 204 too.
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/unhide (the `UnhidePullRequest` operationId).
 	UnhidePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UnhidePullRequest Bring a hidden pull request back onto the signed-in user's dashboard
 	//
-	// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+	// The reverse of POST /api/v1/pull-requests/hide. Idempotent: restoring a
 	// pull request that isn't hidden is a 204 too.
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/unhide (the `UnhidePullRequest` operationId).
 	UnhidePullRequest(ctx context.Context, body UnhidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdatePullRequestBranchWithBody Bring one pull request's branch up to date with its base, on the signed-in user's behalf
@@ -5442,7 +5449,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
+	// Corresponds with POST /api/v1/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
 	UpdatePullRequestBranchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdatePullRequestBranch Bring one pull request's branch up to date with its base, on the signed-in user's behalf
@@ -5463,7 +5470,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
+	// Corresponds with POST /api/v1/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
 	UpdatePullRequestBranch(ctx context.Context, body UpdatePullRequestBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListQueuedActions List the signed-in user's queued actions, waiting and recently finished
@@ -5472,9 +5479,9 @@ type ClientInterface interface {
 	// resets, oldest first: the ones still `queued`, and the
 	// final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
 	// client can show the outcome in its Activity list. The same list
-	// rides along on GET /api/dashboard as `queuedActions`.
+	// rides along on GET /api/v1/dashboard as `queuedActions`.
 	//
-	// Corresponds with GET /api/queued-actions (the `ListQueuedActions` operationId).
+	// Corresponds with GET /api/v1/queued-actions (the `ListQueuedActions` operationId).
 	ListQueuedActions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// QueueActionWithBody Queue a safe action to run when a rate-limited forge resets
@@ -5503,7 +5510,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+	// Corresponds with POST /api/v1/queued-actions (the `QueueAction` operationId).
 	QueueActionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// QueueAction Queue a safe action to run when a rate-limited forge resets
@@ -5532,7 +5539,7 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+	// Corresponds with POST /api/v1/queued-actions (the `QueueAction` operationId).
 	QueueAction(ctx context.Context, body QueueActionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CancelQueuedAction Cancel a queued action, or clear a finished one from the list
@@ -5541,7 +5548,7 @@ type ClientInterface interface {
 	// finished one is cleared from the list. An id that isn't the
 	// signed-in user's answers 404, the same as one that doesn't exist.
 	//
-	// Corresponds with DELETE /api/queued-actions/{id} (the `CancelQueuedAction` operationId).
+	// Corresponds with DELETE /api/v1/queued-actions/{id} (the `CancelQueuedAction` operationId).
 	CancelQueuedAction(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetReleaseDetails Read a published release's title and notes, on demand
@@ -5549,7 +5556,7 @@ type ClientInterface interface {
 	// What the release dialog on the Main branches page shows for a
 	// repository's latest published release: its title, when it was
 	// published, its notes and the thumbs reactions on them. Fetched live on
-	// every call, never as part of GET /api/main-branches' snapshot, so a
+	// every call, never as part of GET /api/v1/main-branches' snapshot, so a
 	// release nobody opens costs no budget.
 	//
 	// GitHub answers with one GraphQL query. Only GitHub rows carry a latest
@@ -5561,33 +5568,33 @@ type ClientInterface interface {
 	// 20,000 characters (`truncated`), and a reaction names at most its
 	// first 10 people while `count` is the full number.
 	//
-	// The error answers are those of GET /api/pull-requests/details, with
+	// The error answers are those of GET /api/v1/pull-requests/details, with
 	// the same codes. A tag that has no published release is a 404, and so is a draft,
 	// a pre-release or a release with no publish date.
 	//
-	// Corresponds with GET /api/releases/details (the `GetReleaseDetails` operationId).
+	// Corresponds with GET /api/v1/releases/details (the `GetReleaseDetails` operationId).
 	GetReleaseDetails(ctx context.Context, params *GetReleaseDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DisableAutoUpdateBranchWithBody Turn off automatic branch updates for one tracked repo
 	//
-	// The reverse of POST /api/repos/auto-update-branch/enable.
+	// The reverse of POST /api/v1/repos/auto-update-branch/enable.
 	// Idempotent: disabling a repo that was never enabled is a no-op,
 	// not an error.
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
+	// Corresponds with POST /api/v1/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
 	DisableAutoUpdateBranchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DisableAutoUpdateBranch Turn off automatic branch updates for one tracked repo
 	//
-	// The reverse of POST /api/repos/auto-update-branch/enable.
+	// The reverse of POST /api/v1/repos/auto-update-branch/enable.
 	// Idempotent: disabling a repo that was never enabled is a no-op,
 	// not an error.
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
+	// Corresponds with POST /api/v1/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
 	DisableAutoUpdateBranch(ctx context.Context, body DisableAutoUpdateBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EnableAutoUpdateBranchWithBody Turn on automatic branch updates for one tracked repo
@@ -5601,7 +5608,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
+	// Corresponds with POST /api/v1/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
 	EnableAutoUpdateBranchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EnableAutoUpdateBranch Turn on automatic branch updates for one tracked repo
@@ -5615,13 +5622,13 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
+	// Corresponds with POST /api/v1/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
 	EnableAutoUpdateBranch(ctx context.Context, body EnableAutoUpdateBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// IgnoreRepoWithBody Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 	//
 	// Reversible, not destructive: the repo itself keeps
-	// appearing in GET /api/dashboard's `repos` array with accurate
+	// appearing in GET /api/v1/dashboard's `repos` array with accurate
 	// webhook-coverage status, and keeps being fetched and counted —
 	// only the pullRequests and/or issues entries the request scopes
 	// stop appearing there and on Insights. A repeat call
@@ -5632,13 +5639,13 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
+	// Corresponds with POST /api/v1/repos/ignore (the `IgnoreRepo` operationId).
 	IgnoreRepoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// IgnoreRepo Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 	//
 	// Reversible, not destructive: the repo itself keeps
-	// appearing in GET /api/dashboard's `repos` array with accurate
+	// appearing in GET /api/v1/dashboard's `repos` array with accurate
 	// webhook-coverage status, and keeps being fetched and counted —
 	// only the pullRequests and/or issues entries the request scopes
 	// stop appearing there and on Insights. A repeat call
@@ -5649,27 +5656,27 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
+	// Corresponds with POST /api/v1/repos/ignore (the `IgnoreRepo` operationId).
 	IgnoreRepo(ctx context.Context, body IgnoreRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DisableRebaseBotsWithBody Stop rebasing Dependabot and Renovate pull requests for one tracked repo
 	//
-	// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+	// The reverse of POST /api/v1/repos/rebase-bots/enable. Idempotent:
 	// disabling a repo that was never enabled is a no-op, not an error.
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+	// Corresponds with POST /api/v1/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
 	DisableRebaseBotsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DisableRebaseBots Stop rebasing Dependabot and Renovate pull requests for one tracked repo
 	//
-	// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+	// The reverse of POST /api/v1/repos/rebase-bots/enable. Idempotent:
 	// disabling a repo that was never enabled is a no-op, not an error.
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+	// Corresponds with POST /api/v1/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
 	DisableRebaseBots(ctx context.Context, body DisableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EnableRebaseBotsWithBody Rebase Dependabot and Renovate pull requests for one tracked repo
@@ -5685,7 +5692,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+	// Corresponds with POST /api/v1/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
 	EnableRebaseBotsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EnableRebaseBots Rebase Dependabot and Renovate pull requests for one tracked repo
@@ -5701,27 +5708,27 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+	// Corresponds with POST /api/v1/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
 	EnableRebaseBots(ctx context.Context, body EnableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UnignoreRepoWithBody Stop ignoring one tracked repo
 	//
-	// The reverse of POST /api/repos/ignore. Idempotent: un-ignoring a
+	// The reverse of POST /api/v1/repos/ignore. Idempotent: un-ignoring a
 	// repo that was never ignored is a no-op, not an error.
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/repos/unignore (the `UnignoreRepo` operationId).
+	// Corresponds with POST /api/v1/repos/unignore (the `UnignoreRepo` operationId).
 	UnignoreRepoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UnignoreRepo Stop ignoring one tracked repo
 	//
-	// The reverse of POST /api/repos/ignore. Idempotent: un-ignoring a
+	// The reverse of POST /api/v1/repos/ignore. Idempotent: un-ignoring a
 	// repo that was never ignored is a no-op, not an error.
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/repos/unignore (the `UnignoreRepo` operationId).
+	// Corresponds with POST /api/v1/repos/unignore (the `UnignoreRepo` operationId).
 	UnignoreRepo(ctx context.Context, body UnignoreRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSettings The signed-in user's own forge configuration
@@ -5730,9 +5737,9 @@ type ClientInterface interface {
 	// webhook token and secret are returned, since the user pastes them
 	// into the forge's webhook setup, and a first read creates them. For
 	// a read that creates nothing and omits both, see
-	// `GET /api/settings/summary`.
+	// `GET /api/v1/settings/summary`.
 	//
-	// Corresponds with GET /api/settings (the `GetSettings` operationId).
+	// Corresponds with GET /api/v1/settings (the `GetSettings` operationId).
 	GetSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PutSettingsWithBody Save the signed-in user's forge configuration
@@ -5745,7 +5752,7 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with PUT /api/settings (the `PutSettings` operationId).
+	// Corresponds with PUT /api/v1/settings (the `PutSettings` operationId).
 	PutSettingsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PutSettings Save the signed-in user's forge configuration
@@ -5758,26 +5765,26 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with PUT /api/settings (the `PutSettings` operationId).
+	// Corresponds with PUT /api/v1/settings (the `PutSettings` operationId).
 	PutSettings(ctx context.Context, body PutSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetFilterState The signed-in user's own saved dashboard/Insights filter state
 	//
 	// A lightweight read of one opaque blob, deliberately not
-	// GET /api/settings itself for the same reason GET /api/settings/theme
+	// GET /api/v1/settings itself for the same reason GET /api/v1/settings/theme
 	// isn't either: this loads on every dashboard/Insights visit and
 	// shouldn't provision webhook credentials as a side effect.
 	// `{}` for a user who's never saved any filters yet, not a 404.
 	// These are the web UI's own state: a signed-in browser session only,
 	// and a personal API token is refused with 403.
 	//
-	// Corresponds with GET /api/settings/filter-state (the `GetFilterState` operationId).
+	// Corresponds with GET /api/v1/settings/filter-state (the `GetFilterState` operationId).
 	GetFilterState(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetFilterStateWithBody Save the signed-in user's own dashboard/Insights filter state
 	//
 	// A dedicated, lightweight save separate from the main
-	// PUT /api/settings — filters change on nearly every click, a
+	// PUT /api/v1/settings — filters change on nearly every click, a
 	// mismatch for that endpoint's "always a full form submit"
 	// convention. The body replaces the saved state entirely,
 	// the same "always a full submit, just of a much smaller and
@@ -5791,13 +5798,13 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with PUT /api/settings/filter-state (the `SetFilterState` operationId).
+	// Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
 	SetFilterStateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetFilterState Save the signed-in user's own dashboard/Insights filter state
 	//
 	// A dedicated, lightweight save separate from the main
-	// PUT /api/settings — filters change on nearly every click, a
+	// PUT /api/v1/settings — filters change on nearly every click, a
 	// mismatch for that endpoint's "always a full form submit"
 	// convention. The body replaces the saved state entirely,
 	// the same "always a full submit, just of a much smaller and
@@ -5811,37 +5818,37 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with PUT /api/settings/filter-state (the `SetFilterState` operationId).
+	// Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
 	SetFilterState(ctx context.Context, body SetFilterStateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetSettingsSummary The signed-in user's settings, read without side effects
 	//
-	// The same data as `GET /api/settings`, minus the webhook token and
+	// The same data as `GET /api/v1/settings`, minus the webhook token and
 	// secret, plus `webhookConfigured`. It never provisions webhook
 	// credentials: for a user who has none yet it answers
 	// `webhookConfigured: false` and creates nothing. Forge tokens are
 	// never returned, only whether one is set. It returns exactly what
 	// the `get_settings` MCP tool returns.
 	//
-	// Corresponds with GET /api/settings/summary (the `GetSettingsSummary` operationId).
+	// Corresponds with GET /api/v1/settings/summary (the `GetSettingsSummary` operationId).
 	GetSettingsSummary(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTheme The signed-in user's own saved theme preference
 	//
 	// A lightweight, side-effect-free read of one field — theme — for
 	// every page to check on load. Deliberately not
-	// GET /api/settings itself: that handler also provisions webhook
+	// GET /api/v1/settings itself: that handler also provisions webhook
 	// credentials on first call (EnsureWebhookCredentials), which
 	// every page loading shouldn't trigger for a user who's never
 	// opened Settings at all.
 	//
-	// Corresponds with GET /api/settings/theme (the `GetTheme` operationId).
+	// Corresponds with GET /api/v1/settings/theme (the `GetTheme` operationId).
 	GetTheme(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetThemeWithBody Save the signed-in user's own theme preference
 	//
 	// A dedicated, instant save — deliberately not routed
-	// through the main PUT /api/settings, whose every other field is
+	// through the main PUT /api/v1/settings, whose every other field is
 	// a plain replace rather than a per-field merge: a request
 	// carrying only theme through that handler would blank every
 	// other saved setting. Picking a theme applies immediately, the
@@ -5851,13 +5858,13 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with PUT /api/settings/theme (the `SetTheme` operationId).
+	// Corresponds with PUT /api/v1/settings/theme (the `SetTheme` operationId).
 	SetThemeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetTheme Save the signed-in user's own theme preference
 	//
 	// A dedicated, instant save — deliberately not routed
-	// through the main PUT /api/settings, whose every other field is
+	// through the main PUT /api/v1/settings, whose every other field is
 	// a plain replace rather than a per-field merge: a request
 	// carrying only theme through that handler would blank every
 	// other saved setting. Picking a theme applies immediately, the
@@ -5867,39 +5874,39 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with PUT /api/settings/theme (the `SetTheme` operationId).
+	// Corresponds with PUT /api/v1/settings/theme (the `SetTheme` operationId).
 	SetTheme(ctx context.Context, body SetThemeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTimezone The signed-in user's own saved time zone
 	//
 	// A lightweight, side-effect-free read of one field, for every page to
 	// check on load so it can show times in the user's zone. Deliberately
-	// not GET /api/settings, for the reason GET /api/settings/theme isn't.
+	// not GET /api/v1/settings, for the reason GET /api/v1/settings/theme isn't.
 	// Empty means "use the browser's own zone".
 	//
-	// Corresponds with GET /api/settings/timezone (the `GetTimezone` operationId).
+	// Corresponds with GET /api/v1/settings/timezone (the `GetTimezone` operationId).
 	GetTimezone(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetTimezoneWithBody Save the signed-in user's own time zone
 	//
-	// A dedicated, instant save, not routed through PUT /api/settings,
+	// A dedicated, instant save, not routed through PUT /api/v1/settings,
 	// which replaces every other field. Exists for browsers that report
 	// UTC to every page, such as Firefox with fingerprint resistance.
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+	// Corresponds with PUT /api/v1/settings/timezone (the `SetTimezone` operationId).
 	SetTimezoneWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetTimezone Save the signed-in user's own time zone
 	//
-	// A dedicated, instant save, not routed through PUT /api/settings,
+	// A dedicated, instant save, not routed through PUT /api/v1/settings,
 	// which replaces every other field. Exists for browsers that report
 	// UTC to every page, such as Firefox with fingerprint resistance.
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+	// Corresponds with PUT /api/v1/settings/timezone (the `SetTimezone` operationId).
 	SetTimezone(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetForgeApiStats How many forge API calls the dashboard has spent, and on what
@@ -5934,30 +5941,30 @@ type ClientInterface interface {
 	// the caller has saved, and a GitHub App installation id is a number the
 	// caller types in, so until the dashboard has one user, someone who saves
 	// another account's installation id sees that installation's counts. `budgets` are the rate limits each forge last
-	// reported, the same figures as `forges` on GET /api/dashboard.
+	// reported, the same figures as `forges` on GET /api/v1/dashboard.
 	//
-	// Corresponds with GET /api/stats/forge-api (the `GetForgeApiStats` operationId).
+	// Corresponds with GET /api/v1/stats/forge-api (the `GetForgeApiStats` operationId).
 	GetForgeApiStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListAPITokens List the signed-in user's own personal API tokens
 	//
 	// Metadata only, per APIToken's own description — a raw value never reappears once created.
 	//
-	// Corresponds with GET /api/tokens (the `ListAPITokens` operationId).
+	// Corresponds with GET /api/v1/tokens (the `ListAPITokens` operationId).
 	ListAPITokens(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateAPITokenWithBody Generate a new personal API token
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with POST /api/tokens (the `CreateAPIToken` operationId).
+	// Corresponds with POST /api/v1/tokens (the `CreateAPIToken` operationId).
 	CreateAPITokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateAPIToken Generate a new personal API token
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with POST /api/tokens (the `CreateAPIToken` operationId).
+	// Corresponds with POST /api/v1/tokens (the `CreateAPIToken` operationId).
 	CreateAPIToken(ctx context.Context, body CreateAPITokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteAPIToken Revoke a personal API token
@@ -5968,8 +5975,64 @@ type ClientInterface interface {
 	// endpoint here, so a double-click or a retried request isn't an
 	// error.
 	//
-	// Corresponds with DELETE /api/tokens/{id} (the `DeleteAPIToken` operationId).
+	// Corresponds with DELETE /api/v1/tokens/{id} (the `DeleteAPIToken` operationId).
 	DeleteAPIToken(ctx context.Context, id PathTokenID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EnsureWebhookWithBody Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
+	//
+	// Creates a webhook on the named repo, pointed at the signed-in
+	// user's own webhook URL and secret, subscribed to the events
+	// docs/webhooks.md's manual steps recommend. If one already exists
+	// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
+	// does — matching by URL path, not object identity) it's brought
+	// back to active with the right events instead of creating a
+	// duplicate.
+	//
+	// One of a small number of endpoints in this API that write to a
+	// forge rather than just reading from it — see also the
+	// pull-requests tag.
+	//
+	// A refusal from the forge (403, 404, 429 and 502) answers with the
+	// same `ActionError` a refused pull request action does, so a client
+	// reads one shape: `code` is `permission` or `rate_limited` where
+	// the forge said so (with `resetsAt` for a rate limit), and
+	// `unknown` otherwise, with a plain `message` either way. No new
+	// code is needed: a repo the forge can't find is `unknown` with its
+	// own message. 400 and 401 stay a plain `Error`, since they are
+	// about the request, not a refusal by the forge.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
+	EnsureWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EnsureWebhook Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
+	//
+	// Creates a webhook on the named repo, pointed at the signed-in
+	// user's own webhook URL and secret, subscribed to the events
+	// docs/webhooks.md's manual steps recommend. If one already exists
+	// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
+	// does — matching by URL path, not object identity) it's brought
+	// back to active with the right events instead of creating a
+	// duplicate.
+	//
+	// One of a small number of endpoints in this API that write to a
+	// forge rather than just reading from it — see also the
+	// pull-requests tag.
+	//
+	// A refusal from the forge (403, 404, 429 and 502) answers with the
+	// same `ActionError` a refused pull request action does, so a client
+	// reads one shape: `code` is `permission` or `rate_limited` where
+	// the forge said so (with `resetsAt` for a rate limit), and
+	// `unknown` otherwise, with a plain `message` either way. No new
+	// code is needed: a repo the forge can't find is `unknown` with its
+	// own message. 400 and 401 stay a plain `Error`, since they are
+	// about the request, not a refusal by the forge.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
+	EnsureWebhook(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetVersion The running server's own version
 	//
@@ -5981,62 +6044,6 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/version (the `GetVersion` operationId).
 	GetVersion(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// EnsureWebhookWithBody Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-	//
-	// Creates a webhook on the named repo, pointed at the signed-in
-	// user's own webhook URL and secret, subscribed to the events
-	// docs/webhooks.md's manual steps recommend. If one already exists
-	// there (found the same way GET /api/dashboard's own `hasWebhook`
-	// does — matching by URL path, not object identity) it's brought
-	// back to active with the right events instead of creating a
-	// duplicate.
-	//
-	// One of a small number of endpoints in this API that write to a
-	// forge rather than just reading from it — see also the
-	// pull-requests tag.
-	//
-	// A refusal from the forge (403, 404, 429 and 502) answers with the
-	// same `ActionError` a refused pull request action does, so a client
-	// reads one shape: `code` is `permission` or `rate_limited` where
-	// the forge said so (with `resetsAt` for a rate limit), and
-	// `unknown` otherwise, with a plain `message` either way. No new
-	// code is needed: a repo the forge can't find is `unknown` with its
-	// own message. 400 and 401 stay a plain `Error`, since they are
-	// about the request, not a refusal by the forge.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
-	EnsureWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// EnsureWebhook Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-	//
-	// Creates a webhook on the named repo, pointed at the signed-in
-	// user's own webhook URL and secret, subscribed to the events
-	// docs/webhooks.md's manual steps recommend. If one already exists
-	// there (found the same way GET /api/dashboard's own `hasWebhook`
-	// does — matching by URL path, not object identity) it's brought
-	// back to active with the right events instead of creating a
-	// duplicate.
-	//
-	// One of a small number of endpoints in this API that write to a
-	// forge rather than just reading from it — see also the
-	// pull-requests tag.
-	//
-	// A refusal from the forge (403, 404, 429 and 502) answers with the
-	// same `ActionError` a refused pull request action does, so a client
-	// reads one shape: `code` is `permission` or `rate_limited` where
-	// the forge said so (with `resetsAt` for a rate limit), and
-	// `unknown` otherwise, with a plain `message` either way. No new
-	// code is needed: a repo the forge can't find is `unknown` with its
-	// own message. 400 and 401 stay a plain `Error`, since they are
-	// about the request, not a refusal by the forge.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
-	EnsureWebhook(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReceiveForgejoWebhookWithBody Receive a Forgejo repository webhook delivery
 	//
@@ -6143,7 +6150,7 @@ type ClientInterface interface {
 // Every passkey on the account, oldest first — not just the
 // one used to establish the current session.
 //
-// Corresponds with GET /api/auth/credentials (the `ListCredentials` operationId).
+// Corresponds with GET /api/v1/auth/credentials (the `ListCredentials` operationId).
 func (c *Client) ListCredentials(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListCredentialsRequest(c.Server)
 	if err != nil {
@@ -6158,13 +6165,13 @@ func (c *Client) ListCredentials(ctx context.Context, reqEditors ...RequestEdito
 
 // BeginAddCredential Start a ceremony to add another passkey to the signed-in account
 //
-// The authenticated counterpart to POST /api/auth/register/begin —
+// The authenticated counterpart to POST /api/v1/auth/register/begin —
 // that one only ever works for a brand-new, credential-less
 // account; this is how an already-registered user adds a second
 // (or third...) passkey, e.g. a laptop and a security key. Like the
 // first registration it requires a resident key.
 //
-// Corresponds with POST /api/auth/credentials/begin (the `BeginAddCredential` operationId).
+// Corresponds with POST /api/v1/auth/credentials/begin (the `BeginAddCredential` operationId).
 func (c *Client) BeginAddCredential(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBeginAddCredentialRequest(c.Server)
 	if err != nil {
@@ -6181,7 +6188,7 @@ func (c *Client) BeginAddCredential(ctx context.Context, reqEditors ...RequestEd
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/auth/credentials/finish (the `FinishAddCredential` operationId).
+// Corresponds with POST /api/v1/auth/credentials/finish (the `FinishAddCredential` operationId).
 func (c *Client) FinishAddCredentialWithBody(ctx context.Context, params *FinishAddCredentialParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewFinishAddCredentialRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
@@ -6198,7 +6205,7 @@ func (c *Client) FinishAddCredentialWithBody(ctx context.Context, params *Finish
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/auth/credentials/finish (the `FinishAddCredential` operationId).
+// Corresponds with POST /api/v1/auth/credentials/finish (the `FinishAddCredential` operationId).
 func (c *Client) FinishAddCredential(ctx context.Context, params *FinishAddCredentialParams, body FinishAddCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewFinishAddCredentialRequest(c.Server, params, body)
 	if err != nil {
@@ -6217,7 +6224,7 @@ func (c *Client) FinishAddCredential(ctx context.Context, params *FinishAddCrede
 // app is WebAuthn-only with no password fallback, so deleting it
 // would lock the account out entirely.
 //
-// Corresponds with DELETE /api/auth/credentials/{id} (the `DeleteCredential` operationId).
+// Corresponds with DELETE /api/v1/auth/credentials/{id} (the `DeleteCredential` operationId).
 func (c *Client) DeleteCredential(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteCredentialRequest(c.Server, id)
 	if err != nil {
@@ -6240,7 +6247,7 @@ func (c *Client) DeleteCredential(ctx context.Context, id string, reqEditors ...
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+// Corresponds with PATCH /api/v1/auth/credentials/{id} (the `RenameCredential` operationId).
 func (c *Client) RenameCredentialWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRenameCredentialRequestWithBody(c.Server, id, contentType, body)
 	if err != nil {
@@ -6263,7 +6270,7 @@ func (c *Client) RenameCredentialWithBody(ctx context.Context, id string, conten
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+// Corresponds with PATCH /api/v1/auth/credentials/{id} (the `RenameCredential` operationId).
 func (c *Client) RenameCredential(ctx context.Context, id string, body RenameCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRenameCredentialRequest(c.Server, id, body)
 	if err != nil {
@@ -6283,7 +6290,7 @@ func (c *Client) RenameCredential(ctx context.Context, id string, body RenameCre
 // browser offers whichever discoverable passkey it holds for the site
 // and nothing about the account is revealed to a visitor.
 //
-// Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
+// Corresponds with POST /api/v1/auth/login/begin (the `BeginLogin` operationId).
 func (c *Client) BeginLogin(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBeginLoginRequest(c.Server)
 	if err != nil {
@@ -6300,7 +6307,7 @@ func (c *Client) BeginLogin(ctx context.Context, reqEditors ...RequestEditorFn) 
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
+// Corresponds with POST /api/v1/auth/login/finish (the `FinishLogin` operationId).
 func (c *Client) FinishLoginWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewFinishLoginRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -6317,7 +6324,7 @@ func (c *Client) FinishLoginWithBody(ctx context.Context, contentType string, bo
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
+// Corresponds with POST /api/v1/auth/login/finish (the `FinishLogin` operationId).
 func (c *Client) FinishLogin(ctx context.Context, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewFinishLoginRequest(c.Server, body)
 	if err != nil {
@@ -6332,7 +6339,7 @@ func (c *Client) FinishLogin(ctx context.Context, body FinishLoginJSONRequestBod
 
 // Logout End the current session
 //
-// Corresponds with POST /api/auth/logout (the `Logout` operationId).
+// Corresponds with POST /api/v1/auth/logout (the `Logout` operationId).
 func (c *Client) Logout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewLogoutRequest(c.Server)
 	if err != nil {
@@ -6348,13 +6355,13 @@ func (c *Client) Logout(ctx context.Context, reqEditors ...RequestEditorFn) (*ht
 // BeginRegistration Start a passkey registration ceremony
 //
 // An instance has one user. The first registration on a fresh
-// instance (see GET /api/auth/registration-status) creates that
+// instance (see GET /api/v1/auth/registration-status) creates that
 // user and the server names it, so the request carries no body. The
 // options require a resident key, so the passkey can be found at
 // sign-in without being named. Once any account holds a passkey, this
 // answers 403.
 //
-// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
+// Corresponds with POST /api/v1/auth/register/begin (the `BeginRegistration` operationId).
 func (c *Client) BeginRegistration(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBeginRegistrationRequest(c.Server)
 	if err != nil {
@@ -6371,7 +6378,7 @@ func (c *Client) BeginRegistration(ctx context.Context, reqEditors ...RequestEdi
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
+// Corresponds with POST /api/v1/auth/register/finish (the `FinishRegistration` operationId).
 func (c *Client) FinishRegistrationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewFinishRegistrationRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -6388,7 +6395,7 @@ func (c *Client) FinishRegistrationWithBody(ctx context.Context, contentType str
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
+// Corresponds with POST /api/v1/auth/register/finish (the `FinishRegistration` operationId).
 func (c *Client) FinishRegistration(ctx context.Context, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewFinishRegistrationRequest(c.Server, body)
 	if err != nil {
@@ -6410,7 +6417,7 @@ func (c *Client) FinishRegistration(ctx context.Context, body FinishRegistration
 // registration is closed for good. More passkeys for that account are
 // added from Settings.
 //
-// Corresponds with GET /api/auth/registration-status (the `GetRegistrationStatus` operationId).
+// Corresponds with GET /api/v1/auth/registration-status (the `GetRegistrationStatus` operationId).
 func (c *Client) GetRegistrationStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRegistrationStatusRequest(c.Server)
 	if err != nil {
@@ -6425,7 +6432,7 @@ func (c *Client) GetRegistrationStatus(ctx context.Context, reqEditors ...Reques
 
 // GetSession Who, if anyone, the current session cookie belongs to
 //
-// Corresponds with GET /api/auth/session (the `GetSession` operationId).
+// Corresponds with GET /api/v1/auth/session (the `GetSession` operationId).
 func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSessionRequest(c.Server)
 	if err != nil {
@@ -6443,7 +6450,7 @@ func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) 
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
 // workflow. A client takes `runId` from a check in a `run` event on
-// GET /api/dashboard/stream, from a job that is still queued or running.
+// GET /api/v1/dashboard/stream, from a job that is still queued or running.
 // A check with no `runId` (a third-party check, a legacy commit status,
 // an external CI) belongs to no Actions run and can't be cancelled
 // here.
@@ -6471,7 +6478,7 @@ func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) 
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+// Corresponds with POST /api/v1/checks/cancel-run (the `CancelWorkflowRun` operationId).
 func (c *Client) CancelWorkflowRunWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCancelWorkflowRunRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -6489,7 +6496,7 @@ func (c *Client) CancelWorkflowRunWithBody(ctx context.Context, contentType stri
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
 // workflow. A client takes `runId` from a check in a `run` event on
-// GET /api/dashboard/stream, from a job that is still queued or running.
+// GET /api/v1/dashboard/stream, from a job that is still queued or running.
 // A check with no `runId` (a third-party check, a legacy commit status,
 // an external CI) belongs to no Actions run and can't be cancelled
 // here.
@@ -6517,7 +6524,7 @@ func (c *Client) CancelWorkflowRunWithBody(ctx context.Context, contentType stri
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+// Corresponds with POST /api/v1/checks/cancel-run (the `CancelWorkflowRun` operationId).
 func (c *Client) CancelWorkflowRun(ctx context.Context, body CancelWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCancelWorkflowRunRequest(c.Server, body)
 	if err != nil {
@@ -6561,7 +6568,7 @@ func (c *Client) CancelWorkflowRun(ctx context.Context, body CancelWorkflowRunJS
 // to show (the panel asks for the newest five), not for every job of a
 // list.
 //
-// Corresponds with GET /api/checks/log (the `GetCheckLog` operationId).
+// Corresponds with GET /api/v1/checks/log (the `GetCheckLog` operationId).
 func (c *Client) GetCheckLog(ctx context.Context, params *GetCheckLogParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetCheckLogRequest(c.Server, params)
 	if err != nil {
@@ -6587,7 +6594,7 @@ func (c *Client) GetCheckLog(ctx context.Context, params *GetCheckLogParams, req
 // `hiddenDrafts` counts only the drafts in repos the user hasn't
 // ignored, the same repos whose other pull requests show.
 //
-// Corresponds with GET /api/dashboard (the `GetDashboard` operationId).
+// Corresponds with GET /api/v1/dashboard (the `GetDashboard` operationId).
 func (c *Client) GetDashboard(ctx context.Context, params *GetDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetDashboardRequest(c.Server, params)
 	if err != nil {
@@ -6622,7 +6629,7 @@ func (c *Client) GetDashboard(ctx context.Context, params *GetDashboardParams, r
 // current snapshot and `Retry-After`, instead of waiting for that
 // refresh to finish.
 //
-// Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
+// Corresponds with POST /api/v1/dashboard/refresh (the `RefreshDashboard` operationId).
 func (c *Client) RefreshDashboard(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRefreshDashboardRequest(c.Server, params)
 	if err != nil {
@@ -6643,7 +6650,7 @@ func (c *Client) RefreshDashboard(ctx context.Context, params *RefreshDashboardP
 // one, which is what turns that into a live update instead of
 // something only the next scheduled refresh picks up.
 //
-// The frontend's own 30-second poll against GET /api/dashboard
+// The frontend's own 30-second poll against GET /api/v1/dashboard
 // keeps running unconditionally, connected or not — a browser or
 // proxy that can't hold an SSE connection open just never
 // benefits from this, rather than the dashboard going stale
@@ -6655,13 +6662,13 @@ func (c *Client) RefreshDashboard(ctx context.Context, params *RefreshDashboardP
 //
 // A client that passes `sid` can also follow the job lists of the
 // pull requests and default branches it has open, through
-// `POST /api/dashboard/stream/watch`. Each list arrives as named
+// `POST /api/v1/dashboard/stream/watch`. Each list arrives as named
 // `run` events on this stream, one for each workflow run attempt, so a
 // client that only listens for default messages never sees one. A
 // reconnect reuses the same `sid` with nothing watched, so the client
 // sends its watch again.
 //
-// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
+// Corresponds with GET /api/v1/dashboard/stream (the `StreamDashboard` operationId).
 func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStreamDashboardRequest(c.Server, params)
 	if err != nil {
@@ -6694,7 +6701,7 @@ func (c *Client) StreamDashboard(ctx context.Context, params *StreamDashboardPar
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+// Corresponds with POST /api/v1/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
 func (c *Client) WatchDashboardStreamChecksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWatchDashboardStreamChecksRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -6727,7 +6734,7 @@ func (c *Client) WatchDashboardStreamChecksWithBody(ctx context.Context, content
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+// Corresponds with POST /api/v1/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
 func (c *Client) WatchDashboardStreamChecks(ctx context.Context, body WatchDashboardStreamChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWatchDashboardStreamChecksRequest(c.Server, body)
 	if err != nil {
@@ -6743,7 +6750,7 @@ func (c *Client) WatchDashboardStreamChecks(ctx context.Context, body WatchDashb
 // CloseIssueWithBody Close one issue, on the signed-in user's behalf
 //
 // Closes the named issue. The Issues page's dialog offers it, on its own
-// or after posting a comment with `POST /api/issues/comment`. Closing an
+// or after posting a comment with `POST /api/v1/issues/comment`. Closing an
 // issue that is already closed is not refused: both forges treat it as
 // done, so the call succeeds and there is no `already_closed` answer.
 //
@@ -6761,7 +6768,7 @@ func (c *Client) WatchDashboardStreamChecks(ctx context.Context, body WatchDashb
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+// Corresponds with POST /api/v1/issues/close (the `CloseIssue` operationId).
 func (c *Client) CloseIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCloseIssueRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -6777,7 +6784,7 @@ func (c *Client) CloseIssueWithBody(ctx context.Context, contentType string, bod
 // CloseIssue Close one issue, on the signed-in user's behalf
 //
 // Closes the named issue. The Issues page's dialog offers it, on its own
-// or after posting a comment with `POST /api/issues/comment`. Closing an
+// or after posting a comment with `POST /api/v1/issues/comment`. Closing an
 // issue that is already closed is not refused: both forges treat it as
 // done, so the call succeeds and there is no `already_closed` answer.
 //
@@ -6795,7 +6802,7 @@ func (c *Client) CloseIssueWithBody(ctx context.Context, contentType string, bod
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+// Corresponds with POST /api/v1/issues/close (the `CloseIssue` operationId).
 func (c *Client) CloseIssue(ctx context.Context, body CloseIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCloseIssueRequest(c.Server, body)
 	if err != nil {
@@ -6827,7 +6834,7 @@ func (c *Client) CloseIssue(ctx context.Context, body CloseIssueJSONRequestBody,
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+// Corresponds with POST /api/v1/issues/comment (the `CommentOnIssue` operationId).
 func (c *Client) CommentOnIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCommentOnIssueRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -6859,7 +6866,7 @@ func (c *Client) CommentOnIssueWithBody(ctx context.Context, contentType string,
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+// Corresponds with POST /api/v1/issues/comment (the `CommentOnIssue` operationId).
 func (c *Client) CommentOnIssue(ctx context.Context, body CommentOnIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCommentOnIssueRequest(c.Server, body)
 	if err != nil {
@@ -6876,9 +6883,9 @@ func (c *Client) CommentOnIssue(ctx context.Context, body CommentOnIssueJSONRequ
 //
 // What the issue dialog shows: the description, the conversation in
 // order, and the thumbs up and thumbs down reactions on each with who
-// gave them. The same shape and rules as GET /api/pull-requests/details
+// gave them. The same shape and rules as GET /api/v1/pull-requests/details
 // without the release notes, which only a pull request has. Fetched live
-// on every call, never as part of GET /api/dashboard's snapshot.
+// on every call, never as part of GET /api/v1/dashboard's snapshot.
 //
 // GitHub answers with one GraphQL query. Forgejo costs one call for the
 // issue, one for its comments, one for the description's reactions and
@@ -6894,11 +6901,11 @@ func (c *Client) CommentOnIssue(ctx context.Context, body CommentOnIssueJSONRequ
 // number. An avatar is the forge's own URL, passed through unchanged and
 // never proxied.
 //
-// The error answers are those of GET /api/pull-requests/details, with
+// The error answers are those of GET /api/v1/pull-requests/details, with
 // the same codes. An issue that doesn't exist is a 404, and a forge that
 // can't be read is an error, never an empty thread.
 //
-// Corresponds with GET /api/issues/details (the `GetIssueDetails` operationId).
+// Corresponds with GET /api/v1/issues/details (the `GetIssueDetails` operationId).
 func (c *Client) GetIssueDetails(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetIssueDetailsRequest(c.Server, params)
 	if err != nil {
@@ -6927,7 +6934,7 @@ func (c *Client) GetIssueDetails(ctx context.Context, params *GetIssueDetailsPar
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+// Corresponds with POST /api/v1/issues/reopen (the `ReopenIssue` operationId).
 func (c *Client) ReopenIssueWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReopenIssueRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -6956,7 +6963,7 @@ func (c *Client) ReopenIssueWithBody(ctx context.Context, contentType string, bo
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+// Corresponds with POST /api/v1/issues/reopen (the `ReopenIssue` operationId).
 func (c *Client) ReopenIssue(ctx context.Context, body ReopenIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReopenIssueRequest(c.Server, body)
 	if err != nil {
@@ -6992,7 +6999,7 @@ func (c *Client) ReopenIssue(ctx context.Context, body ReopenIssueJSONRequestBod
 //
 // A forge that can't be reached keeps its last known rows, each marked
 // `staleSince`, the same carry-over `forges[].staleSince`
-// on GET /api/dashboard reports. A forge whose rate-limit budget is
+// on GET /api/v1/dashboard reports. A forge whose rate-limit budget is
 // spent is skipped until it resets and its rows are kept the same way.
 // Only the signed-in user's own repositories.
 //
@@ -7000,7 +7007,7 @@ func (c *Client) ReopenIssue(ctx context.Context, body ReopenIssueJSONRequestBod
 // status `none`. Unauthenticated GitHub access (a username with no
 // token) has no rows: its budget is too small to spend on this.
 //
-// Corresponds with GET /api/main-branches (the `GetMainBranches` operationId).
+// Corresponds with GET /api/v1/main-branches (the `GetMainBranches` operationId).
 func (c *Client) GetMainBranches(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetMainBranchesRequest(c.Server)
 	if err != nil {
@@ -7019,7 +7026,7 @@ func (c *Client) GetMainBranches(ctx context.Context, reqEditors ...RequestEdito
 // repository: each open Dependabot alert with the fields GitHub's own
 // alert page shows. The list and the detail view are the same answer, so
 // opening one advisory costs no second call. Fetched live on every call,
-// never as part of GET /api/main-branches' snapshot, so a repository
+// never as part of GET /api/v1/main-branches' snapshot, so a repository
 // nobody opens costs no budget.
 //
 // Sorted by severity, highest first, then newest first. GitHub reads them
@@ -7047,7 +7054,7 @@ func (c *Client) GetMainBranches(ctx context.Context, reqEditors ...RequestEdito
 // The same answer is the `get_repository_advisories` tool, over MCP and
 // WebMCP.
 //
-// Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
+// Corresponds with GET /api/v1/main-branches/advisories (the `ListAdvisories` operationId).
 func (c *Client) ListAdvisories(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListAdvisoriesRequest(c.Server, params)
 	if err != nil {
@@ -7062,7 +7069,7 @@ func (c *Client) ListAdvisories(ctx context.Context, params *ListAdvisoriesParam
 
 // RerunMainBranchChecksWithBody Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 //
-// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
+// The branch twin of POST /api/v1/pull-requests/rerun-checks. Asks the forge
 // to rerun the failed jobs of the Actions workflow runs on the commit
 // the branch's job list shows, and nothing that passed. It
 // answers once the forge has queued them, not when they finish, so a
@@ -7080,7 +7087,7 @@ func (c *Client) ListAdvisories(ctx context.Context, params *ListAdvisoriesParam
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
+// Corresponds with POST /api/v1/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
 func (c *Client) RerunMainBranchChecksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRerunMainBranchChecksRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7095,7 +7102,7 @@ func (c *Client) RerunMainBranchChecksWithBody(ctx context.Context, contentType 
 
 // RerunMainBranchChecks Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 //
-// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
+// The branch twin of POST /api/v1/pull-requests/rerun-checks. Asks the forge
 // to rerun the failed jobs of the Actions workflow runs on the commit
 // the branch's job list shows, and nothing that passed. It
 // answers once the forge has queued them, not when they finish, so a
@@ -7113,7 +7120,7 @@ func (c *Client) RerunMainBranchChecksWithBody(ctx context.Context, contentType 
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
+// Corresponds with POST /api/v1/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
 func (c *Client) RerunMainBranchChecks(ctx context.Context, body RerunMainBranchChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRerunMainBranchChecksRequest(c.Server, body)
 	if err != nil {
@@ -7153,7 +7160,7 @@ func (c *Client) RerunMainBranchChecks(ctx context.Context, body RerunMainBranch
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+// Corresponds with POST /api/v1/presence (the `ReportDashboardPresence` operationId).
 func (c *Client) ReportDashboardPresenceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReportDashboardPresenceRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7193,7 +7200,7 @@ func (c *Client) ReportDashboardPresenceWithBody(ctx context.Context, contentTyp
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+// Corresponds with POST /api/v1/presence (the `ReportDashboardPresence` operationId).
 func (c *Client) ReportDashboardPresence(ctx context.Context, body ReportDashboardPresenceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReportDashboardPresenceRequest(c.Server, body)
 	if err != nil {
@@ -7247,7 +7254,7 @@ func (c *Client) ReportDashboardPresence(ctx context.Context, body ReportDashboa
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
 func (c *Client) EnablePullRequestAutoMergeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEnablePullRequestAutoMergeRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7301,7 +7308,7 @@ func (c *Client) EnablePullRequestAutoMergeWithBody(ctx context.Context, content
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
 func (c *Client) EnablePullRequestAutoMerge(ctx context.Context, body EnablePullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEnablePullRequestAutoMergeRequest(c.Server, body)
 	if err != nil {
@@ -7316,7 +7323,7 @@ func (c *Client) EnablePullRequestAutoMerge(ctx context.Context, body EnablePull
 
 // CancelPullRequestAutoMergeWithBody Cancel auto-merge on a pull request, on the signed-in user's behalf
 //
-// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+// Forgejo: removes the intent stored by `POST /api/v1/pull-requests/auto-merge`,
 // so the background pass never merges the pull request. Nothing is sent
 // to the forge. Idempotent: a pull request with no intent is a 204 too.
 //
@@ -7328,7 +7335,7 @@ func (c *Client) EnablePullRequestAutoMerge(ctx context.Context, body EnablePull
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 func (c *Client) CancelPullRequestAutoMergeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCancelPullRequestAutoMergeRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7343,7 +7350,7 @@ func (c *Client) CancelPullRequestAutoMergeWithBody(ctx context.Context, content
 
 // CancelPullRequestAutoMerge Cancel auto-merge on a pull request, on the signed-in user's behalf
 //
-// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+// Forgejo: removes the intent stored by `POST /api/v1/pull-requests/auto-merge`,
 // so the background pass never merges the pull request. Nothing is sent
 // to the forge. Idempotent: a pull request with no intent is a 204 too.
 //
@@ -7355,7 +7362,7 @@ func (c *Client) CancelPullRequestAutoMergeWithBody(ctx context.Context, content
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 func (c *Client) CancelPullRequestAutoMerge(ctx context.Context, body CancelPullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCancelPullRequestAutoMergeRequest(c.Server, body)
 	if err != nil {
@@ -7372,20 +7379,20 @@ func (c *Client) CancelPullRequestAutoMerge(ctx context.Context, body CancelPull
 //
 // A pure local write: nothing is sent to the forge. The choice is kept
 // only while it differs from the repo's auto-update setting
-// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+// (`/api/v1/repos/auto-update-branch/enable`), so a choice that matches
 // the repo is dropped and the pull request follows the repo again, and
 // a later change to the repo's setting reaches it. With `enabled`
 // `null` or absent the pull request goes back to its repo's setting.
 // Idempotent. A draft and a release-please pull request are never
 // updated automatically, whatever is chosen: `autoUpdate.unavailable`
-// in GET /api/dashboard says so. The server forgets the choice once
+// in GET /api/v1/dashboard says so. The server forgets the choice once
 // the pull request is no longer open, its repo is no longer tracked, or
 // the repo's setting changes to match it. A pull request the dashboard
 // doesn't hold is a 404.
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
 func (c *Client) SetPullRequestAutoUpdateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetPullRequestAutoUpdateRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7402,20 +7409,20 @@ func (c *Client) SetPullRequestAutoUpdateWithBody(ctx context.Context, contentTy
 //
 // A pure local write: nothing is sent to the forge. The choice is kept
 // only while it differs from the repo's auto-update setting
-// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+// (`/api/v1/repos/auto-update-branch/enable`), so a choice that matches
 // the repo is dropped and the pull request follows the repo again, and
 // a later change to the repo's setting reaches it. With `enabled`
 // `null` or absent the pull request goes back to its repo's setting.
 // Idempotent. A draft and a release-please pull request are never
 // updated automatically, whatever is chosen: `autoUpdate.unavailable`
-// in GET /api/dashboard says so. The server forgets the choice once
+// in GET /api/v1/dashboard says so. The server forgets the choice once
 // the pull request is no longer open, its repo is no longer tracked, or
 // the repo's setting changes to match it. A pull request the dashboard
 // doesn't hold is a 404.
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
 func (c *Client) SetPullRequestAutoUpdate(ctx context.Context, body SetPullRequestAutoUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetPullRequestAutoUpdateRequest(c.Server, body)
 	if err != nil {
@@ -7445,7 +7452,7 @@ func (c *Client) SetPullRequestAutoUpdate(ctx context.Context, body SetPullReque
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/close (the `ClosePullRequest` operationId).
 func (c *Client) ClosePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewClosePullRequestRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7475,7 +7482,7 @@ func (c *Client) ClosePullRequestWithBody(ctx context.Context, contentType strin
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/close (the `ClosePullRequest` operationId).
 func (c *Client) ClosePullRequest(ctx context.Context, body ClosePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewClosePullRequestRequest(c.Server, body)
 	if err != nil {
@@ -7506,7 +7513,7 @@ func (c *Client) ClosePullRequest(ctx context.Context, body ClosePullRequestJSON
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
+// Corresponds with POST /api/v1/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
 func (c *Client) PostPullRequestDependabotActionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostPullRequestDependabotActionRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7537,7 +7544,7 @@ func (c *Client) PostPullRequestDependabotActionWithBody(ctx context.Context, co
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
+// Corresponds with POST /api/v1/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
 func (c *Client) PostPullRequestDependabotAction(ctx context.Context, body PostPullRequestDependabotActionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostPullRequestDependabotActionRequest(c.Server, body)
 	if err != nil {
@@ -7556,7 +7563,7 @@ func (c *Client) PostPullRequestDependabotAction(ctx context.Context, body PostP
 // conversation in order, the thumbs up and thumbs down reactions on each
 // with who gave them, and, for a release pull request, the release
 // notes. Fetched live on every call, never as part of GET
-// /api/dashboard's snapshot: comments and reactions for every row would
+// /api/v1/dashboard's snapshot: comments and reactions for every row would
 // spend the forge's budget on rows nobody opens.
 //
 // GitHub answers with one GraphQL query. Forgejo costs one call for the
@@ -7576,11 +7583,11 @@ func (c *Client) PostPullRequestDependabotAction(ctx context.Context, body PostP
 // the browser loads it directly. A future policy's `img-src` has to
 // allow avatars.githubusercontent.com, repository-images.githubusercontent.com
 // (a GitHub repository's logo, see `logoUrl` on a repo in GET
-// /api/dashboard) and the Forgejo host.
+// /api/v1/dashboard) and the Forgejo host.
 //
 // A forge that can't be read is an error, never an empty thread.
 //
-// Corresponds with GET /api/pull-requests/details (the `GetPullRequestDetails` operationId).
+// Corresponds with GET /api/v1/pull-requests/details (the `GetPullRequestDetails` operationId).
 func (c *Client) GetPullRequestDetails(ctx context.Context, params *GetPullRequestDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetPullRequestDetailsRequest(c.Server, params)
 	if err != nil {
@@ -7597,12 +7604,12 @@ func (c *Client) GetPullRequestDetails(ctx context.Context, params *GetPullReque
 //
 // Reversible, not destructive, like ignoring a repo: nothing is sent to
 // the forge. A hidden pull request leaves `pullRequests` in
-// GET /api/dashboard and everything counted from it, and is counted in
+// GET /api/v1/dashboard and everything counted from it, and is counted in
 // `hiddenPullRequests` instead. It stays listed for
 // `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
 //
 // With `days`, the hide ends by itself that many days from now. Without
-// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+// it the pull request stays hidden until `POST /api/v1/pull-requests/unhide`.
 // A repeat call replaces the earlier choice (hide until restored, then
 // hide for 7 days, ends with the 7 days). The server forgets the record
 // once the pull request is no longer open, so the list never grows
@@ -7611,7 +7618,7 @@ func (c *Client) GetPullRequestDetails(ctx context.Context, params *GetPullReque
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/hide (the `HidePullRequest` operationId).
 func (c *Client) HidePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewHidePullRequestRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7628,12 +7635,12 @@ func (c *Client) HidePullRequestWithBody(ctx context.Context, contentType string
 //
 // Reversible, not destructive, like ignoring a repo: nothing is sent to
 // the forge. A hidden pull request leaves `pullRequests` in
-// GET /api/dashboard and everything counted from it, and is counted in
+// GET /api/v1/dashboard and everything counted from it, and is counted in
 // `hiddenPullRequests` instead. It stays listed for
 // `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
 //
 // With `days`, the hide ends by itself that many days from now. Without
-// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+// it the pull request stays hidden until `POST /api/v1/pull-requests/unhide`.
 // A repeat call replaces the earlier choice (hide until restored, then
 // hide for 7 days, ends with the 7 days). The server forgets the record
 // once the pull request is no longer open, so the list never grows
@@ -7642,7 +7649,7 @@ func (c *Client) HidePullRequestWithBody(ctx context.Context, contentType string
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/hide (the `HidePullRequest` operationId).
 func (c *Client) HidePullRequest(ctx context.Context, body HidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewHidePullRequestRequest(c.Server, body)
 	if err != nil {
@@ -7686,7 +7693,7 @@ func (c *Client) HidePullRequest(ctx context.Context, body HidePullRequestJSONRe
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/merge (the `MergePullRequest` operationId).
 func (c *Client) MergePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewMergePullRequestRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7730,7 +7737,7 @@ func (c *Client) MergePullRequestWithBody(ctx context.Context, contentType strin
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/merge (the `MergePullRequest` operationId).
 func (c *Client) MergePullRequest(ctx context.Context, body MergePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewMergePullRequestRequest(c.Server, body)
 	if err != nil {
@@ -7767,7 +7774,7 @@ func (c *Client) MergePullRequest(ctx context.Context, body MergePullRequestJSON
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
+// Corresponds with POST /api/v1/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 func (c *Client) PostPullRequestRenovateRebaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostPullRequestRenovateRebaseRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7804,7 +7811,7 @@ func (c *Client) PostPullRequestRenovateRebaseWithBody(ctx context.Context, cont
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
+// Corresponds with POST /api/v1/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 func (c *Client) PostPullRequestRenovateRebase(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostPullRequestRenovateRebaseRequest(c.Server, body)
 	if err != nil {
@@ -7834,7 +7841,7 @@ func (c *Client) PostPullRequestRenovateRebase(ctx context.Context, body PostPul
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+// Corresponds with POST /api/v1/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
 func (c *Client) CancelPullRequestRenovateRebaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCancelPullRequestRenovateRebaseRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7864,7 +7871,7 @@ func (c *Client) CancelPullRequestRenovateRebaseWithBody(ctx context.Context, co
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+// Corresponds with POST /api/v1/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
 func (c *Client) CancelPullRequestRenovateRebase(ctx context.Context, body CancelPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCancelPullRequestRenovateRebaseRequest(c.Server, body)
 	if err != nil {
@@ -7899,7 +7906,7 @@ func (c *Client) CancelPullRequestRenovateRebase(ctx context.Context, body Cance
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/reopen (the `ReopenPullRequest` operationId).
 func (c *Client) ReopenPullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReopenPullRequestRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -7934,7 +7941,7 @@ func (c *Client) ReopenPullRequestWithBody(ctx context.Context, contentType stri
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/reopen (the `ReopenPullRequest` operationId).
 func (c *Client) ReopenPullRequest(ctx context.Context, body ReopenPullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReopenPullRequestRequest(c.Server, body)
 	if err != nil {
@@ -7994,7 +8001,7 @@ func (c *Client) ReopenPullRequest(ctx context.Context, body ReopenPullRequestJS
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+// Corresponds with POST /api/v1/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRerunPullRequestChecksRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8054,7 +8061,7 @@ func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+// Corresponds with POST /api/v1/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 func (c *Client) RerunPullRequestChecks(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRerunPullRequestChecksRequest(c.Server, body)
 	if err != nil {
@@ -8069,12 +8076,12 @@ func (c *Client) RerunPullRequestChecks(ctx context.Context, body RerunPullReque
 
 // UnhidePullRequestWithBody Bring a hidden pull request back onto the signed-in user's dashboard
 //
-// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+// The reverse of POST /api/v1/pull-requests/hide. Idempotent: restoring a
 // pull request that isn't hidden is a 204 too.
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/unhide (the `UnhidePullRequest` operationId).
 func (c *Client) UnhidePullRequestWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUnhidePullRequestRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8089,12 +8096,12 @@ func (c *Client) UnhidePullRequestWithBody(ctx context.Context, contentType stri
 
 // UnhidePullRequest Bring a hidden pull request back onto the signed-in user's dashboard
 //
-// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+// The reverse of POST /api/v1/pull-requests/hide. Idempotent: restoring a
 // pull request that isn't hidden is a 204 too.
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/unhide (the `UnhidePullRequest` operationId).
 func (c *Client) UnhidePullRequest(ctx context.Context, body UnhidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUnhidePullRequestRequest(c.Server, body)
 	if err != nil {
@@ -8125,7 +8132,7 @@ func (c *Client) UnhidePullRequest(ctx context.Context, body UnhidePullRequestJS
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
+// Corresponds with POST /api/v1/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
 func (c *Client) UpdatePullRequestBranchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdatePullRequestBranchRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8156,7 +8163,7 @@ func (c *Client) UpdatePullRequestBranchWithBody(ctx context.Context, contentTyp
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
+// Corresponds with POST /api/v1/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
 func (c *Client) UpdatePullRequestBranch(ctx context.Context, body UpdatePullRequestBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdatePullRequestBranchRequest(c.Server, body)
 	if err != nil {
@@ -8175,9 +8182,9 @@ func (c *Client) UpdatePullRequestBranch(ctx context.Context, body UpdatePullReq
 // resets, oldest first: the ones still `queued`, and the
 // final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
 // client can show the outcome in its Activity list. The same list
-// rides along on GET /api/dashboard as `queuedActions`.
+// rides along on GET /api/v1/dashboard as `queuedActions`.
 //
-// Corresponds with GET /api/queued-actions (the `ListQueuedActions` operationId).
+// Corresponds with GET /api/v1/queued-actions (the `ListQueuedActions` operationId).
 func (c *Client) ListQueuedActions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListQueuedActionsRequest(c.Server)
 	if err != nil {
@@ -8216,7 +8223,7 @@ func (c *Client) ListQueuedActions(ctx context.Context, reqEditors ...RequestEdi
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+// Corresponds with POST /api/v1/queued-actions (the `QueueAction` operationId).
 func (c *Client) QueueActionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewQueueActionRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8255,7 +8262,7 @@ func (c *Client) QueueActionWithBody(ctx context.Context, contentType string, bo
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+// Corresponds with POST /api/v1/queued-actions (the `QueueAction` operationId).
 func (c *Client) QueueAction(ctx context.Context, body QueueActionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewQueueActionRequest(c.Server, body)
 	if err != nil {
@@ -8274,7 +8281,7 @@ func (c *Client) QueueAction(ctx context.Context, body QueueActionJSONRequestBod
 // finished one is cleared from the list. An id that isn't the
 // signed-in user's answers 404, the same as one that doesn't exist.
 //
-// Corresponds with DELETE /api/queued-actions/{id} (the `CancelQueuedAction` operationId).
+// Corresponds with DELETE /api/v1/queued-actions/{id} (the `CancelQueuedAction` operationId).
 func (c *Client) CancelQueuedAction(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCancelQueuedActionRequest(c.Server, id)
 	if err != nil {
@@ -8292,7 +8299,7 @@ func (c *Client) CancelQueuedAction(ctx context.Context, id string, reqEditors .
 // What the release dialog on the Main branches page shows for a
 // repository's latest published release: its title, when it was
 // published, its notes and the thumbs reactions on them. Fetched live on
-// every call, never as part of GET /api/main-branches' snapshot, so a
+// every call, never as part of GET /api/v1/main-branches' snapshot, so a
 // release nobody opens costs no budget.
 //
 // GitHub answers with one GraphQL query. Only GitHub rows carry a latest
@@ -8304,11 +8311,11 @@ func (c *Client) CancelQueuedAction(ctx context.Context, id string, reqEditors .
 // 20,000 characters (`truncated`), and a reaction names at most its
 // first 10 people while `count` is the full number.
 //
-// The error answers are those of GET /api/pull-requests/details, with
+// The error answers are those of GET /api/v1/pull-requests/details, with
 // the same codes. A tag that has no published release is a 404, and so is a draft,
 // a pre-release or a release with no publish date.
 //
-// Corresponds with GET /api/releases/details (the `GetReleaseDetails` operationId).
+// Corresponds with GET /api/v1/releases/details (the `GetReleaseDetails` operationId).
 func (c *Client) GetReleaseDetails(ctx context.Context, params *GetReleaseDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetReleaseDetailsRequest(c.Server, params)
 	if err != nil {
@@ -8323,13 +8330,13 @@ func (c *Client) GetReleaseDetails(ctx context.Context, params *GetReleaseDetail
 
 // DisableAutoUpdateBranchWithBody Turn off automatic branch updates for one tracked repo
 //
-// The reverse of POST /api/repos/auto-update-branch/enable.
+// The reverse of POST /api/v1/repos/auto-update-branch/enable.
 // Idempotent: disabling a repo that was never enabled is a no-op,
 // not an error.
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
+// Corresponds with POST /api/v1/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
 func (c *Client) DisableAutoUpdateBranchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDisableAutoUpdateBranchRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8344,13 +8351,13 @@ func (c *Client) DisableAutoUpdateBranchWithBody(ctx context.Context, contentTyp
 
 // DisableAutoUpdateBranch Turn off automatic branch updates for one tracked repo
 //
-// The reverse of POST /api/repos/auto-update-branch/enable.
+// The reverse of POST /api/v1/repos/auto-update-branch/enable.
 // Idempotent: disabling a repo that was never enabled is a no-op,
 // not an error.
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
+// Corresponds with POST /api/v1/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
 func (c *Client) DisableAutoUpdateBranch(ctx context.Context, body DisableAutoUpdateBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDisableAutoUpdateBranchRequest(c.Server, body)
 	if err != nil {
@@ -8374,7 +8381,7 @@ func (c *Client) DisableAutoUpdateBranch(ctx context.Context, body DisableAutoUp
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
+// Corresponds with POST /api/v1/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
 func (c *Client) EnableAutoUpdateBranchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEnableAutoUpdateBranchRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8398,7 +8405,7 @@ func (c *Client) EnableAutoUpdateBranchWithBody(ctx context.Context, contentType
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
+// Corresponds with POST /api/v1/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
 func (c *Client) EnableAutoUpdateBranch(ctx context.Context, body EnableAutoUpdateBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEnableAutoUpdateBranchRequest(c.Server, body)
 	if err != nil {
@@ -8414,7 +8421,7 @@ func (c *Client) EnableAutoUpdateBranch(ctx context.Context, body EnableAutoUpda
 // IgnoreRepoWithBody Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 //
 // Reversible, not destructive: the repo itself keeps
-// appearing in GET /api/dashboard's `repos` array with accurate
+// appearing in GET /api/v1/dashboard's `repos` array with accurate
 // webhook-coverage status, and keeps being fetched and counted —
 // only the pullRequests and/or issues entries the request scopes
 // stop appearing there and on Insights. A repeat call
@@ -8425,7 +8432,7 @@ func (c *Client) EnableAutoUpdateBranch(ctx context.Context, body EnableAutoUpda
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
+// Corresponds with POST /api/v1/repos/ignore (the `IgnoreRepo` operationId).
 func (c *Client) IgnoreRepoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewIgnoreRepoRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8441,7 +8448,7 @@ func (c *Client) IgnoreRepoWithBody(ctx context.Context, contentType string, bod
 // IgnoreRepo Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 //
 // Reversible, not destructive: the repo itself keeps
-// appearing in GET /api/dashboard's `repos` array with accurate
+// appearing in GET /api/v1/dashboard's `repos` array with accurate
 // webhook-coverage status, and keeps being fetched and counted —
 // only the pullRequests and/or issues entries the request scopes
 // stop appearing there and on Insights. A repeat call
@@ -8452,7 +8459,7 @@ func (c *Client) IgnoreRepoWithBody(ctx context.Context, contentType string, bod
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
+// Corresponds with POST /api/v1/repos/ignore (the `IgnoreRepo` operationId).
 func (c *Client) IgnoreRepo(ctx context.Context, body IgnoreRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewIgnoreRepoRequest(c.Server, body)
 	if err != nil {
@@ -8467,12 +8474,12 @@ func (c *Client) IgnoreRepo(ctx context.Context, body IgnoreRepoJSONRequestBody,
 
 // DisableRebaseBotsWithBody Stop rebasing Dependabot and Renovate pull requests for one tracked repo
 //
-// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+// The reverse of POST /api/v1/repos/rebase-bots/enable. Idempotent:
 // disabling a repo that was never enabled is a no-op, not an error.
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+// Corresponds with POST /api/v1/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
 func (c *Client) DisableRebaseBotsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDisableRebaseBotsRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8487,12 +8494,12 @@ func (c *Client) DisableRebaseBotsWithBody(ctx context.Context, contentType stri
 
 // DisableRebaseBots Stop rebasing Dependabot and Renovate pull requests for one tracked repo
 //
-// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+// The reverse of POST /api/v1/repos/rebase-bots/enable. Idempotent:
 // disabling a repo that was never enabled is a no-op, not an error.
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+// Corresponds with POST /api/v1/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
 func (c *Client) DisableRebaseBots(ctx context.Context, body DisableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDisableRebaseBotsRequest(c.Server, body)
 	if err != nil {
@@ -8518,7 +8525,7 @@ func (c *Client) DisableRebaseBots(ctx context.Context, body DisableRebaseBotsJS
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+// Corresponds with POST /api/v1/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
 func (c *Client) EnableRebaseBotsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEnableRebaseBotsRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8544,7 +8551,7 @@ func (c *Client) EnableRebaseBotsWithBody(ctx context.Context, contentType strin
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+// Corresponds with POST /api/v1/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
 func (c *Client) EnableRebaseBots(ctx context.Context, body EnableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEnableRebaseBotsRequest(c.Server, body)
 	if err != nil {
@@ -8559,12 +8566,12 @@ func (c *Client) EnableRebaseBots(ctx context.Context, body EnableRebaseBotsJSON
 
 // UnignoreRepoWithBody Stop ignoring one tracked repo
 //
-// The reverse of POST /api/repos/ignore. Idempotent: un-ignoring a
+// The reverse of POST /api/v1/repos/ignore. Idempotent: un-ignoring a
 // repo that was never ignored is a no-op, not an error.
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/repos/unignore (the `UnignoreRepo` operationId).
+// Corresponds with POST /api/v1/repos/unignore (the `UnignoreRepo` operationId).
 func (c *Client) UnignoreRepoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUnignoreRepoRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8579,12 +8586,12 @@ func (c *Client) UnignoreRepoWithBody(ctx context.Context, contentType string, b
 
 // UnignoreRepo Stop ignoring one tracked repo
 //
-// The reverse of POST /api/repos/ignore. Idempotent: un-ignoring a
+// The reverse of POST /api/v1/repos/ignore. Idempotent: un-ignoring a
 // repo that was never ignored is a no-op, not an error.
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/repos/unignore (the `UnignoreRepo` operationId).
+// Corresponds with POST /api/v1/repos/unignore (the `UnignoreRepo` operationId).
 func (c *Client) UnignoreRepo(ctx context.Context, body UnignoreRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUnignoreRepoRequest(c.Server, body)
 	if err != nil {
@@ -8603,9 +8610,9 @@ func (c *Client) UnignoreRepo(ctx context.Context, body UnignoreRepoJSONRequestB
 // webhook token and secret are returned, since the user pastes them
 // into the forge's webhook setup, and a first read creates them. For
 // a read that creates nothing and omits both, see
-// `GET /api/settings/summary`.
+// `GET /api/v1/settings/summary`.
 //
-// Corresponds with GET /api/settings (the `GetSettings` operationId).
+// Corresponds with GET /api/v1/settings (the `GetSettings` operationId).
 func (c *Client) GetSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSettingsRequest(c.Server)
 	if err != nil {
@@ -8628,7 +8635,7 @@ func (c *Client) GetSettings(ctx context.Context, reqEditors ...RequestEditorFn)
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with PUT /api/settings (the `PutSettings` operationId).
+// Corresponds with PUT /api/v1/settings (the `PutSettings` operationId).
 func (c *Client) PutSettingsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutSettingsRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8651,7 +8658,7 @@ func (c *Client) PutSettingsWithBody(ctx context.Context, contentType string, bo
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with PUT /api/settings (the `PutSettings` operationId).
+// Corresponds with PUT /api/v1/settings (the `PutSettings` operationId).
 func (c *Client) PutSettings(ctx context.Context, body PutSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPutSettingsRequest(c.Server, body)
 	if err != nil {
@@ -8667,14 +8674,14 @@ func (c *Client) PutSettings(ctx context.Context, body PutSettingsJSONRequestBod
 // GetFilterState The signed-in user's own saved dashboard/Insights filter state
 //
 // A lightweight read of one opaque blob, deliberately not
-// GET /api/settings itself for the same reason GET /api/settings/theme
+// GET /api/v1/settings itself for the same reason GET /api/v1/settings/theme
 // isn't either: this loads on every dashboard/Insights visit and
 // shouldn't provision webhook credentials as a side effect.
 // `{}` for a user who's never saved any filters yet, not a 404.
 // These are the web UI's own state: a signed-in browser session only,
 // and a personal API token is refused with 403.
 //
-// Corresponds with GET /api/settings/filter-state (the `GetFilterState` operationId).
+// Corresponds with GET /api/v1/settings/filter-state (the `GetFilterState` operationId).
 func (c *Client) GetFilterState(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetFilterStateRequest(c.Server)
 	if err != nil {
@@ -8690,7 +8697,7 @@ func (c *Client) GetFilterState(ctx context.Context, reqEditors ...RequestEditor
 // SetFilterStateWithBody Save the signed-in user's own dashboard/Insights filter state
 //
 // A dedicated, lightweight save separate from the main
-// PUT /api/settings — filters change on nearly every click, a
+// PUT /api/v1/settings — filters change on nearly every click, a
 // mismatch for that endpoint's "always a full form submit"
 // convention. The body replaces the saved state entirely,
 // the same "always a full submit, just of a much smaller and
@@ -8704,7 +8711,7 @@ func (c *Client) GetFilterState(ctx context.Context, reqEditors ...RequestEditor
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with PUT /api/settings/filter-state (the `SetFilterState` operationId).
+// Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
 func (c *Client) SetFilterStateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetFilterStateRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8720,7 +8727,7 @@ func (c *Client) SetFilterStateWithBody(ctx context.Context, contentType string,
 // SetFilterState Save the signed-in user's own dashboard/Insights filter state
 //
 // A dedicated, lightweight save separate from the main
-// PUT /api/settings — filters change on nearly every click, a
+// PUT /api/v1/settings — filters change on nearly every click, a
 // mismatch for that endpoint's "always a full form submit"
 // convention. The body replaces the saved state entirely,
 // the same "always a full submit, just of a much smaller and
@@ -8734,7 +8741,7 @@ func (c *Client) SetFilterStateWithBody(ctx context.Context, contentType string,
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with PUT /api/settings/filter-state (the `SetFilterState` operationId).
+// Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
 func (c *Client) SetFilterState(ctx context.Context, body SetFilterStateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetFilterStateRequest(c.Server, body)
 	if err != nil {
@@ -8749,14 +8756,14 @@ func (c *Client) SetFilterState(ctx context.Context, body SetFilterStateJSONRequ
 
 // GetSettingsSummary The signed-in user's settings, read without side effects
 //
-// The same data as `GET /api/settings`, minus the webhook token and
+// The same data as `GET /api/v1/settings`, minus the webhook token and
 // secret, plus `webhookConfigured`. It never provisions webhook
 // credentials: for a user who has none yet it answers
 // `webhookConfigured: false` and creates nothing. Forge tokens are
 // never returned, only whether one is set. It returns exactly what
 // the `get_settings` MCP tool returns.
 //
-// Corresponds with GET /api/settings/summary (the `GetSettingsSummary` operationId).
+// Corresponds with GET /api/v1/settings/summary (the `GetSettingsSummary` operationId).
 func (c *Client) GetSettingsSummary(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSettingsSummaryRequest(c.Server)
 	if err != nil {
@@ -8773,12 +8780,12 @@ func (c *Client) GetSettingsSummary(ctx context.Context, reqEditors ...RequestEd
 //
 // A lightweight, side-effect-free read of one field — theme — for
 // every page to check on load. Deliberately not
-// GET /api/settings itself: that handler also provisions webhook
+// GET /api/v1/settings itself: that handler also provisions webhook
 // credentials on first call (EnsureWebhookCredentials), which
 // every page loading shouldn't trigger for a user who's never
 // opened Settings at all.
 //
-// Corresponds with GET /api/settings/theme (the `GetTheme` operationId).
+// Corresponds with GET /api/v1/settings/theme (the `GetTheme` operationId).
 func (c *Client) GetTheme(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetThemeRequest(c.Server)
 	if err != nil {
@@ -8794,7 +8801,7 @@ func (c *Client) GetTheme(ctx context.Context, reqEditors ...RequestEditorFn) (*
 // SetThemeWithBody Save the signed-in user's own theme preference
 //
 // A dedicated, instant save — deliberately not routed
-// through the main PUT /api/settings, whose every other field is
+// through the main PUT /api/v1/settings, whose every other field is
 // a plain replace rather than a per-field merge: a request
 // carrying only theme through that handler would blank every
 // other saved setting. Picking a theme applies immediately, the
@@ -8804,7 +8811,7 @@ func (c *Client) GetTheme(ctx context.Context, reqEditors ...RequestEditorFn) (*
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with PUT /api/settings/theme (the `SetTheme` operationId).
+// Corresponds with PUT /api/v1/settings/theme (the `SetTheme` operationId).
 func (c *Client) SetThemeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetThemeRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8820,7 +8827,7 @@ func (c *Client) SetThemeWithBody(ctx context.Context, contentType string, body 
 // SetTheme Save the signed-in user's own theme preference
 //
 // A dedicated, instant save — deliberately not routed
-// through the main PUT /api/settings, whose every other field is
+// through the main PUT /api/v1/settings, whose every other field is
 // a plain replace rather than a per-field merge: a request
 // carrying only theme through that handler would blank every
 // other saved setting. Picking a theme applies immediately, the
@@ -8830,7 +8837,7 @@ func (c *Client) SetThemeWithBody(ctx context.Context, contentType string, body 
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with PUT /api/settings/theme (the `SetTheme` operationId).
+// Corresponds with PUT /api/v1/settings/theme (the `SetTheme` operationId).
 func (c *Client) SetTheme(ctx context.Context, body SetThemeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetThemeRequest(c.Server, body)
 	if err != nil {
@@ -8847,10 +8854,10 @@ func (c *Client) SetTheme(ctx context.Context, body SetThemeJSONRequestBody, req
 //
 // A lightweight, side-effect-free read of one field, for every page to
 // check on load so it can show times in the user's zone. Deliberately
-// not GET /api/settings, for the reason GET /api/settings/theme isn't.
+// not GET /api/v1/settings, for the reason GET /api/v1/settings/theme isn't.
 // Empty means "use the browser's own zone".
 //
-// Corresponds with GET /api/settings/timezone (the `GetTimezone` operationId).
+// Corresponds with GET /api/v1/settings/timezone (the `GetTimezone` operationId).
 func (c *Client) GetTimezone(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetTimezoneRequest(c.Server)
 	if err != nil {
@@ -8865,13 +8872,13 @@ func (c *Client) GetTimezone(ctx context.Context, reqEditors ...RequestEditorFn)
 
 // SetTimezoneWithBody Save the signed-in user's own time zone
 //
-// A dedicated, instant save, not routed through PUT /api/settings,
+// A dedicated, instant save, not routed through PUT /api/v1/settings,
 // which replaces every other field. Exists for browsers that report
 // UTC to every page, such as Firefox with fingerprint resistance.
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+// Corresponds with PUT /api/v1/settings/timezone (the `SetTimezone` operationId).
 func (c *Client) SetTimezoneWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetTimezoneRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8886,13 +8893,13 @@ func (c *Client) SetTimezoneWithBody(ctx context.Context, contentType string, bo
 
 // SetTimezone Save the signed-in user's own time zone
 //
-// A dedicated, instant save, not routed through PUT /api/settings,
+// A dedicated, instant save, not routed through PUT /api/v1/settings,
 // which replaces every other field. Exists for browsers that report
 // UTC to every page, such as Firefox with fingerprint resistance.
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+// Corresponds with PUT /api/v1/settings/timezone (the `SetTimezone` operationId).
 func (c *Client) SetTimezone(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetTimezoneRequest(c.Server, body)
 	if err != nil {
@@ -8937,9 +8944,9 @@ func (c *Client) SetTimezone(ctx context.Context, body SetTimezoneJSONRequestBod
 // the caller has saved, and a GitHub App installation id is a number the
 // caller types in, so until the dashboard has one user, someone who saves
 // another account's installation id sees that installation's counts. `budgets` are the rate limits each forge last
-// reported, the same figures as `forges` on GET /api/dashboard.
+// reported, the same figures as `forges` on GET /api/v1/dashboard.
 //
-// Corresponds with GET /api/stats/forge-api (the `GetForgeApiStats` operationId).
+// Corresponds with GET /api/v1/stats/forge-api (the `GetForgeApiStats` operationId).
 func (c *Client) GetForgeApiStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetForgeApiStatsRequest(c.Server)
 	if err != nil {
@@ -8956,7 +8963,7 @@ func (c *Client) GetForgeApiStats(ctx context.Context, reqEditors ...RequestEdit
 //
 // Metadata only, per APIToken's own description — a raw value never reappears once created.
 //
-// Corresponds with GET /api/tokens (the `ListAPITokens` operationId).
+// Corresponds with GET /api/v1/tokens (the `ListAPITokens` operationId).
 func (c *Client) ListAPITokens(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListAPITokensRequest(c.Server)
 	if err != nil {
@@ -8973,7 +8980,7 @@ func (c *Client) ListAPITokens(ctx context.Context, reqEditors ...RequestEditorF
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with POST /api/tokens (the `CreateAPIToken` operationId).
+// Corresponds with POST /api/v1/tokens (the `CreateAPIToken` operationId).
 func (c *Client) CreateAPITokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateAPITokenRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -8990,7 +8997,7 @@ func (c *Client) CreateAPITokenWithBody(ctx context.Context, contentType string,
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with POST /api/tokens (the `CreateAPIToken` operationId).
+// Corresponds with POST /api/v1/tokens (the `CreateAPIToken` operationId).
 func (c *Client) CreateAPIToken(ctx context.Context, body CreateAPITokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateAPITokenRequest(c.Server, body)
 	if err != nil {
@@ -9011,9 +9018,85 @@ func (c *Client) CreateAPIToken(ctx context.Context, body CreateAPITokenJSONRequ
 // endpoint here, so a double-click or a retried request isn't an
 // error.
 //
-// Corresponds with DELETE /api/tokens/{id} (the `DeleteAPIToken` operationId).
+// Corresponds with DELETE /api/v1/tokens/{id} (the `DeleteAPIToken` operationId).
 func (c *Client) DeleteAPIToken(ctx context.Context, id PathTokenID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteAPITokenRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EnsureWebhookWithBody Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
+//
+// Creates a webhook on the named repo, pointed at the signed-in
+// user's own webhook URL and secret, subscribed to the events
+// docs/webhooks.md's manual steps recommend. If one already exists
+// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
+// does — matching by URL path, not object identity) it's brought
+// back to active with the right events instead of creating a
+// duplicate.
+//
+// One of a small number of endpoints in this API that write to a
+// forge rather than just reading from it — see also the
+// pull-requests tag.
+//
+// A refusal from the forge (403, 404, 429 and 502) answers with the
+// same `ActionError` a refused pull request action does, so a client
+// reads one shape: `code` is `permission` or `rate_limited` where
+// the forge said so (with `resetsAt` for a rate limit), and
+// `unknown` otherwise, with a plain `message` either way. No new
+// code is needed: a repo the forge can't find is `unknown` with its
+// own message. 400 and 401 stay a plain `Error`, since they are
+// about the request, not a refusal by the forge.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
+func (c *Client) EnsureWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnsureWebhookRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EnsureWebhook Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
+//
+// Creates a webhook on the named repo, pointed at the signed-in
+// user's own webhook URL and secret, subscribed to the events
+// docs/webhooks.md's manual steps recommend. If one already exists
+// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
+// does — matching by URL path, not object identity) it's brought
+// back to active with the right events instead of creating a
+// duplicate.
+//
+// One of a small number of endpoints in this API that write to a
+// forge rather than just reading from it — see also the
+// pull-requests tag.
+//
+// A refusal from the forge (403, 404, 429 and 502) answers with the
+// same `ActionError` a refused pull request action does, so a client
+// reads one shape: `code` is `permission` or `rate_limited` where
+// the forge said so (with `resetsAt` for a rate limit), and
+// `unknown` otherwise, with a plain `message` either way. No new
+// code is needed: a repo the forge can't find is `unknown` with its
+// own message. 400 and 401 stay a plain `Error`, since they are
+// about the request, not a refusal by the forge.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
+func (c *Client) EnsureWebhook(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEnsureWebhookRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -9035,82 +9118,6 @@ func (c *Client) DeleteAPIToken(ctx context.Context, id PathTokenID, reqEditors 
 // Corresponds with GET /api/version (the `GetVersion` operationId).
 func (c *Client) GetVersion(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetVersionRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// EnsureWebhookWithBody Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-//
-// Creates a webhook on the named repo, pointed at the signed-in
-// user's own webhook URL and secret, subscribed to the events
-// docs/webhooks.md's manual steps recommend. If one already exists
-// there (found the same way GET /api/dashboard's own `hasWebhook`
-// does — matching by URL path, not object identity) it's brought
-// back to active with the right events instead of creating a
-// duplicate.
-//
-// One of a small number of endpoints in this API that write to a
-// forge rather than just reading from it — see also the
-// pull-requests tag.
-//
-// A refusal from the forge (403, 404, 429 and 502) answers with the
-// same `ActionError` a refused pull request action does, so a client
-// reads one shape: `code` is `permission` or `rate_limited` where
-// the forge said so (with `resetsAt` for a rate limit), and
-// `unknown` otherwise, with a plain `message` either way. No new
-// code is needed: a repo the forge can't find is `unknown` with its
-// own message. 400 and 401 stay a plain `Error`, since they are
-// about the request, not a refusal by the forge.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
-func (c *Client) EnsureWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEnsureWebhookRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// EnsureWebhook Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-//
-// Creates a webhook on the named repo, pointed at the signed-in
-// user's own webhook URL and secret, subscribed to the events
-// docs/webhooks.md's manual steps recommend. If one already exists
-// there (found the same way GET /api/dashboard's own `hasWebhook`
-// does — matching by URL path, not object identity) it's brought
-// back to active with the right events instead of creating a
-// duplicate.
-//
-// One of a small number of endpoints in this API that write to a
-// forge rather than just reading from it — see also the
-// pull-requests tag.
-//
-// A refusal from the forge (403, 404, 429 and 502) answers with the
-// same `ActionError` a refused pull request action does, so a client
-// reads one shape: `code` is `permission` or `rate_limited` where
-// the forge said so (with `resetsAt` for a rate limit), and
-// `unknown` otherwise, with a plain `message` either way. No new
-// code is needed: a repo the forge can't find is `unknown` with its
-// own message. 400 and 401 stay a plain `Error`, since they are
-// about the request, not a refusal by the forge.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
-func (c *Client) EnsureWebhook(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEnsureWebhookRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -9289,7 +9296,7 @@ func NewListCredentialsRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/credentials")
+	operationPath := fmt.Sprintf("/api/v1/auth/credentials")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9316,7 +9323,7 @@ func NewBeginAddCredentialRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/credentials/begin")
+	operationPath := fmt.Sprintf("/api/v1/auth/credentials/begin")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9354,7 +9361,7 @@ func NewFinishAddCredentialRequestWithBody(server string, params *FinishAddCrede
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/credentials/finish")
+	operationPath := fmt.Sprintf("/api/v1/auth/credentials/finish")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9413,7 +9420,7 @@ func NewDeleteCredentialRequest(server string, id string) (*http.Request, error)
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/credentials/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/auth/credentials/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9458,7 +9465,7 @@ func NewRenameCredentialRequestWithBody(server string, id string, contentType st
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/credentials/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/auth/credentials/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9487,7 +9494,7 @@ func NewBeginLoginRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/login/begin")
+	operationPath := fmt.Sprintf("/api/v1/auth/login/begin")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9525,7 +9532,7 @@ func NewFinishLoginRequestWithBody(server string, contentType string, body io.Re
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/login/finish")
+	operationPath := fmt.Sprintf("/api/v1/auth/login/finish")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9554,7 +9561,7 @@ func NewLogoutRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/logout")
+	operationPath := fmt.Sprintf("/api/v1/auth/logout")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9581,7 +9588,7 @@ func NewBeginRegistrationRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/register/begin")
+	operationPath := fmt.Sprintf("/api/v1/auth/register/begin")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9619,7 +9626,7 @@ func NewFinishRegistrationRequestWithBody(server string, contentType string, bod
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/register/finish")
+	operationPath := fmt.Sprintf("/api/v1/auth/register/finish")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9648,7 +9655,7 @@ func NewGetRegistrationStatusRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/registration-status")
+	operationPath := fmt.Sprintf("/api/v1/auth/registration-status")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9675,7 +9682,7 @@ func NewGetSessionRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/auth/session")
+	operationPath := fmt.Sprintf("/api/v1/auth/session")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9713,7 +9720,7 @@ func NewCancelWorkflowRunRequestWithBody(server string, contentType string, body
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/checks/cancel-run")
+	operationPath := fmt.Sprintf("/api/v1/checks/cancel-run")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9742,7 +9749,7 @@ func NewGetCheckLogRequest(server string, params *GetCheckLogParams) (*http.Requ
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/checks/log")
+	operationPath := fmt.Sprintf("/api/v1/checks/log")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9820,7 +9827,7 @@ func NewGetDashboardRequest(server string, params *GetDashboardParams) (*http.Re
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/dashboard")
+	operationPath := fmt.Sprintf("/api/v1/dashboard")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9901,7 +9908,7 @@ func NewRefreshDashboardRequest(server string, params *RefreshDashboardParams) (
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/dashboard/refresh")
+	operationPath := fmt.Sprintf("/api/v1/dashboard/refresh")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9967,7 +9974,7 @@ func NewStreamDashboardRequest(server string, params *StreamDashboardParams) (*h
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/dashboard/stream")
+	operationPath := fmt.Sprintf("/api/v1/dashboard/stream")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10056,7 +10063,7 @@ func NewWatchDashboardStreamChecksRequestWithBody(server string, contentType str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/dashboard/stream/watch")
+	operationPath := fmt.Sprintf("/api/v1/dashboard/stream/watch")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10096,7 +10103,7 @@ func NewCloseIssueRequestWithBody(server string, contentType string, body io.Rea
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/issues/close")
+	operationPath := fmt.Sprintf("/api/v1/issues/close")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10136,7 +10143,7 @@ func NewCommentOnIssueRequestWithBody(server string, contentType string, body io
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/issues/comment")
+	operationPath := fmt.Sprintf("/api/v1/issues/comment")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10165,7 +10172,7 @@ func NewGetIssueDetailsRequest(server string, params *GetIssueDetailsParams) (*h
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/issues/details")
+	operationPath := fmt.Sprintf("/api/v1/issues/details")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10242,7 +10249,7 @@ func NewReopenIssueRequestWithBody(server string, contentType string, body io.Re
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/issues/reopen")
+	operationPath := fmt.Sprintf("/api/v1/issues/reopen")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10271,7 +10278,7 @@ func NewGetMainBranchesRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/main-branches")
+	operationPath := fmt.Sprintf("/api/v1/main-branches")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10298,7 +10305,7 @@ func NewListAdvisoriesRequest(server string, params *ListAdvisoriesParams) (*htt
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/main-branches/advisories")
+	operationPath := fmt.Sprintf("/api/v1/main-branches/advisories")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10367,7 +10374,7 @@ func NewRerunMainBranchChecksRequestWithBody(server string, contentType string, 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/main-branches/rerun-checks")
+	operationPath := fmt.Sprintf("/api/v1/main-branches/rerun-checks")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10407,7 +10414,7 @@ func NewReportDashboardPresenceRequestWithBody(server string, contentType string
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/presence")
+	operationPath := fmt.Sprintf("/api/v1/presence")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10447,7 +10454,7 @@ func NewEnablePullRequestAutoMergeRequestWithBody(server string, contentType str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/auto-merge")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/auto-merge")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10487,7 +10494,7 @@ func NewCancelPullRequestAutoMergeRequestWithBody(server string, contentType str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/auto-merge/cancel")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/auto-merge/cancel")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10527,7 +10534,7 @@ func NewSetPullRequestAutoUpdateRequestWithBody(server string, contentType strin
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/auto-update")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/auto-update")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10567,7 +10574,7 @@ func NewClosePullRequestRequestWithBody(server string, contentType string, body 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/close")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/close")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10607,7 +10614,7 @@ func NewPostPullRequestDependabotActionRequestWithBody(server string, contentTyp
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/dependabot-action")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/dependabot-action")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10636,7 +10643,7 @@ func NewGetPullRequestDetailsRequest(server string, params *GetPullRequestDetail
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/details")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/details")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10713,7 +10720,7 @@ func NewHidePullRequestRequestWithBody(server string, contentType string, body i
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/hide")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/hide")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10753,7 +10760,7 @@ func NewMergePullRequestRequestWithBody(server string, contentType string, body 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/merge")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/merge")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10793,7 +10800,7 @@ func NewPostPullRequestRenovateRebaseRequestWithBody(server string, contentType 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/renovate-rebase")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/renovate-rebase")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10833,7 +10840,7 @@ func NewCancelPullRequestRenovateRebaseRequestWithBody(server string, contentTyp
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/renovate-rebase/cancel")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/renovate-rebase/cancel")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10873,7 +10880,7 @@ func NewReopenPullRequestRequestWithBody(server string, contentType string, body
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/reopen")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/reopen")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10913,7 +10920,7 @@ func NewRerunPullRequestChecksRequestWithBody(server string, contentType string,
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/rerun-checks")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/rerun-checks")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10953,7 +10960,7 @@ func NewUnhidePullRequestRequestWithBody(server string, contentType string, body
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/unhide")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/unhide")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10993,7 +11000,7 @@ func NewUpdatePullRequestBranchRequestWithBody(server string, contentType string
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/pull-requests/update-branch")
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/update-branch")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11022,7 +11029,7 @@ func NewListQueuedActionsRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/queued-actions")
+	operationPath := fmt.Sprintf("/api/v1/queued-actions")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11060,7 +11067,7 @@ func NewQueueActionRequestWithBody(server string, contentType string, body io.Re
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/queued-actions")
+	operationPath := fmt.Sprintf("/api/v1/queued-actions")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11096,7 +11103,7 @@ func NewCancelQueuedActionRequest(server string, id string) (*http.Request, erro
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/queued-actions/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/queued-actions/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11123,7 +11130,7 @@ func NewGetReleaseDetailsRequest(server string, params *GetReleaseDetailsParams)
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/releases/details")
+	operationPath := fmt.Sprintf("/api/v1/releases/details")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11200,7 +11207,7 @@ func NewDisableAutoUpdateBranchRequestWithBody(server string, contentType string
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/repos/auto-update-branch/disable")
+	operationPath := fmt.Sprintf("/api/v1/repos/auto-update-branch/disable")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11240,7 +11247,7 @@ func NewEnableAutoUpdateBranchRequestWithBody(server string, contentType string,
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/repos/auto-update-branch/enable")
+	operationPath := fmt.Sprintf("/api/v1/repos/auto-update-branch/enable")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11280,7 +11287,7 @@ func NewIgnoreRepoRequestWithBody(server string, contentType string, body io.Rea
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/repos/ignore")
+	operationPath := fmt.Sprintf("/api/v1/repos/ignore")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11320,7 +11327,7 @@ func NewDisableRebaseBotsRequestWithBody(server string, contentType string, body
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/repos/rebase-bots/disable")
+	operationPath := fmt.Sprintf("/api/v1/repos/rebase-bots/disable")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11360,7 +11367,7 @@ func NewEnableRebaseBotsRequestWithBody(server string, contentType string, body 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/repos/rebase-bots/enable")
+	operationPath := fmt.Sprintf("/api/v1/repos/rebase-bots/enable")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11400,7 +11407,7 @@ func NewUnignoreRepoRequestWithBody(server string, contentType string, body io.R
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/repos/unignore")
+	operationPath := fmt.Sprintf("/api/v1/repos/unignore")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11429,7 +11436,7 @@ func NewGetSettingsRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/settings")
+	operationPath := fmt.Sprintf("/api/v1/settings")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11467,7 +11474,7 @@ func NewPutSettingsRequestWithBody(server string, contentType string, body io.Re
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/settings")
+	operationPath := fmt.Sprintf("/api/v1/settings")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11496,7 +11503,7 @@ func NewGetFilterStateRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/settings/filter-state")
+	operationPath := fmt.Sprintf("/api/v1/settings/filter-state")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11534,7 +11541,7 @@ func NewSetFilterStateRequestWithBody(server string, contentType string, body io
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/settings/filter-state")
+	operationPath := fmt.Sprintf("/api/v1/settings/filter-state")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11563,7 +11570,7 @@ func NewGetSettingsSummaryRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/settings/summary")
+	operationPath := fmt.Sprintf("/api/v1/settings/summary")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11590,7 +11597,7 @@ func NewGetThemeRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/settings/theme")
+	operationPath := fmt.Sprintf("/api/v1/settings/theme")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11628,7 +11635,7 @@ func NewSetThemeRequestWithBody(server string, contentType string, body io.Reade
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/settings/theme")
+	operationPath := fmt.Sprintf("/api/v1/settings/theme")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11657,7 +11664,7 @@ func NewGetTimezoneRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/settings/timezone")
+	operationPath := fmt.Sprintf("/api/v1/settings/timezone")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11695,7 +11702,7 @@ func NewSetTimezoneRequestWithBody(server string, contentType string, body io.Re
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/settings/timezone")
+	operationPath := fmt.Sprintf("/api/v1/settings/timezone")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11724,7 +11731,7 @@ func NewGetForgeApiStatsRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/stats/forge-api")
+	operationPath := fmt.Sprintf("/api/v1/stats/forge-api")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11751,7 +11758,7 @@ func NewListAPITokensRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/tokens")
+	operationPath := fmt.Sprintf("/api/v1/tokens")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11789,7 +11796,7 @@ func NewCreateAPITokenRequestWithBody(server string, contentType string, body io
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/tokens")
+	operationPath := fmt.Sprintf("/api/v1/tokens")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11825,7 +11832,7 @@ func NewDeleteAPITokenRequest(server string, id PathTokenID) (*http.Request, err
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/tokens/%s", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/tokens/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11836,33 +11843,6 @@ func NewDeleteAPITokenRequest(server string, id PathTokenID) (*http.Request, err
 	}
 
 	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetVersionRequest constructs an http.Request for the GetVersion method
-func NewGetVersionRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/version")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -11890,7 +11870,7 @@ func NewEnsureWebhookRequestWithBody(server string, contentType string, body io.
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/webhooks/ensure")
+	operationPath := fmt.Sprintf("/api/v1/webhooks/ensure")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11906,6 +11886,33 @@ func NewEnsureWebhookRequestWithBody(server string, contentType string, body io.
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetVersionRequest constructs an http.Request for the GetVersion method
+func NewGetVersionRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/version")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -12109,12 +12116,12 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/auth/credentials (the `ListCredentials` operationId).
+	// Corresponds with GET /api/v1/auth/credentials (the `ListCredentials` operationId).
 	ListCredentialsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListCredentialsResponse, error)
 
 	// BeginAddCredentialWithResponse Start a ceremony to add another passkey to the signed-in account
 	//
-	// The authenticated counterpart to POST /api/auth/register/begin —
+	// The authenticated counterpart to POST /api/v1/auth/register/begin —
 	// that one only ever works for a brand-new, credential-less
 	// account; this is how an already-registered user adds a second
 	// (or third...) passkey, e.g. a laptop and a security key. Like the
@@ -12122,21 +12129,21 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/auth/credentials/begin (the `BeginAddCredential` operationId).
+	// Corresponds with POST /api/v1/auth/credentials/begin (the `BeginAddCredential` operationId).
 	BeginAddCredentialWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BeginAddCredentialResponse, error)
 
 	// FinishAddCredentialWithBodyWithResponse Complete an add-credential ceremony
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/auth/credentials/finish (the `FinishAddCredential` operationId).
+	// Corresponds with POST /api/v1/auth/credentials/finish (the `FinishAddCredential` operationId).
 	FinishAddCredentialWithBodyWithResponse(ctx context.Context, params *FinishAddCredentialParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishAddCredentialResponse, error)
 
 	// FinishAddCredentialWithResponse Complete an add-credential ceremony
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/auth/credentials/finish (the `FinishAddCredential` operationId).
+	// Corresponds with POST /api/v1/auth/credentials/finish (the `FinishAddCredential` operationId).
 	FinishAddCredentialWithResponse(ctx context.Context, params *FinishAddCredentialParams, body FinishAddCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishAddCredentialResponse, error)
 
 	// DeleteCredentialWithResponse Remove one of the signed-in user's own passkeys
@@ -12147,7 +12154,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with DELETE /api/auth/credentials/{id} (the `DeleteCredential` operationId).
+	// Corresponds with DELETE /api/v1/auth/credentials/{id} (the `DeleteCredential` operationId).
 	DeleteCredentialWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteCredentialResponse, error)
 
 	// RenameCredentialWithBodyWithResponse Rename one of the signed-in user's own passkeys
@@ -12160,7 +12167,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+	// Corresponds with PATCH /api/v1/auth/credentials/{id} (the `RenameCredential` operationId).
 	RenameCredentialWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameCredentialResponse, error)
 
 	// RenameCredentialWithResponse Rename one of the signed-in user's own passkeys
@@ -12173,7 +12180,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+	// Corresponds with PATCH /api/v1/auth/credentials/{id} (the `RenameCredential` operationId).
 	RenameCredentialWithResponse(ctx context.Context, id string, body RenameCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameCredentialResponse, error)
 
 	// BeginLoginWithResponse Start a passkey login ceremony
@@ -12185,34 +12192,34 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
+	// Corresponds with POST /api/v1/auth/login/begin (the `BeginLogin` operationId).
 	BeginLoginWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BeginLoginResponse, error)
 
 	// FinishLoginWithBodyWithResponse Complete a passkey login ceremony
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
+	// Corresponds with POST /api/v1/auth/login/finish (the `FinishLogin` operationId).
 	FinishLoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error)
 
 	// FinishLoginWithResponse Complete a passkey login ceremony
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
+	// Corresponds with POST /api/v1/auth/login/finish (the `FinishLogin` operationId).
 	FinishLoginWithResponse(ctx context.Context, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error)
 
 	// LogoutWithResponse End the current session
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/auth/logout (the `Logout` operationId).
+	// Corresponds with POST /api/v1/auth/logout (the `Logout` operationId).
 	LogoutWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*LogoutResponse, error)
 
 	// BeginRegistrationWithResponse Start a passkey registration ceremony
 	//
 	// An instance has one user. The first registration on a fresh
-	// instance (see GET /api/auth/registration-status) creates that
+	// instance (see GET /api/v1/auth/registration-status) creates that
 	// user and the server names it, so the request carries no body. The
 	// options require a resident key, so the passkey can be found at
 	// sign-in without being named. Once any account holds a passkey, this
@@ -12220,21 +12227,21 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
+	// Corresponds with POST /api/v1/auth/register/begin (the `BeginRegistration` operationId).
 	BeginRegistrationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BeginRegistrationResponse, error)
 
 	// FinishRegistrationWithBodyWithResponse Complete a passkey registration ceremony
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
+	// Corresponds with POST /api/v1/auth/register/finish (the `FinishRegistration` operationId).
 	FinishRegistrationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error)
 
 	// FinishRegistrationWithResponse Complete a passkey registration ceremony
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
+	// Corresponds with POST /api/v1/auth/register/finish (the `FinishRegistration` operationId).
 	FinishRegistrationWithResponse(ctx context.Context, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error)
 
 	// GetRegistrationStatusWithResponse Whether self-registration is open
@@ -12248,14 +12255,14 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/auth/registration-status (the `GetRegistrationStatus` operationId).
+	// Corresponds with GET /api/v1/auth/registration-status (the `GetRegistrationStatus` operationId).
 	GetRegistrationStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetRegistrationStatusResponse, error)
 
 	// GetSessionWithResponse Who, if anyone, the current session cookie belongs to
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/auth/session (the `GetSession` operationId).
+	// Corresponds with GET /api/v1/auth/session (the `GetSession` operationId).
 	GetSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSessionResponse, error)
 
 	// CancelWorkflowRunWithBodyWithResponse Cancel one running or queued Actions workflow run, on the signed-in user's behalf
@@ -12263,7 +12270,7 @@ type ClientWithResponsesInterface interface {
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
 	// workflow. A client takes `runId` from a check in a `run` event on
-	// GET /api/dashboard/stream, from a job that is still queued or running.
+	// GET /api/v1/dashboard/stream, from a job that is still queued or running.
 	// A check with no `runId` (a third-party check, a legacy commit status,
 	// an external CI) belongs to no Actions run and can't be cancelled
 	// here.
@@ -12291,7 +12298,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+	// Corresponds with POST /api/v1/checks/cancel-run (the `CancelWorkflowRun` operationId).
 	CancelWorkflowRunWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelWorkflowRunResponse, error)
 
 	// CancelWorkflowRunWithResponse Cancel one running or queued Actions workflow run, on the signed-in user's behalf
@@ -12299,7 +12306,7 @@ type ClientWithResponsesInterface interface {
 	// Asks the forge to cancel a whole workflow run: every job of it stops,
 	// because neither GitHub nor Forgejo can stop one job of a running
 	// workflow. A client takes `runId` from a check in a `run` event on
-	// GET /api/dashboard/stream, from a job that is still queued or running.
+	// GET /api/v1/dashboard/stream, from a job that is still queued or running.
 	// A check with no `runId` (a third-party check, a legacy commit status,
 	// an external CI) belongs to no Actions run and can't be cancelled
 	// here.
@@ -12327,7 +12334,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+	// Corresponds with POST /api/v1/checks/cancel-run (the `CancelWorkflowRun` operationId).
 	CancelWorkflowRunWithResponse(ctx context.Context, body CancelWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelWorkflowRunResponse, error)
 
 	// GetCheckLogWithResponse Read the output of one CI job, on demand
@@ -12363,7 +12370,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/checks/log (the `GetCheckLog` operationId).
+	// Corresponds with GET /api/v1/checks/log (the `GetCheckLog` operationId).
 	GetCheckLogWithResponse(ctx context.Context, params *GetCheckLogParams, reqEditors ...RequestEditorFn) (*GetCheckLogResponse, error)
 
 	// GetDashboardWithResponse The aggregated view
@@ -12381,7 +12388,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/dashboard (the `GetDashboard` operationId).
+	// Corresponds with GET /api/v1/dashboard (the `GetDashboard` operationId).
 	GetDashboardWithResponse(ctx context.Context, params *GetDashboardParams, reqEditors ...RequestEditorFn) (*GetDashboardResponse, error)
 
 	// RefreshDashboardWithResponse Trigger an immediate refresh of the signed-in user's own dashboard
@@ -12408,7 +12415,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
+	// Corresponds with POST /api/v1/dashboard/refresh (the `RefreshDashboard` operationId).
 	RefreshDashboardWithResponse(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*RefreshDashboardResponse, error)
 
 	// StreamDashboardWithResponse Server-Sent Events stream of the signed-in user's own dashboard
@@ -12419,7 +12426,7 @@ type ClientWithResponsesInterface interface {
 	// one, which is what turns that into a live update instead of
 	// something only the next scheduled refresh picks up.
 	//
-	// The frontend's own 30-second poll against GET /api/dashboard
+	// The frontend's own 30-second poll against GET /api/v1/dashboard
 	// keeps running unconditionally, connected or not — a browser or
 	// proxy that can't hold an SSE connection open just never
 	// benefits from this, rather than the dashboard going stale
@@ -12431,7 +12438,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// A client that passes `sid` can also follow the job lists of the
 	// pull requests and default branches it has open, through
-	// `POST /api/dashboard/stream/watch`. Each list arrives as named
+	// `POST /api/v1/dashboard/stream/watch`. Each list arrives as named
 	// `run` events on this stream, one for each workflow run attempt, so a
 	// client that only listens for default messages never sees one. A
 	// reconnect reuses the same `sid` with nothing watched, so the client
@@ -12439,7 +12446,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
+	// Corresponds with GET /api/v1/dashboard/stream (the `StreamDashboard` operationId).
 	StreamDashboardWithResponse(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*StreamDashboardResponse, error)
 
 	// WatchDashboardStreamChecksWithBodyWithResponse Choose which job lists a dashboard stream sends
@@ -12462,7 +12469,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+	// Corresponds with POST /api/v1/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
 	WatchDashboardStreamChecksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchDashboardStreamChecksResponse, error)
 
 	// WatchDashboardStreamChecksWithResponse Choose which job lists a dashboard stream sends
@@ -12485,13 +12492,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+	// Corresponds with POST /api/v1/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
 	WatchDashboardStreamChecksWithResponse(ctx context.Context, body WatchDashboardStreamChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchDashboardStreamChecksResponse, error)
 
 	// CloseIssueWithBodyWithResponse Close one issue, on the signed-in user's behalf
 	//
 	// Closes the named issue. The Issues page's dialog offers it, on its own
-	// or after posting a comment with `POST /api/issues/comment`. Closing an
+	// or after posting a comment with `POST /api/v1/issues/comment`. Closing an
 	// issue that is already closed is not refused: both forges treat it as
 	// done, so the call succeeds and there is no `already_closed` answer.
 	//
@@ -12509,13 +12516,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+	// Corresponds with POST /api/v1/issues/close (the `CloseIssue` operationId).
 	CloseIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CloseIssueResponse, error)
 
 	// CloseIssueWithResponse Close one issue, on the signed-in user's behalf
 	//
 	// Closes the named issue. The Issues page's dialog offers it, on its own
-	// or after posting a comment with `POST /api/issues/comment`. Closing an
+	// or after posting a comment with `POST /api/v1/issues/comment`. Closing an
 	// issue that is already closed is not refused: both forges treat it as
 	// done, so the call succeeds and there is no `already_closed` answer.
 	//
@@ -12533,7 +12540,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+	// Corresponds with POST /api/v1/issues/close (the `CloseIssue` operationId).
 	CloseIssueWithResponse(ctx context.Context, body CloseIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*CloseIssueResponse, error)
 
 	// CommentOnIssueWithBodyWithResponse Post a comment on one issue, on the signed-in user's behalf
@@ -12555,7 +12562,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+	// Corresponds with POST /api/v1/issues/comment (the `CommentOnIssue` operationId).
 	CommentOnIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CommentOnIssueResponse, error)
 
 	// CommentOnIssueWithResponse Post a comment on one issue, on the signed-in user's behalf
@@ -12577,16 +12584,16 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+	// Corresponds with POST /api/v1/issues/comment (the `CommentOnIssue` operationId).
 	CommentOnIssueWithResponse(ctx context.Context, body CommentOnIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*CommentOnIssueResponse, error)
 
 	// GetIssueDetailsWithResponse Read an issue's description, comments and reactions, on demand
 	//
 	// What the issue dialog shows: the description, the conversation in
 	// order, and the thumbs up and thumbs down reactions on each with who
-	// gave them. The same shape and rules as GET /api/pull-requests/details
+	// gave them. The same shape and rules as GET /api/v1/pull-requests/details
 	// without the release notes, which only a pull request has. Fetched live
-	// on every call, never as part of GET /api/dashboard's snapshot.
+	// on every call, never as part of GET /api/v1/dashboard's snapshot.
 	//
 	// GitHub answers with one GraphQL query. Forgejo costs one call for the
 	// issue, one for its comments, one for the description's reactions and
@@ -12602,13 +12609,13 @@ type ClientWithResponsesInterface interface {
 	// number. An avatar is the forge's own URL, passed through unchanged and
 	// never proxied.
 	//
-	// The error answers are those of GET /api/pull-requests/details, with
+	// The error answers are those of GET /api/v1/pull-requests/details, with
 	// the same codes. An issue that doesn't exist is a 404, and a forge that
 	// can't be read is an error, never an empty thread.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/issues/details (the `GetIssueDetails` operationId).
+	// Corresponds with GET /api/v1/issues/details (the `GetIssueDetails` operationId).
 	GetIssueDetailsWithResponse(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*GetIssueDetailsResponse, error)
 
 	// ReopenIssueWithBodyWithResponse Reopen one issue that was closed, on the signed-in user's behalf
@@ -12627,7 +12634,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+	// Corresponds with POST /api/v1/issues/reopen (the `ReopenIssue` operationId).
 	ReopenIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReopenIssueResponse, error)
 
 	// ReopenIssueWithResponse Reopen one issue that was closed, on the signed-in user's behalf
@@ -12646,7 +12653,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+	// Corresponds with POST /api/v1/issues/reopen (the `ReopenIssue` operationId).
 	ReopenIssueWithResponse(ctx context.Context, body ReopenIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*ReopenIssueResponse, error)
 
 	// GetMainBranchesWithResponse The CI status of every tracked repository's default branch
@@ -12672,7 +12679,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// A forge that can't be reached keeps its last known rows, each marked
 	// `staleSince`, the same carry-over `forges[].staleSince`
-	// on GET /api/dashboard reports. A forge whose rate-limit budget is
+	// on GET /api/v1/dashboard reports. A forge whose rate-limit budget is
 	// spent is skipped until it resets and its rows are kept the same way.
 	// Only the signed-in user's own repositories.
 	//
@@ -12682,7 +12689,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/main-branches (the `GetMainBranches` operationId).
+	// Corresponds with GET /api/v1/main-branches (the `GetMainBranches` operationId).
 	GetMainBranchesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMainBranchesResponse, error)
 
 	// ListAdvisoriesWithResponse List a repository's open dependency advisories in full, on demand
@@ -12691,7 +12698,7 @@ type ClientWithResponsesInterface interface {
 	// repository: each open Dependabot alert with the fields GitHub's own
 	// alert page shows. The list and the detail view are the same answer, so
 	// opening one advisory costs no second call. Fetched live on every call,
-	// never as part of GET /api/main-branches' snapshot, so a repository
+	// never as part of GET /api/v1/main-branches' snapshot, so a repository
 	// nobody opens costs no budget.
 	//
 	// Sorted by severity, highest first, then newest first. GitHub reads them
@@ -12721,12 +12728,12 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
+	// Corresponds with GET /api/v1/main-branches/advisories (the `ListAdvisories` operationId).
 	ListAdvisoriesWithResponse(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*ListAdvisoriesResponse, error)
 
 	// RerunMainBranchChecksWithBodyWithResponse Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 	//
-	// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
+	// The branch twin of POST /api/v1/pull-requests/rerun-checks. Asks the forge
 	// to rerun the failed jobs of the Actions workflow runs on the commit
 	// the branch's job list shows, and nothing that passed. It
 	// answers once the forge has queued them, not when they finish, so a
@@ -12744,12 +12751,12 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
+	// Corresponds with POST /api/v1/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
 	RerunMainBranchChecksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RerunMainBranchChecksResponse, error)
 
 	// RerunMainBranchChecksWithResponse Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 	//
-	// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
+	// The branch twin of POST /api/v1/pull-requests/rerun-checks. Asks the forge
 	// to rerun the failed jobs of the Actions workflow runs on the commit
 	// the branch's job list shows, and nothing that passed. It
 	// answers once the forge has queued them, not when they finish, so a
@@ -12767,7 +12774,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
+	// Corresponds with POST /api/v1/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
 	RerunMainBranchChecksWithResponse(ctx context.Context, body RerunMainBranchChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*RerunMainBranchChecksResponse, error)
 
 	// ReportDashboardPresenceWithBodyWithResponse Say whether a browser tab of the dashboard is being looked at
@@ -12797,7 +12804,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+	// Corresponds with POST /api/v1/presence (the `ReportDashboardPresence` operationId).
 	ReportDashboardPresenceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReportDashboardPresenceResponse, error)
 
 	// ReportDashboardPresenceWithResponse Say whether a browser tab of the dashboard is being looked at
@@ -12827,7 +12834,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+	// Corresponds with POST /api/v1/presence (the `ReportDashboardPresence` operationId).
 	ReportDashboardPresenceWithResponse(ctx context.Context, body ReportDashboardPresenceJSONRequestBody, reqEditors ...RequestEditorFn) (*ReportDashboardPresenceResponse, error)
 
 	// EnablePullRequestAutoMergeWithBodyWithResponse Arm auto-merge on a pull request, on the signed-in user's behalf
@@ -12871,7 +12878,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
 	EnablePullRequestAutoMergeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnablePullRequestAutoMergeResponse, error)
 
 	// EnablePullRequestAutoMergeWithResponse Arm auto-merge on a pull request, on the signed-in user's behalf
@@ -12915,12 +12922,12 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
 	EnablePullRequestAutoMergeWithResponse(ctx context.Context, body EnablePullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*EnablePullRequestAutoMergeResponse, error)
 
 	// CancelPullRequestAutoMergeWithBodyWithResponse Cancel auto-merge on a pull request, on the signed-in user's behalf
 	//
-	// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+	// Forgejo: removes the intent stored by `POST /api/v1/pull-requests/auto-merge`,
 	// so the background pass never merges the pull request. Nothing is sent
 	// to the forge. Idempotent: a pull request with no intent is a 204 too.
 	//
@@ -12932,12 +12939,12 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 	CancelPullRequestAutoMergeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelPullRequestAutoMergeResponse, error)
 
 	// CancelPullRequestAutoMergeWithResponse Cancel auto-merge on a pull request, on the signed-in user's behalf
 	//
-	// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+	// Forgejo: removes the intent stored by `POST /api/v1/pull-requests/auto-merge`,
 	// so the background pass never merges the pull request. Nothing is sent
 	// to the forge. Idempotent: a pull request with no intent is a 204 too.
 	//
@@ -12949,47 +12956,47 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 	CancelPullRequestAutoMergeWithResponse(ctx context.Context, body CancelPullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelPullRequestAutoMergeResponse, error)
 
 	// SetPullRequestAutoUpdateWithBodyWithResponse Turn the automatic branch update on or off for one pull request
 	//
 	// A pure local write: nothing is sent to the forge. The choice is kept
 	// only while it differs from the repo's auto-update setting
-	// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+	// (`/api/v1/repos/auto-update-branch/enable`), so a choice that matches
 	// the repo is dropped and the pull request follows the repo again, and
 	// a later change to the repo's setting reaches it. With `enabled`
 	// `null` or absent the pull request goes back to its repo's setting.
 	// Idempotent. A draft and a release-please pull request are never
 	// updated automatically, whatever is chosen: `autoUpdate.unavailable`
-	// in GET /api/dashboard says so. The server forgets the choice once
+	// in GET /api/v1/dashboard says so. The server forgets the choice once
 	// the pull request is no longer open, its repo is no longer tracked, or
 	// the repo's setting changes to match it. A pull request the dashboard
 	// doesn't hold is a 404.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
 	SetPullRequestAutoUpdateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetPullRequestAutoUpdateResponse, error)
 
 	// SetPullRequestAutoUpdateWithResponse Turn the automatic branch update on or off for one pull request
 	//
 	// A pure local write: nothing is sent to the forge. The choice is kept
 	// only while it differs from the repo's auto-update setting
-	// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+	// (`/api/v1/repos/auto-update-branch/enable`), so a choice that matches
 	// the repo is dropped and the pull request follows the repo again, and
 	// a later change to the repo's setting reaches it. With `enabled`
 	// `null` or absent the pull request goes back to its repo's setting.
 	// Idempotent. A draft and a release-please pull request are never
 	// updated automatically, whatever is chosen: `autoUpdate.unavailable`
-	// in GET /api/dashboard says so. The server forgets the choice once
+	// in GET /api/v1/dashboard says so. The server forgets the choice once
 	// the pull request is no longer open, its repo is no longer tracked, or
 	// the repo's setting changes to match it. A pull request the dashboard
 	// doesn't hold is a 404.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+	// Corresponds with POST /api/v1/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
 	SetPullRequestAutoUpdateWithResponse(ctx context.Context, body SetPullRequestAutoUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetPullRequestAutoUpdateResponse, error)
 
 	// ClosePullRequestWithBodyWithResponse Close one pull request without merging it, on the signed-in user's behalf
@@ -13009,7 +13016,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/close (the `ClosePullRequest` operationId).
 	ClosePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ClosePullRequestResponse, error)
 
 	// ClosePullRequestWithResponse Close one pull request without merging it, on the signed-in user's behalf
@@ -13029,7 +13036,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/close (the `ClosePullRequest` operationId).
 	ClosePullRequestWithResponse(ctx context.Context, body ClosePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*ClosePullRequestResponse, error)
 
 	// PostPullRequestDependabotActionWithBodyWithResponse Post one of Dependabot's own documented PR-comment commands on a pull request, on the signed-in user's behalf
@@ -13050,7 +13057,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
+	// Corresponds with POST /api/v1/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
 	PostPullRequestDependabotActionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostPullRequestDependabotActionResponse, error)
 
 	// PostPullRequestDependabotActionWithResponse Post one of Dependabot's own documented PR-comment commands on a pull request, on the signed-in user's behalf
@@ -13071,7 +13078,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
+	// Corresponds with POST /api/v1/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
 	PostPullRequestDependabotActionWithResponse(ctx context.Context, body PostPullRequestDependabotActionJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPullRequestDependabotActionResponse, error)
 
 	// GetPullRequestDetailsWithResponse Read a pull request's description, comments and reactions, on demand
@@ -13080,7 +13087,7 @@ type ClientWithResponsesInterface interface {
 	// conversation in order, the thumbs up and thumbs down reactions on each
 	// with who gave them, and, for a release pull request, the release
 	// notes. Fetched live on every call, never as part of GET
-	// /api/dashboard's snapshot: comments and reactions for every row would
+	// /api/v1/dashboard's snapshot: comments and reactions for every row would
 	// spend the forge's budget on rows nobody opens.
 	//
 	// GitHub answers with one GraphQL query. Forgejo costs one call for the
@@ -13100,25 +13107,25 @@ type ClientWithResponsesInterface interface {
 	// the browser loads it directly. A future policy's `img-src` has to
 	// allow avatars.githubusercontent.com, repository-images.githubusercontent.com
 	// (a GitHub repository's logo, see `logoUrl` on a repo in GET
-	// /api/dashboard) and the Forgejo host.
+	// /api/v1/dashboard) and the Forgejo host.
 	//
 	// A forge that can't be read is an error, never an empty thread.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/pull-requests/details (the `GetPullRequestDetails` operationId).
+	// Corresponds with GET /api/v1/pull-requests/details (the `GetPullRequestDetails` operationId).
 	GetPullRequestDetailsWithResponse(ctx context.Context, params *GetPullRequestDetailsParams, reqEditors ...RequestEditorFn) (*GetPullRequestDetailsResponse, error)
 
 	// HidePullRequestWithBodyWithResponse Hide one pull request from the signed-in user's dashboard
 	//
 	// Reversible, not destructive, like ignoring a repo: nothing is sent to
 	// the forge. A hidden pull request leaves `pullRequests` in
-	// GET /api/dashboard and everything counted from it, and is counted in
+	// GET /api/v1/dashboard and everything counted from it, and is counted in
 	// `hiddenPullRequests` instead. It stays listed for
 	// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
 	//
 	// With `days`, the hide ends by itself that many days from now. Without
-	// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+	// it the pull request stays hidden until `POST /api/v1/pull-requests/unhide`.
 	// A repeat call replaces the earlier choice (hide until restored, then
 	// hide for 7 days, ends with the 7 days). The server forgets the record
 	// once the pull request is no longer open, so the list never grows
@@ -13127,19 +13134,19 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/hide (the `HidePullRequest` operationId).
 	HidePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HidePullRequestResponse, error)
 
 	// HidePullRequestWithResponse Hide one pull request from the signed-in user's dashboard
 	//
 	// Reversible, not destructive, like ignoring a repo: nothing is sent to
 	// the forge. A hidden pull request leaves `pullRequests` in
-	// GET /api/dashboard and everything counted from it, and is counted in
+	// GET /api/v1/dashboard and everything counted from it, and is counted in
 	// `hiddenPullRequests` instead. It stays listed for
 	// `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
 	//
 	// With `days`, the hide ends by itself that many days from now. Without
-	// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+	// it the pull request stays hidden until `POST /api/v1/pull-requests/unhide`.
 	// A repeat call replaces the earlier choice (hide until restored, then
 	// hide for 7 days, ends with the 7 days). The server forgets the record
 	// once the pull request is no longer open, so the list never grows
@@ -13148,7 +13155,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/hide (the `HidePullRequest` operationId).
 	HidePullRequestWithResponse(ctx context.Context, body HidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*HidePullRequestResponse, error)
 
 	// MergePullRequestWithBodyWithResponse Merge one pull request, on the signed-in user's behalf
@@ -13182,7 +13189,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/merge (the `MergePullRequest` operationId).
 	MergePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MergePullRequestResponse, error)
 
 	// MergePullRequestWithResponse Merge one pull request, on the signed-in user's behalf
@@ -13216,7 +13223,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/merge (the `MergePullRequest` operationId).
 	MergePullRequestWithResponse(ctx context.Context, body MergePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*MergePullRequestResponse, error)
 
 	// PostPullRequestRenovateRebaseWithBodyWithResponse Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
@@ -13243,7 +13250,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
+	// Corresponds with POST /api/v1/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 	PostPullRequestRenovateRebaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostPullRequestRenovateRebaseResponse, error)
 
 	// PostPullRequestRenovateRebaseWithResponse Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
@@ -13270,7 +13277,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
+	// Corresponds with POST /api/v1/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 	PostPullRequestRenovateRebaseWithResponse(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPullRequestRenovateRebaseResponse, error)
 
 	// CancelPullRequestRenovateRebaseWithBodyWithResponse Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
@@ -13290,7 +13297,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+	// Corresponds with POST /api/v1/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
 	CancelPullRequestRenovateRebaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelPullRequestRenovateRebaseResponse, error)
 
 	// CancelPullRequestRenovateRebaseWithResponse Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
@@ -13310,7 +13317,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+	// Corresponds with POST /api/v1/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
 	CancelPullRequestRenovateRebaseWithResponse(ctx context.Context, body CancelPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelPullRequestRenovateRebaseResponse, error)
 
 	// ReopenPullRequestWithBodyWithResponse Reopen one pull request that was closed without merging, on the signed-in user's behalf
@@ -13335,7 +13342,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/reopen (the `ReopenPullRequest` operationId).
 	ReopenPullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReopenPullRequestResponse, error)
 
 	// ReopenPullRequestWithResponse Reopen one pull request that was closed without merging, on the signed-in user's behalf
@@ -13360,7 +13367,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/reopen (the `ReopenPullRequest` operationId).
 	ReopenPullRequestWithResponse(ctx context.Context, body ReopenPullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*ReopenPullRequestResponse, error)
 
 	// RerunPullRequestChecksWithBodyWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
@@ -13410,7 +13417,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+	// Corresponds with POST /api/v1/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 	RerunPullRequestChecksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RerunPullRequestChecksResponse, error)
 
 	// RerunPullRequestChecksWithResponse Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
@@ -13460,27 +13467,27 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+	// Corresponds with POST /api/v1/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 	RerunPullRequestChecksWithResponse(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*RerunPullRequestChecksResponse, error)
 
 	// UnhidePullRequestWithBodyWithResponse Bring a hidden pull request back onto the signed-in user's dashboard
 	//
-	// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+	// The reverse of POST /api/v1/pull-requests/hide. Idempotent: restoring a
 	// pull request that isn't hidden is a 204 too.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/unhide (the `UnhidePullRequest` operationId).
 	UnhidePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UnhidePullRequestResponse, error)
 
 	// UnhidePullRequestWithResponse Bring a hidden pull request back onto the signed-in user's dashboard
 	//
-	// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+	// The reverse of POST /api/v1/pull-requests/hide. Idempotent: restoring a
 	// pull request that isn't hidden is a 204 too.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+	// Corresponds with POST /api/v1/pull-requests/unhide (the `UnhidePullRequest` operationId).
 	UnhidePullRequestWithResponse(ctx context.Context, body UnhidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*UnhidePullRequestResponse, error)
 
 	// UpdatePullRequestBranchWithBodyWithResponse Bring one pull request's branch up to date with its base, on the signed-in user's behalf
@@ -13501,7 +13508,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
+	// Corresponds with POST /api/v1/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
 	UpdatePullRequestBranchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePullRequestBranchResponse, error)
 
 	// UpdatePullRequestBranchWithResponse Bring one pull request's branch up to date with its base, on the signed-in user's behalf
@@ -13522,7 +13529,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
+	// Corresponds with POST /api/v1/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
 	UpdatePullRequestBranchWithResponse(ctx context.Context, body UpdatePullRequestBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePullRequestBranchResponse, error)
 
 	// ListQueuedActionsWithResponse List the signed-in user's queued actions, waiting and recently finished
@@ -13531,11 +13538,11 @@ type ClientWithResponsesInterface interface {
 	// resets, oldest first: the ones still `queued`, and the
 	// final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
 	// client can show the outcome in its Activity list. The same list
-	// rides along on GET /api/dashboard as `queuedActions`.
+	// rides along on GET /api/v1/dashboard as `queuedActions`.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/queued-actions (the `ListQueuedActions` operationId).
+	// Corresponds with GET /api/v1/queued-actions (the `ListQueuedActions` operationId).
 	ListQueuedActionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListQueuedActionsResponse, error)
 
 	// QueueActionWithBodyWithResponse Queue a safe action to run when a rate-limited forge resets
@@ -13564,7 +13571,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+	// Corresponds with POST /api/v1/queued-actions (the `QueueAction` operationId).
 	QueueActionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*QueueActionResponse, error)
 
 	// QueueActionWithResponse Queue a safe action to run when a rate-limited forge resets
@@ -13593,7 +13600,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+	// Corresponds with POST /api/v1/queued-actions (the `QueueAction` operationId).
 	QueueActionWithResponse(ctx context.Context, body QueueActionJSONRequestBody, reqEditors ...RequestEditorFn) (*QueueActionResponse, error)
 
 	// CancelQueuedActionWithResponse Cancel a queued action, or clear a finished one from the list
@@ -13604,7 +13611,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with DELETE /api/queued-actions/{id} (the `CancelQueuedAction` operationId).
+	// Corresponds with DELETE /api/v1/queued-actions/{id} (the `CancelQueuedAction` operationId).
 	CancelQueuedActionWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CancelQueuedActionResponse, error)
 
 	// GetReleaseDetailsWithResponse Read a published release's title and notes, on demand
@@ -13612,7 +13619,7 @@ type ClientWithResponsesInterface interface {
 	// What the release dialog on the Main branches page shows for a
 	// repository's latest published release: its title, when it was
 	// published, its notes and the thumbs reactions on them. Fetched live on
-	// every call, never as part of GET /api/main-branches' snapshot, so a
+	// every call, never as part of GET /api/v1/main-branches' snapshot, so a
 	// release nobody opens costs no budget.
 	//
 	// GitHub answers with one GraphQL query. Only GitHub rows carry a latest
@@ -13624,35 +13631,35 @@ type ClientWithResponsesInterface interface {
 	// 20,000 characters (`truncated`), and a reaction names at most its
 	// first 10 people while `count` is the full number.
 	//
-	// The error answers are those of GET /api/pull-requests/details, with
+	// The error answers are those of GET /api/v1/pull-requests/details, with
 	// the same codes. A tag that has no published release is a 404, and so is a draft,
 	// a pre-release or a release with no publish date.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/releases/details (the `GetReleaseDetails` operationId).
+	// Corresponds with GET /api/v1/releases/details (the `GetReleaseDetails` operationId).
 	GetReleaseDetailsWithResponse(ctx context.Context, params *GetReleaseDetailsParams, reqEditors ...RequestEditorFn) (*GetReleaseDetailsResponse, error)
 
 	// DisableAutoUpdateBranchWithBodyWithResponse Turn off automatic branch updates for one tracked repo
 	//
-	// The reverse of POST /api/repos/auto-update-branch/enable.
+	// The reverse of POST /api/v1/repos/auto-update-branch/enable.
 	// Idempotent: disabling a repo that was never enabled is a no-op,
 	// not an error.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
+	// Corresponds with POST /api/v1/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
 	DisableAutoUpdateBranchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DisableAutoUpdateBranchResponse, error)
 
 	// DisableAutoUpdateBranchWithResponse Turn off automatic branch updates for one tracked repo
 	//
-	// The reverse of POST /api/repos/auto-update-branch/enable.
+	// The reverse of POST /api/v1/repos/auto-update-branch/enable.
 	// Idempotent: disabling a repo that was never enabled is a no-op,
 	// not an error.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
+	// Corresponds with POST /api/v1/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
 	DisableAutoUpdateBranchWithResponse(ctx context.Context, body DisableAutoUpdateBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*DisableAutoUpdateBranchResponse, error)
 
 	// EnableAutoUpdateBranchWithBodyWithResponse Turn on automatic branch updates for one tracked repo
@@ -13666,7 +13673,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
+	// Corresponds with POST /api/v1/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
 	EnableAutoUpdateBranchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnableAutoUpdateBranchResponse, error)
 
 	// EnableAutoUpdateBranchWithResponse Turn on automatic branch updates for one tracked repo
@@ -13680,13 +13687,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
+	// Corresponds with POST /api/v1/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
 	EnableAutoUpdateBranchWithResponse(ctx context.Context, body EnableAutoUpdateBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*EnableAutoUpdateBranchResponse, error)
 
 	// IgnoreRepoWithBodyWithResponse Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 	//
 	// Reversible, not destructive: the repo itself keeps
-	// appearing in GET /api/dashboard's `repos` array with accurate
+	// appearing in GET /api/v1/dashboard's `repos` array with accurate
 	// webhook-coverage status, and keeps being fetched and counted —
 	// only the pullRequests and/or issues entries the request scopes
 	// stop appearing there and on Insights. A repeat call
@@ -13697,13 +13704,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
+	// Corresponds with POST /api/v1/repos/ignore (the `IgnoreRepo` operationId).
 	IgnoreRepoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*IgnoreRepoResponse, error)
 
 	// IgnoreRepoWithResponse Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 	//
 	// Reversible, not destructive: the repo itself keeps
-	// appearing in GET /api/dashboard's `repos` array with accurate
+	// appearing in GET /api/v1/dashboard's `repos` array with accurate
 	// webhook-coverage status, and keeps being fetched and counted —
 	// only the pullRequests and/or issues entries the request scopes
 	// stop appearing there and on Insights. A repeat call
@@ -13714,27 +13721,27 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
+	// Corresponds with POST /api/v1/repos/ignore (the `IgnoreRepo` operationId).
 	IgnoreRepoWithResponse(ctx context.Context, body IgnoreRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*IgnoreRepoResponse, error)
 
 	// DisableRebaseBotsWithBodyWithResponse Stop rebasing Dependabot and Renovate pull requests for one tracked repo
 	//
-	// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+	// The reverse of POST /api/v1/repos/rebase-bots/enable. Idempotent:
 	// disabling a repo that was never enabled is a no-op, not an error.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+	// Corresponds with POST /api/v1/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
 	DisableRebaseBotsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DisableRebaseBotsResponse, error)
 
 	// DisableRebaseBotsWithResponse Stop rebasing Dependabot and Renovate pull requests for one tracked repo
 	//
-	// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+	// The reverse of POST /api/v1/repos/rebase-bots/enable. Idempotent:
 	// disabling a repo that was never enabled is a no-op, not an error.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+	// Corresponds with POST /api/v1/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
 	DisableRebaseBotsWithResponse(ctx context.Context, body DisableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*DisableRebaseBotsResponse, error)
 
 	// EnableRebaseBotsWithBodyWithResponse Rebase Dependabot and Renovate pull requests for one tracked repo
@@ -13750,7 +13757,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+	// Corresponds with POST /api/v1/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
 	EnableRebaseBotsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnableRebaseBotsResponse, error)
 
 	// EnableRebaseBotsWithResponse Rebase Dependabot and Renovate pull requests for one tracked repo
@@ -13766,27 +13773,27 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+	// Corresponds with POST /api/v1/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
 	EnableRebaseBotsWithResponse(ctx context.Context, body EnableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*EnableRebaseBotsResponse, error)
 
 	// UnignoreRepoWithBodyWithResponse Stop ignoring one tracked repo
 	//
-	// The reverse of POST /api/repos/ignore. Idempotent: un-ignoring a
+	// The reverse of POST /api/v1/repos/ignore. Idempotent: un-ignoring a
 	// repo that was never ignored is a no-op, not an error.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/unignore (the `UnignoreRepo` operationId).
+	// Corresponds with POST /api/v1/repos/unignore (the `UnignoreRepo` operationId).
 	UnignoreRepoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UnignoreRepoResponse, error)
 
 	// UnignoreRepoWithResponse Stop ignoring one tracked repo
 	//
-	// The reverse of POST /api/repos/ignore. Idempotent: un-ignoring a
+	// The reverse of POST /api/v1/repos/ignore. Idempotent: un-ignoring a
 	// repo that was never ignored is a no-op, not an error.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/repos/unignore (the `UnignoreRepo` operationId).
+	// Corresponds with POST /api/v1/repos/unignore (the `UnignoreRepo` operationId).
 	UnignoreRepoWithResponse(ctx context.Context, body UnignoreRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*UnignoreRepoResponse, error)
 
 	// GetSettingsWithResponse The signed-in user's own forge configuration
@@ -13795,11 +13802,11 @@ type ClientWithResponsesInterface interface {
 	// webhook token and secret are returned, since the user pastes them
 	// into the forge's webhook setup, and a first read creates them. For
 	// a read that creates nothing and omits both, see
-	// `GET /api/settings/summary`.
+	// `GET /api/v1/settings/summary`.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/settings (the `GetSettings` operationId).
+	// Corresponds with GET /api/v1/settings (the `GetSettings` operationId).
 	GetSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSettingsResponse, error)
 
 	// PutSettingsWithBodyWithResponse Save the signed-in user's forge configuration
@@ -13812,7 +13819,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /api/settings (the `PutSettings` operationId).
+	// Corresponds with PUT /api/v1/settings (the `PutSettings` operationId).
 	PutSettingsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutSettingsResponse, error)
 
 	// PutSettingsWithResponse Save the signed-in user's forge configuration
@@ -13825,13 +13832,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /api/settings (the `PutSettings` operationId).
+	// Corresponds with PUT /api/v1/settings (the `PutSettings` operationId).
 	PutSettingsWithResponse(ctx context.Context, body PutSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSettingsResponse, error)
 
 	// GetFilterStateWithResponse The signed-in user's own saved dashboard/Insights filter state
 	//
 	// A lightweight read of one opaque blob, deliberately not
-	// GET /api/settings itself for the same reason GET /api/settings/theme
+	// GET /api/v1/settings itself for the same reason GET /api/v1/settings/theme
 	// isn't either: this loads on every dashboard/Insights visit and
 	// shouldn't provision webhook credentials as a side effect.
 	// `{}` for a user who's never saved any filters yet, not a 404.
@@ -13840,13 +13847,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/settings/filter-state (the `GetFilterState` operationId).
+	// Corresponds with GET /api/v1/settings/filter-state (the `GetFilterState` operationId).
 	GetFilterStateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetFilterStateResponse, error)
 
 	// SetFilterStateWithBodyWithResponse Save the signed-in user's own dashboard/Insights filter state
 	//
 	// A dedicated, lightweight save separate from the main
-	// PUT /api/settings — filters change on nearly every click, a
+	// PUT /api/v1/settings — filters change on nearly every click, a
 	// mismatch for that endpoint's "always a full form submit"
 	// convention. The body replaces the saved state entirely,
 	// the same "always a full submit, just of a much smaller and
@@ -13860,13 +13867,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /api/settings/filter-state (the `SetFilterState` operationId).
+	// Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
 	SetFilterStateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetFilterStateResponse, error)
 
 	// SetFilterStateWithResponse Save the signed-in user's own dashboard/Insights filter state
 	//
 	// A dedicated, lightweight save separate from the main
-	// PUT /api/settings — filters change on nearly every click, a
+	// PUT /api/v1/settings — filters change on nearly every click, a
 	// mismatch for that endpoint's "always a full form submit"
 	// convention. The body replaces the saved state entirely,
 	// the same "always a full submit, just of a much smaller and
@@ -13880,12 +13887,12 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /api/settings/filter-state (the `SetFilterState` operationId).
+	// Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
 	SetFilterStateWithResponse(ctx context.Context, body SetFilterStateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetFilterStateResponse, error)
 
 	// GetSettingsSummaryWithResponse The signed-in user's settings, read without side effects
 	//
-	// The same data as `GET /api/settings`, minus the webhook token and
+	// The same data as `GET /api/v1/settings`, minus the webhook token and
 	// secret, plus `webhookConfigured`. It never provisions webhook
 	// credentials: for a user who has none yet it answers
 	// `webhookConfigured: false` and creates nothing. Forge tokens are
@@ -13894,27 +13901,27 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/settings/summary (the `GetSettingsSummary` operationId).
+	// Corresponds with GET /api/v1/settings/summary (the `GetSettingsSummary` operationId).
 	GetSettingsSummaryWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSettingsSummaryResponse, error)
 
 	// GetThemeWithResponse The signed-in user's own saved theme preference
 	//
 	// A lightweight, side-effect-free read of one field — theme — for
 	// every page to check on load. Deliberately not
-	// GET /api/settings itself: that handler also provisions webhook
+	// GET /api/v1/settings itself: that handler also provisions webhook
 	// credentials on first call (EnsureWebhookCredentials), which
 	// every page loading shouldn't trigger for a user who's never
 	// opened Settings at all.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/settings/theme (the `GetTheme` operationId).
+	// Corresponds with GET /api/v1/settings/theme (the `GetTheme` operationId).
 	GetThemeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetThemeResponse, error)
 
 	// SetThemeWithBodyWithResponse Save the signed-in user's own theme preference
 	//
 	// A dedicated, instant save — deliberately not routed
-	// through the main PUT /api/settings, whose every other field is
+	// through the main PUT /api/v1/settings, whose every other field is
 	// a plain replace rather than a per-field merge: a request
 	// carrying only theme through that handler would blank every
 	// other saved setting. Picking a theme applies immediately, the
@@ -13924,13 +13931,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /api/settings/theme (the `SetTheme` operationId).
+	// Corresponds with PUT /api/v1/settings/theme (the `SetTheme` operationId).
 	SetThemeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetThemeResponse, error)
 
 	// SetThemeWithResponse Save the signed-in user's own theme preference
 	//
 	// A dedicated, instant save — deliberately not routed
-	// through the main PUT /api/settings, whose every other field is
+	// through the main PUT /api/v1/settings, whose every other field is
 	// a plain replace rather than a per-field merge: a request
 	// carrying only theme through that handler would blank every
 	// other saved setting. Picking a theme applies immediately, the
@@ -13940,41 +13947,41 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /api/settings/theme (the `SetTheme` operationId).
+	// Corresponds with PUT /api/v1/settings/theme (the `SetTheme` operationId).
 	SetThemeWithResponse(ctx context.Context, body SetThemeJSONRequestBody, reqEditors ...RequestEditorFn) (*SetThemeResponse, error)
 
 	// GetTimezoneWithResponse The signed-in user's own saved time zone
 	//
 	// A lightweight, side-effect-free read of one field, for every page to
 	// check on load so it can show times in the user's zone. Deliberately
-	// not GET /api/settings, for the reason GET /api/settings/theme isn't.
+	// not GET /api/v1/settings, for the reason GET /api/v1/settings/theme isn't.
 	// Empty means "use the browser's own zone".
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/settings/timezone (the `GetTimezone` operationId).
+	// Corresponds with GET /api/v1/settings/timezone (the `GetTimezone` operationId).
 	GetTimezoneWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTimezoneResponse, error)
 
 	// SetTimezoneWithBodyWithResponse Save the signed-in user's own time zone
 	//
-	// A dedicated, instant save, not routed through PUT /api/settings,
+	// A dedicated, instant save, not routed through PUT /api/v1/settings,
 	// which replaces every other field. Exists for browsers that report
 	// UTC to every page, such as Firefox with fingerprint resistance.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+	// Corresponds with PUT /api/v1/settings/timezone (the `SetTimezone` operationId).
 	SetTimezoneWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetTimezoneResponse, error)
 
 	// SetTimezoneWithResponse Save the signed-in user's own time zone
 	//
-	// A dedicated, instant save, not routed through PUT /api/settings,
+	// A dedicated, instant save, not routed through PUT /api/v1/settings,
 	// which replaces every other field. Exists for browsers that report
 	// UTC to every page, such as Firefox with fingerprint resistance.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+	// Corresponds with PUT /api/v1/settings/timezone (the `SetTimezone` operationId).
 	SetTimezoneWithResponse(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*SetTimezoneResponse, error)
 
 	// GetForgeApiStatsWithResponse How many forge API calls the dashboard has spent, and on what
@@ -14009,11 +14016,11 @@ type ClientWithResponsesInterface interface {
 	// the caller has saved, and a GitHub App installation id is a number the
 	// caller types in, so until the dashboard has one user, someone who saves
 	// another account's installation id sees that installation's counts. `budgets` are the rate limits each forge last
-	// reported, the same figures as `forges` on GET /api/dashboard.
+	// reported, the same figures as `forges` on GET /api/v1/dashboard.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/stats/forge-api (the `GetForgeApiStats` operationId).
+	// Corresponds with GET /api/v1/stats/forge-api (the `GetForgeApiStats` operationId).
 	GetForgeApiStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetForgeApiStatsResponse, error)
 
 	// ListAPITokensWithResponse List the signed-in user's own personal API tokens
@@ -14022,21 +14029,21 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with GET /api/tokens (the `ListAPITokens` operationId).
+	// Corresponds with GET /api/v1/tokens (the `ListAPITokens` operationId).
 	ListAPITokensWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAPITokensResponse, error)
 
 	// CreateAPITokenWithBodyWithResponse Generate a new personal API token
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/tokens (the `CreateAPIToken` operationId).
+	// Corresponds with POST /api/v1/tokens (the `CreateAPIToken` operationId).
 	CreateAPITokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAPITokenResponse, error)
 
 	// CreateAPITokenWithResponse Generate a new personal API token
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /api/tokens (the `CreateAPIToken` operationId).
+	// Corresponds with POST /api/v1/tokens (the `CreateAPIToken` operationId).
 	CreateAPITokenWithResponse(ctx context.Context, body CreateAPITokenJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAPITokenResponse, error)
 
 	// DeleteAPITokenWithResponse Revoke a personal API token
@@ -14049,8 +14056,64 @@ type ClientWithResponsesInterface interface {
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with DELETE /api/tokens/{id} (the `DeleteAPIToken` operationId).
+	// Corresponds with DELETE /api/v1/tokens/{id} (the `DeleteAPIToken` operationId).
 	DeleteAPITokenWithResponse(ctx context.Context, id PathTokenID, reqEditors ...RequestEditorFn) (*DeleteAPITokenResponse, error)
+
+	// EnsureWebhookWithBodyWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
+	//
+	// Creates a webhook on the named repo, pointed at the signed-in
+	// user's own webhook URL and secret, subscribed to the events
+	// docs/webhooks.md's manual steps recommend. If one already exists
+	// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
+	// does — matching by URL path, not object identity) it's brought
+	// back to active with the right events instead of creating a
+	// duplicate.
+	//
+	// One of a small number of endpoints in this API that write to a
+	// forge rather than just reading from it — see also the
+	// pull-requests tag.
+	//
+	// A refusal from the forge (403, 404, 429 and 502) answers with the
+	// same `ActionError` a refused pull request action does, so a client
+	// reads one shape: `code` is `permission` or `rate_limited` where
+	// the forge said so (with `resetsAt` for a rate limit), and
+	// `unknown` otherwise, with a plain `message` either way. No new
+	// code is needed: a repo the forge can't find is `unknown` with its
+	// own message. 400 and 401 stay a plain `Error`, since they are
+	// about the request, not a refusal by the forge.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
+	EnsureWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error)
+
+	// EnsureWebhookWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
+	//
+	// Creates a webhook on the named repo, pointed at the signed-in
+	// user's own webhook URL and secret, subscribed to the events
+	// docs/webhooks.md's manual steps recommend. If one already exists
+	// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
+	// does — matching by URL path, not object identity) it's brought
+	// back to active with the right events instead of creating a
+	// duplicate.
+	//
+	// One of a small number of endpoints in this API that write to a
+	// forge rather than just reading from it — see also the
+	// pull-requests tag.
+	//
+	// A refusal from the forge (403, 404, 429 and 502) answers with the
+	// same `ActionError` a refused pull request action does, so a client
+	// reads one shape: `code` is `permission` or `rate_limited` where
+	// the forge said so (with `resetsAt` for a rate limit), and
+	// `unknown` otherwise, with a plain `message` either way. No new
+	// code is needed: a repo the forge can't find is `unknown` with its
+	// own message. 400 and 401 stay a plain `Error`, since they are
+	// about the request, not a refusal by the forge.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
+	EnsureWebhookWithResponse(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error)
 
 	// GetVersionWithResponse The running server's own version
 	//
@@ -14064,62 +14127,6 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/version (the `GetVersion` operationId).
 	GetVersionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetVersionResponse, error)
-
-	// EnsureWebhookWithBodyWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-	//
-	// Creates a webhook on the named repo, pointed at the signed-in
-	// user's own webhook URL and secret, subscribed to the events
-	// docs/webhooks.md's manual steps recommend. If one already exists
-	// there (found the same way GET /api/dashboard's own `hasWebhook`
-	// does — matching by URL path, not object identity) it's brought
-	// back to active with the right events instead of creating a
-	// duplicate.
-	//
-	// One of a small number of endpoints in this API that write to a
-	// forge rather than just reading from it — see also the
-	// pull-requests tag.
-	//
-	// A refusal from the forge (403, 404, 429 and 502) answers with the
-	// same `ActionError` a refused pull request action does, so a client
-	// reads one shape: `code` is `permission` or `rate_limited` where
-	// the forge said so (with `resetsAt` for a rate limit), and
-	// `unknown` otherwise, with a plain `message` either way. No new
-	// code is needed: a repo the forge can't find is `unknown` with its
-	// own message. 400 and 401 stay a plain `Error`, since they are
-	// about the request, not a refusal by the forge.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
-	EnsureWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error)
-
-	// EnsureWebhookWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-	//
-	// Creates a webhook on the named repo, pointed at the signed-in
-	// user's own webhook URL and secret, subscribed to the events
-	// docs/webhooks.md's manual steps recommend. If one already exists
-	// there (found the same way GET /api/dashboard's own `hasWebhook`
-	// does — matching by URL path, not object identity) it's brought
-	// back to active with the right events instead of creating a
-	// duplicate.
-	//
-	// One of a small number of endpoints in this API that write to a
-	// forge rather than just reading from it — see also the
-	// pull-requests tag.
-	//
-	// A refusal from the forge (403, 404, 429 and 502) answers with the
-	// same `ActionError` a refused pull request action does, so a client
-	// reads one shape: `code` is `permission` or `rate_limited` where
-	// the forge said so (with `resetsAt` for a rate limit), and
-	// `unknown` otherwise, with a plain `message` either way. No new
-	// code is needed: a repo the forge can't find is `unknown` with its
-	// own message. 400 and 401 stay a plain `Error`, since they are
-	// about the request, not a refusal by the forge.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
-	EnsureWebhookWithResponse(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error)
 
 	// ReceiveForgejoWebhookWithBodyWithResponse Receive a Forgejo repository webhook delivery
 	//
@@ -18075,47 +18082,6 @@ func (r DeleteAPITokenResponse) ContentType() string {
 	return ""
 }
 
-type GetVersionResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *Version
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r GetVersionResponse) GetJSON200() *Version {
-	return r.JSON200
-}
-
-// GetBody returns the raw response body bytes
-func (r GetVersionResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r GetVersionResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetVersionResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetVersionResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type EnsureWebhookResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -18186,6 +18152,47 @@ func (r EnsureWebhookResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r EnsureWebhookResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetVersionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Version
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetVersionResponse) GetJSON200() *Version {
+	return r.JSON200
+}
+
+// GetBody returns the raw response body bytes
+func (r GetVersionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetVersionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetVersionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetVersionResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -18384,7 +18391,7 @@ func (r ReadyResponse) ContentType() string {
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/auth/credentials (the `ListCredentials` operationId).
+// Corresponds with GET /api/v1/auth/credentials (the `ListCredentials` operationId).
 func (c *ClientWithResponses) ListCredentialsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListCredentialsResponse, error) {
 	rsp, err := c.ListCredentials(ctx, reqEditors...)
 	if err != nil {
@@ -18395,7 +18402,7 @@ func (c *ClientWithResponses) ListCredentialsWithResponse(ctx context.Context, r
 
 // BeginAddCredentialWithResponse Start a ceremony to add another passkey to the signed-in account
 //
-// The authenticated counterpart to POST /api/auth/register/begin —
+// The authenticated counterpart to POST /api/v1/auth/register/begin —
 // that one only ever works for a brand-new, credential-less
 // account; this is how an already-registered user adds a second
 // (or third...) passkey, e.g. a laptop and a security key. Like the
@@ -18403,7 +18410,7 @@ func (c *ClientWithResponses) ListCredentialsWithResponse(ctx context.Context, r
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/auth/credentials/begin (the `BeginAddCredential` operationId).
+// Corresponds with POST /api/v1/auth/credentials/begin (the `BeginAddCredential` operationId).
 func (c *ClientWithResponses) BeginAddCredentialWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BeginAddCredentialResponse, error) {
 	rsp, err := c.BeginAddCredential(ctx, reqEditors...)
 	if err != nil {
@@ -18416,7 +18423,7 @@ func (c *ClientWithResponses) BeginAddCredentialWithResponse(ctx context.Context
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/auth/credentials/finish (the `FinishAddCredential` operationId).
+// Corresponds with POST /api/v1/auth/credentials/finish (the `FinishAddCredential` operationId).
 func (c *ClientWithResponses) FinishAddCredentialWithBodyWithResponse(ctx context.Context, params *FinishAddCredentialParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishAddCredentialResponse, error) {
 	rsp, err := c.FinishAddCredentialWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
@@ -18429,7 +18436,7 @@ func (c *ClientWithResponses) FinishAddCredentialWithBodyWithResponse(ctx contex
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/auth/credentials/finish (the `FinishAddCredential` operationId).
+// Corresponds with POST /api/v1/auth/credentials/finish (the `FinishAddCredential` operationId).
 func (c *ClientWithResponses) FinishAddCredentialWithResponse(ctx context.Context, params *FinishAddCredentialParams, body FinishAddCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishAddCredentialResponse, error) {
 	rsp, err := c.FinishAddCredential(ctx, params, body, reqEditors...)
 	if err != nil {
@@ -18446,7 +18453,7 @@ func (c *ClientWithResponses) FinishAddCredentialWithResponse(ctx context.Contex
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with DELETE /api/auth/credentials/{id} (the `DeleteCredential` operationId).
+// Corresponds with DELETE /api/v1/auth/credentials/{id} (the `DeleteCredential` operationId).
 func (c *ClientWithResponses) DeleteCredentialWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteCredentialResponse, error) {
 	rsp, err := c.DeleteCredential(ctx, id, reqEditors...)
 	if err != nil {
@@ -18465,7 +18472,7 @@ func (c *ClientWithResponses) DeleteCredentialWithResponse(ctx context.Context, 
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+// Corresponds with PATCH /api/v1/auth/credentials/{id} (the `RenameCredential` operationId).
 func (c *ClientWithResponses) RenameCredentialWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameCredentialResponse, error) {
 	rsp, err := c.RenameCredentialWithBody(ctx, id, contentType, body, reqEditors...)
 	if err != nil {
@@ -18484,7 +18491,7 @@ func (c *ClientWithResponses) RenameCredentialWithBodyWithResponse(ctx context.C
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PATCH /api/auth/credentials/{id} (the `RenameCredential` operationId).
+// Corresponds with PATCH /api/v1/auth/credentials/{id} (the `RenameCredential` operationId).
 func (c *ClientWithResponses) RenameCredentialWithResponse(ctx context.Context, id string, body RenameCredentialJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameCredentialResponse, error) {
 	rsp, err := c.RenameCredential(ctx, id, body, reqEditors...)
 	if err != nil {
@@ -18502,7 +18509,7 @@ func (c *ClientWithResponses) RenameCredentialWithResponse(ctx context.Context, 
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/auth/login/begin (the `BeginLogin` operationId).
+// Corresponds with POST /api/v1/auth/login/begin (the `BeginLogin` operationId).
 func (c *ClientWithResponses) BeginLoginWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BeginLoginResponse, error) {
 	rsp, err := c.BeginLogin(ctx, reqEditors...)
 	if err != nil {
@@ -18515,7 +18522,7 @@ func (c *ClientWithResponses) BeginLoginWithResponse(ctx context.Context, reqEdi
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
+// Corresponds with POST /api/v1/auth/login/finish (the `FinishLogin` operationId).
 func (c *ClientWithResponses) FinishLoginWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error) {
 	rsp, err := c.FinishLoginWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -18528,7 +18535,7 @@ func (c *ClientWithResponses) FinishLoginWithBodyWithResponse(ctx context.Contex
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/auth/login/finish (the `FinishLogin` operationId).
+// Corresponds with POST /api/v1/auth/login/finish (the `FinishLogin` operationId).
 func (c *ClientWithResponses) FinishLoginWithResponse(ctx context.Context, body FinishLoginJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishLoginResponse, error) {
 	rsp, err := c.FinishLogin(ctx, body, reqEditors...)
 	if err != nil {
@@ -18541,7 +18548,7 @@ func (c *ClientWithResponses) FinishLoginWithResponse(ctx context.Context, body 
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/auth/logout (the `Logout` operationId).
+// Corresponds with POST /api/v1/auth/logout (the `Logout` operationId).
 func (c *ClientWithResponses) LogoutWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*LogoutResponse, error) {
 	rsp, err := c.Logout(ctx, reqEditors...)
 	if err != nil {
@@ -18553,7 +18560,7 @@ func (c *ClientWithResponses) LogoutWithResponse(ctx context.Context, reqEditors
 // BeginRegistrationWithResponse Start a passkey registration ceremony
 //
 // An instance has one user. The first registration on a fresh
-// instance (see GET /api/auth/registration-status) creates that
+// instance (see GET /api/v1/auth/registration-status) creates that
 // user and the server names it, so the request carries no body. The
 // options require a resident key, so the passkey can be found at
 // sign-in without being named. Once any account holds a passkey, this
@@ -18561,7 +18568,7 @@ func (c *ClientWithResponses) LogoutWithResponse(ctx context.Context, reqEditors
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/auth/register/begin (the `BeginRegistration` operationId).
+// Corresponds with POST /api/v1/auth/register/begin (the `BeginRegistration` operationId).
 func (c *ClientWithResponses) BeginRegistrationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*BeginRegistrationResponse, error) {
 	rsp, err := c.BeginRegistration(ctx, reqEditors...)
 	if err != nil {
@@ -18574,7 +18581,7 @@ func (c *ClientWithResponses) BeginRegistrationWithResponse(ctx context.Context,
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
+// Corresponds with POST /api/v1/auth/register/finish (the `FinishRegistration` operationId).
 func (c *ClientWithResponses) FinishRegistrationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error) {
 	rsp, err := c.FinishRegistrationWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -18587,7 +18594,7 @@ func (c *ClientWithResponses) FinishRegistrationWithBodyWithResponse(ctx context
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/auth/register/finish (the `FinishRegistration` operationId).
+// Corresponds with POST /api/v1/auth/register/finish (the `FinishRegistration` operationId).
 func (c *ClientWithResponses) FinishRegistrationWithResponse(ctx context.Context, body FinishRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*FinishRegistrationResponse, error) {
 	rsp, err := c.FinishRegistration(ctx, body, reqEditors...)
 	if err != nil {
@@ -18607,7 +18614,7 @@ func (c *ClientWithResponses) FinishRegistrationWithResponse(ctx context.Context
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/auth/registration-status (the `GetRegistrationStatus` operationId).
+// Corresponds with GET /api/v1/auth/registration-status (the `GetRegistrationStatus` operationId).
 func (c *ClientWithResponses) GetRegistrationStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetRegistrationStatusResponse, error) {
 	rsp, err := c.GetRegistrationStatus(ctx, reqEditors...)
 	if err != nil {
@@ -18620,7 +18627,7 @@ func (c *ClientWithResponses) GetRegistrationStatusWithResponse(ctx context.Cont
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/auth/session (the `GetSession` operationId).
+// Corresponds with GET /api/v1/auth/session (the `GetSession` operationId).
 func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSessionResponse, error) {
 	rsp, err := c.GetSession(ctx, reqEditors...)
 	if err != nil {
@@ -18634,7 +18641,7 @@ func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEdi
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
 // workflow. A client takes `runId` from a check in a `run` event on
-// GET /api/dashboard/stream, from a job that is still queued or running.
+// GET /api/v1/dashboard/stream, from a job that is still queued or running.
 // A check with no `runId` (a third-party check, a legacy commit status,
 // an external CI) belongs to no Actions run and can't be cancelled
 // here.
@@ -18662,7 +18669,7 @@ func (c *ClientWithResponses) GetSessionWithResponse(ctx context.Context, reqEdi
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+// Corresponds with POST /api/v1/checks/cancel-run (the `CancelWorkflowRun` operationId).
 func (c *ClientWithResponses) CancelWorkflowRunWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelWorkflowRunResponse, error) {
 	rsp, err := c.CancelWorkflowRunWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -18676,7 +18683,7 @@ func (c *ClientWithResponses) CancelWorkflowRunWithBodyWithResponse(ctx context.
 // Asks the forge to cancel a whole workflow run: every job of it stops,
 // because neither GitHub nor Forgejo can stop one job of a running
 // workflow. A client takes `runId` from a check in a `run` event on
-// GET /api/dashboard/stream, from a job that is still queued or running.
+// GET /api/v1/dashboard/stream, from a job that is still queued or running.
 // A check with no `runId` (a third-party check, a legacy commit status,
 // an external CI) belongs to no Actions run and can't be cancelled
 // here.
@@ -18704,7 +18711,7 @@ func (c *ClientWithResponses) CancelWorkflowRunWithBodyWithResponse(ctx context.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/checks/cancel-run (the `CancelWorkflowRun` operationId).
+// Corresponds with POST /api/v1/checks/cancel-run (the `CancelWorkflowRun` operationId).
 func (c *ClientWithResponses) CancelWorkflowRunWithResponse(ctx context.Context, body CancelWorkflowRunJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelWorkflowRunResponse, error) {
 	rsp, err := c.CancelWorkflowRun(ctx, body, reqEditors...)
 	if err != nil {
@@ -18746,7 +18753,7 @@ func (c *ClientWithResponses) CancelWorkflowRunWithResponse(ctx context.Context,
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/checks/log (the `GetCheckLog` operationId).
+// Corresponds with GET /api/v1/checks/log (the `GetCheckLog` operationId).
 func (c *ClientWithResponses) GetCheckLogWithResponse(ctx context.Context, params *GetCheckLogParams, reqEditors ...RequestEditorFn) (*GetCheckLogResponse, error) {
 	rsp, err := c.GetCheckLog(ctx, params, reqEditors...)
 	if err != nil {
@@ -18770,7 +18777,7 @@ func (c *ClientWithResponses) GetCheckLogWithResponse(ctx context.Context, param
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/dashboard (the `GetDashboard` operationId).
+// Corresponds with GET /api/v1/dashboard (the `GetDashboard` operationId).
 func (c *ClientWithResponses) GetDashboardWithResponse(ctx context.Context, params *GetDashboardParams, reqEditors ...RequestEditorFn) (*GetDashboardResponse, error) {
 	rsp, err := c.GetDashboard(ctx, params, reqEditors...)
 	if err != nil {
@@ -18803,7 +18810,7 @@ func (c *ClientWithResponses) GetDashboardWithResponse(ctx context.Context, para
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/dashboard/refresh (the `RefreshDashboard` operationId).
+// Corresponds with POST /api/v1/dashboard/refresh (the `RefreshDashboard` operationId).
 func (c *ClientWithResponses) RefreshDashboardWithResponse(ctx context.Context, params *RefreshDashboardParams, reqEditors ...RequestEditorFn) (*RefreshDashboardResponse, error) {
 	rsp, err := c.RefreshDashboard(ctx, params, reqEditors...)
 	if err != nil {
@@ -18820,7 +18827,7 @@ func (c *ClientWithResponses) RefreshDashboardWithResponse(ctx context.Context, 
 // one, which is what turns that into a live update instead of
 // something only the next scheduled refresh picks up.
 //
-// The frontend's own 30-second poll against GET /api/dashboard
+// The frontend's own 30-second poll against GET /api/v1/dashboard
 // keeps running unconditionally, connected or not — a browser or
 // proxy that can't hold an SSE connection open just never
 // benefits from this, rather than the dashboard going stale
@@ -18832,7 +18839,7 @@ func (c *ClientWithResponses) RefreshDashboardWithResponse(ctx context.Context, 
 //
 // A client that passes `sid` can also follow the job lists of the
 // pull requests and default branches it has open, through
-// `POST /api/dashboard/stream/watch`. Each list arrives as named
+// `POST /api/v1/dashboard/stream/watch`. Each list arrives as named
 // `run` events on this stream, one for each workflow run attempt, so a
 // client that only listens for default messages never sees one. A
 // reconnect reuses the same `sid` with nothing watched, so the client
@@ -18840,7 +18847,7 @@ func (c *ClientWithResponses) RefreshDashboardWithResponse(ctx context.Context, 
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/dashboard/stream (the `StreamDashboard` operationId).
+// Corresponds with GET /api/v1/dashboard/stream (the `StreamDashboard` operationId).
 func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, params *StreamDashboardParams, reqEditors ...RequestEditorFn) (*StreamDashboardResponse, error) {
 	rsp, err := c.StreamDashboard(ctx, params, reqEditors...)
 	if err != nil {
@@ -18869,7 +18876,7 @@ func (c *ClientWithResponses) StreamDashboardWithResponse(ctx context.Context, p
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+// Corresponds with POST /api/v1/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
 func (c *ClientWithResponses) WatchDashboardStreamChecksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WatchDashboardStreamChecksResponse, error) {
 	rsp, err := c.WatchDashboardStreamChecksWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -18898,7 +18905,7 @@ func (c *ClientWithResponses) WatchDashboardStreamChecksWithBodyWithResponse(ctx
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
+// Corresponds with POST /api/v1/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
 func (c *ClientWithResponses) WatchDashboardStreamChecksWithResponse(ctx context.Context, body WatchDashboardStreamChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchDashboardStreamChecksResponse, error) {
 	rsp, err := c.WatchDashboardStreamChecks(ctx, body, reqEditors...)
 	if err != nil {
@@ -18910,7 +18917,7 @@ func (c *ClientWithResponses) WatchDashboardStreamChecksWithResponse(ctx context
 // CloseIssueWithBodyWithResponse Close one issue, on the signed-in user's behalf
 //
 // Closes the named issue. The Issues page's dialog offers it, on its own
-// or after posting a comment with `POST /api/issues/comment`. Closing an
+// or after posting a comment with `POST /api/v1/issues/comment`. Closing an
 // issue that is already closed is not refused: both forges treat it as
 // done, so the call succeeds and there is no `already_closed` answer.
 //
@@ -18928,7 +18935,7 @@ func (c *ClientWithResponses) WatchDashboardStreamChecksWithResponse(ctx context
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+// Corresponds with POST /api/v1/issues/close (the `CloseIssue` operationId).
 func (c *ClientWithResponses) CloseIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CloseIssueResponse, error) {
 	rsp, err := c.CloseIssueWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -18940,7 +18947,7 @@ func (c *ClientWithResponses) CloseIssueWithBodyWithResponse(ctx context.Context
 // CloseIssueWithResponse Close one issue, on the signed-in user's behalf
 //
 // Closes the named issue. The Issues page's dialog offers it, on its own
-// or after posting a comment with `POST /api/issues/comment`. Closing an
+// or after posting a comment with `POST /api/v1/issues/comment`. Closing an
 // issue that is already closed is not refused: both forges treat it as
 // done, so the call succeeds and there is no `already_closed` answer.
 //
@@ -18958,7 +18965,7 @@ func (c *ClientWithResponses) CloseIssueWithBodyWithResponse(ctx context.Context
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/issues/close (the `CloseIssue` operationId).
+// Corresponds with POST /api/v1/issues/close (the `CloseIssue` operationId).
 func (c *ClientWithResponses) CloseIssueWithResponse(ctx context.Context, body CloseIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*CloseIssueResponse, error) {
 	rsp, err := c.CloseIssue(ctx, body, reqEditors...)
 	if err != nil {
@@ -18986,7 +18993,7 @@ func (c *ClientWithResponses) CloseIssueWithResponse(ctx context.Context, body C
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+// Corresponds with POST /api/v1/issues/comment (the `CommentOnIssue` operationId).
 func (c *ClientWithResponses) CommentOnIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CommentOnIssueResponse, error) {
 	rsp, err := c.CommentOnIssueWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19014,7 +19021,7 @@ func (c *ClientWithResponses) CommentOnIssueWithBodyWithResponse(ctx context.Con
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/issues/comment (the `CommentOnIssue` operationId).
+// Corresponds with POST /api/v1/issues/comment (the `CommentOnIssue` operationId).
 func (c *ClientWithResponses) CommentOnIssueWithResponse(ctx context.Context, body CommentOnIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*CommentOnIssueResponse, error) {
 	rsp, err := c.CommentOnIssue(ctx, body, reqEditors...)
 	if err != nil {
@@ -19027,9 +19034,9 @@ func (c *ClientWithResponses) CommentOnIssueWithResponse(ctx context.Context, bo
 //
 // What the issue dialog shows: the description, the conversation in
 // order, and the thumbs up and thumbs down reactions on each with who
-// gave them. The same shape and rules as GET /api/pull-requests/details
+// gave them. The same shape and rules as GET /api/v1/pull-requests/details
 // without the release notes, which only a pull request has. Fetched live
-// on every call, never as part of GET /api/dashboard's snapshot.
+// on every call, never as part of GET /api/v1/dashboard's snapshot.
 //
 // GitHub answers with one GraphQL query. Forgejo costs one call for the
 // issue, one for its comments, one for the description's reactions and
@@ -19045,13 +19052,13 @@ func (c *ClientWithResponses) CommentOnIssueWithResponse(ctx context.Context, bo
 // number. An avatar is the forge's own URL, passed through unchanged and
 // never proxied.
 //
-// The error answers are those of GET /api/pull-requests/details, with
+// The error answers are those of GET /api/v1/pull-requests/details, with
 // the same codes. An issue that doesn't exist is a 404, and a forge that
 // can't be read is an error, never an empty thread.
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/issues/details (the `GetIssueDetails` operationId).
+// Corresponds with GET /api/v1/issues/details (the `GetIssueDetails` operationId).
 func (c *ClientWithResponses) GetIssueDetailsWithResponse(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*GetIssueDetailsResponse, error) {
 	rsp, err := c.GetIssueDetails(ctx, params, reqEditors...)
 	if err != nil {
@@ -19076,7 +19083,7 @@ func (c *ClientWithResponses) GetIssueDetailsWithResponse(ctx context.Context, p
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+// Corresponds with POST /api/v1/issues/reopen (the `ReopenIssue` operationId).
 func (c *ClientWithResponses) ReopenIssueWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReopenIssueResponse, error) {
 	rsp, err := c.ReopenIssueWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19101,7 +19108,7 @@ func (c *ClientWithResponses) ReopenIssueWithBodyWithResponse(ctx context.Contex
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/issues/reopen (the `ReopenIssue` operationId).
+// Corresponds with POST /api/v1/issues/reopen (the `ReopenIssue` operationId).
 func (c *ClientWithResponses) ReopenIssueWithResponse(ctx context.Context, body ReopenIssueJSONRequestBody, reqEditors ...RequestEditorFn) (*ReopenIssueResponse, error) {
 	rsp, err := c.ReopenIssue(ctx, body, reqEditors...)
 	if err != nil {
@@ -19133,7 +19140,7 @@ func (c *ClientWithResponses) ReopenIssueWithResponse(ctx context.Context, body 
 //
 // A forge that can't be reached keeps its last known rows, each marked
 // `staleSince`, the same carry-over `forges[].staleSince`
-// on GET /api/dashboard reports. A forge whose rate-limit budget is
+// on GET /api/v1/dashboard reports. A forge whose rate-limit budget is
 // spent is skipped until it resets and its rows are kept the same way.
 // Only the signed-in user's own repositories.
 //
@@ -19143,7 +19150,7 @@ func (c *ClientWithResponses) ReopenIssueWithResponse(ctx context.Context, body 
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/main-branches (the `GetMainBranches` operationId).
+// Corresponds with GET /api/v1/main-branches (the `GetMainBranches` operationId).
 func (c *ClientWithResponses) GetMainBranchesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMainBranchesResponse, error) {
 	rsp, err := c.GetMainBranches(ctx, reqEditors...)
 	if err != nil {
@@ -19158,7 +19165,7 @@ func (c *ClientWithResponses) GetMainBranchesWithResponse(ctx context.Context, r
 // repository: each open Dependabot alert with the fields GitHub's own
 // alert page shows. The list and the detail view are the same answer, so
 // opening one advisory costs no second call. Fetched live on every call,
-// never as part of GET /api/main-branches' snapshot, so a repository
+// never as part of GET /api/v1/main-branches' snapshot, so a repository
 // nobody opens costs no budget.
 //
 // Sorted by severity, highest first, then newest first. GitHub reads them
@@ -19188,7 +19195,7 @@ func (c *ClientWithResponses) GetMainBranchesWithResponse(ctx context.Context, r
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/main-branches/advisories (the `ListAdvisories` operationId).
+// Corresponds with GET /api/v1/main-branches/advisories (the `ListAdvisories` operationId).
 func (c *ClientWithResponses) ListAdvisoriesWithResponse(ctx context.Context, params *ListAdvisoriesParams, reqEditors ...RequestEditorFn) (*ListAdvisoriesResponse, error) {
 	rsp, err := c.ListAdvisories(ctx, params, reqEditors...)
 	if err != nil {
@@ -19199,7 +19206,7 @@ func (c *ClientWithResponses) ListAdvisoriesWithResponse(ctx context.Context, pa
 
 // RerunMainBranchChecksWithBodyWithResponse Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 //
-// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
+// The branch twin of POST /api/v1/pull-requests/rerun-checks. Asks the forge
 // to rerun the failed jobs of the Actions workflow runs on the commit
 // the branch's job list shows, and nothing that passed. It
 // answers once the forge has queued them, not when they finish, so a
@@ -19217,7 +19224,7 @@ func (c *ClientWithResponses) ListAdvisoriesWithResponse(ctx context.Context, pa
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
+// Corresponds with POST /api/v1/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
 func (c *ClientWithResponses) RerunMainBranchChecksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RerunMainBranchChecksResponse, error) {
 	rsp, err := c.RerunMainBranchChecksWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19228,7 +19235,7 @@ func (c *ClientWithResponses) RerunMainBranchChecksWithBodyWithResponse(ctx cont
 
 // RerunMainBranchChecksWithResponse Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
 //
-// The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
+// The branch twin of POST /api/v1/pull-requests/rerun-checks. Asks the forge
 // to rerun the failed jobs of the Actions workflow runs on the commit
 // the branch's job list shows, and nothing that passed. It
 // answers once the forge has queued them, not when they finish, so a
@@ -19246,7 +19253,7 @@ func (c *ClientWithResponses) RerunMainBranchChecksWithBodyWithResponse(ctx cont
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
+// Corresponds with POST /api/v1/main-branches/rerun-checks (the `RerunMainBranchChecks` operationId).
 func (c *ClientWithResponses) RerunMainBranchChecksWithResponse(ctx context.Context, body RerunMainBranchChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*RerunMainBranchChecksResponse, error) {
 	rsp, err := c.RerunMainBranchChecks(ctx, body, reqEditors...)
 	if err != nil {
@@ -19282,7 +19289,7 @@ func (c *ClientWithResponses) RerunMainBranchChecksWithResponse(ctx context.Cont
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+// Corresponds with POST /api/v1/presence (the `ReportDashboardPresence` operationId).
 func (c *ClientWithResponses) ReportDashboardPresenceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReportDashboardPresenceResponse, error) {
 	rsp, err := c.ReportDashboardPresenceWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19318,7 +19325,7 @@ func (c *ClientWithResponses) ReportDashboardPresenceWithBodyWithResponse(ctx co
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/presence (the `ReportDashboardPresence` operationId).
+// Corresponds with POST /api/v1/presence (the `ReportDashboardPresence` operationId).
 func (c *ClientWithResponses) ReportDashboardPresenceWithResponse(ctx context.Context, body ReportDashboardPresenceJSONRequestBody, reqEditors ...RequestEditorFn) (*ReportDashboardPresenceResponse, error) {
 	rsp, err := c.ReportDashboardPresence(ctx, body, reqEditors...)
 	if err != nil {
@@ -19368,7 +19375,7 @@ func (c *ClientWithResponses) ReportDashboardPresenceWithResponse(ctx context.Co
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
 func (c *ClientWithResponses) EnablePullRequestAutoMergeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnablePullRequestAutoMergeResponse, error) {
 	rsp, err := c.EnablePullRequestAutoMergeWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19418,7 +19425,7 @@ func (c *ClientWithResponses) EnablePullRequestAutoMergeWithBodyWithResponse(ctx
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-merge (the `EnablePullRequestAutoMerge` operationId).
 func (c *ClientWithResponses) EnablePullRequestAutoMergeWithResponse(ctx context.Context, body EnablePullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*EnablePullRequestAutoMergeResponse, error) {
 	rsp, err := c.EnablePullRequestAutoMerge(ctx, body, reqEditors...)
 	if err != nil {
@@ -19429,7 +19436,7 @@ func (c *ClientWithResponses) EnablePullRequestAutoMergeWithResponse(ctx context
 
 // CancelPullRequestAutoMergeWithBodyWithResponse Cancel auto-merge on a pull request, on the signed-in user's behalf
 //
-// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+// Forgejo: removes the intent stored by `POST /api/v1/pull-requests/auto-merge`,
 // so the background pass never merges the pull request. Nothing is sent
 // to the forge. Idempotent: a pull request with no intent is a 204 too.
 //
@@ -19441,7 +19448,7 @@ func (c *ClientWithResponses) EnablePullRequestAutoMergeWithResponse(ctx context
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 func (c *ClientWithResponses) CancelPullRequestAutoMergeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelPullRequestAutoMergeResponse, error) {
 	rsp, err := c.CancelPullRequestAutoMergeWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19452,7 +19459,7 @@ func (c *ClientWithResponses) CancelPullRequestAutoMergeWithBodyWithResponse(ctx
 
 // CancelPullRequestAutoMergeWithResponse Cancel auto-merge on a pull request, on the signed-in user's behalf
 //
-// Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+// Forgejo: removes the intent stored by `POST /api/v1/pull-requests/auto-merge`,
 // so the background pass never merges the pull request. Nothing is sent
 // to the forge. Idempotent: a pull request with no intent is a 204 too.
 //
@@ -19464,7 +19471,7 @@ func (c *ClientWithResponses) CancelPullRequestAutoMergeWithBodyWithResponse(ctx
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-merge/cancel (the `CancelPullRequestAutoMerge` operationId).
 func (c *ClientWithResponses) CancelPullRequestAutoMergeWithResponse(ctx context.Context, body CancelPullRequestAutoMergeJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelPullRequestAutoMergeResponse, error) {
 	rsp, err := c.CancelPullRequestAutoMerge(ctx, body, reqEditors...)
 	if err != nil {
@@ -19477,20 +19484,20 @@ func (c *ClientWithResponses) CancelPullRequestAutoMergeWithResponse(ctx context
 //
 // A pure local write: nothing is sent to the forge. The choice is kept
 // only while it differs from the repo's auto-update setting
-// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+// (`/api/v1/repos/auto-update-branch/enable`), so a choice that matches
 // the repo is dropped and the pull request follows the repo again, and
 // a later change to the repo's setting reaches it. With `enabled`
 // `null` or absent the pull request goes back to its repo's setting.
 // Idempotent. A draft and a release-please pull request are never
 // updated automatically, whatever is chosen: `autoUpdate.unavailable`
-// in GET /api/dashboard says so. The server forgets the choice once
+// in GET /api/v1/dashboard says so. The server forgets the choice once
 // the pull request is no longer open, its repo is no longer tracked, or
 // the repo's setting changes to match it. A pull request the dashboard
 // doesn't hold is a 404.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
 func (c *ClientWithResponses) SetPullRequestAutoUpdateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetPullRequestAutoUpdateResponse, error) {
 	rsp, err := c.SetPullRequestAutoUpdateWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19503,20 +19510,20 @@ func (c *ClientWithResponses) SetPullRequestAutoUpdateWithBodyWithResponse(ctx c
 //
 // A pure local write: nothing is sent to the forge. The choice is kept
 // only while it differs from the repo's auto-update setting
-// (`/api/repos/auto-update-branch/enable`), so a choice that matches
+// (`/api/v1/repos/auto-update-branch/enable`), so a choice that matches
 // the repo is dropped and the pull request follows the repo again, and
 // a later change to the repo's setting reaches it. With `enabled`
 // `null` or absent the pull request goes back to its repo's setting.
 // Idempotent. A draft and a release-please pull request are never
 // updated automatically, whatever is chosen: `autoUpdate.unavailable`
-// in GET /api/dashboard says so. The server forgets the choice once
+// in GET /api/v1/dashboard says so. The server forgets the choice once
 // the pull request is no longer open, its repo is no longer tracked, or
 // the repo's setting changes to match it. A pull request the dashboard
 // doesn't hold is a 404.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
+// Corresponds with POST /api/v1/pull-requests/auto-update (the `SetPullRequestAutoUpdate` operationId).
 func (c *ClientWithResponses) SetPullRequestAutoUpdateWithResponse(ctx context.Context, body SetPullRequestAutoUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetPullRequestAutoUpdateResponse, error) {
 	rsp, err := c.SetPullRequestAutoUpdate(ctx, body, reqEditors...)
 	if err != nil {
@@ -19542,7 +19549,7 @@ func (c *ClientWithResponses) SetPullRequestAutoUpdateWithResponse(ctx context.C
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/close (the `ClosePullRequest` operationId).
 func (c *ClientWithResponses) ClosePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ClosePullRequestResponse, error) {
 	rsp, err := c.ClosePullRequestWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19568,7 +19575,7 @@ func (c *ClientWithResponses) ClosePullRequestWithBodyWithResponse(ctx context.C
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/close (the `ClosePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/close (the `ClosePullRequest` operationId).
 func (c *ClientWithResponses) ClosePullRequestWithResponse(ctx context.Context, body ClosePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*ClosePullRequestResponse, error) {
 	rsp, err := c.ClosePullRequest(ctx, body, reqEditors...)
 	if err != nil {
@@ -19595,7 +19602,7 @@ func (c *ClientWithResponses) ClosePullRequestWithResponse(ctx context.Context, 
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
+// Corresponds with POST /api/v1/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
 func (c *ClientWithResponses) PostPullRequestDependabotActionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostPullRequestDependabotActionResponse, error) {
 	rsp, err := c.PostPullRequestDependabotActionWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19622,7 +19629,7 @@ func (c *ClientWithResponses) PostPullRequestDependabotActionWithBodyWithRespons
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
+// Corresponds with POST /api/v1/pull-requests/dependabot-action (the `PostPullRequestDependabotAction` operationId).
 func (c *ClientWithResponses) PostPullRequestDependabotActionWithResponse(ctx context.Context, body PostPullRequestDependabotActionJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPullRequestDependabotActionResponse, error) {
 	rsp, err := c.PostPullRequestDependabotAction(ctx, body, reqEditors...)
 	if err != nil {
@@ -19637,7 +19644,7 @@ func (c *ClientWithResponses) PostPullRequestDependabotActionWithResponse(ctx co
 // conversation in order, the thumbs up and thumbs down reactions on each
 // with who gave them, and, for a release pull request, the release
 // notes. Fetched live on every call, never as part of GET
-// /api/dashboard's snapshot: comments and reactions for every row would
+// /api/v1/dashboard's snapshot: comments and reactions for every row would
 // spend the forge's budget on rows nobody opens.
 //
 // GitHub answers with one GraphQL query. Forgejo costs one call for the
@@ -19657,13 +19664,13 @@ func (c *ClientWithResponses) PostPullRequestDependabotActionWithResponse(ctx co
 // the browser loads it directly. A future policy's `img-src` has to
 // allow avatars.githubusercontent.com, repository-images.githubusercontent.com
 // (a GitHub repository's logo, see `logoUrl` on a repo in GET
-// /api/dashboard) and the Forgejo host.
+// /api/v1/dashboard) and the Forgejo host.
 //
 // A forge that can't be read is an error, never an empty thread.
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/pull-requests/details (the `GetPullRequestDetails` operationId).
+// Corresponds with GET /api/v1/pull-requests/details (the `GetPullRequestDetails` operationId).
 func (c *ClientWithResponses) GetPullRequestDetailsWithResponse(ctx context.Context, params *GetPullRequestDetailsParams, reqEditors ...RequestEditorFn) (*GetPullRequestDetailsResponse, error) {
 	rsp, err := c.GetPullRequestDetails(ctx, params, reqEditors...)
 	if err != nil {
@@ -19676,12 +19683,12 @@ func (c *ClientWithResponses) GetPullRequestDetailsWithResponse(ctx context.Cont
 //
 // Reversible, not destructive, like ignoring a repo: nothing is sent to
 // the forge. A hidden pull request leaves `pullRequests` in
-// GET /api/dashboard and everything counted from it, and is counted in
+// GET /api/v1/dashboard and everything counted from it, and is counted in
 // `hiddenPullRequests` instead. It stays listed for
 // `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
 //
 // With `days`, the hide ends by itself that many days from now. Without
-// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+// it the pull request stays hidden until `POST /api/v1/pull-requests/unhide`.
 // A repeat call replaces the earlier choice (hide until restored, then
 // hide for 7 days, ends with the 7 days). The server forgets the record
 // once the pull request is no longer open, so the list never grows
@@ -19690,7 +19697,7 @@ func (c *ClientWithResponses) GetPullRequestDetailsWithResponse(ctx context.Cont
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/hide (the `HidePullRequest` operationId).
 func (c *ClientWithResponses) HidePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*HidePullRequestResponse, error) {
 	rsp, err := c.HidePullRequestWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19703,12 +19710,12 @@ func (c *ClientWithResponses) HidePullRequestWithBodyWithResponse(ctx context.Co
 //
 // Reversible, not destructive, like ignoring a repo: nothing is sent to
 // the forge. A hidden pull request leaves `pullRequests` in
-// GET /api/dashboard and everything counted from it, and is counted in
+// GET /api/v1/dashboard and everything counted from it, and is counted in
 // `hiddenPullRequests` instead. It stays listed for
 // `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
 //
 // With `days`, the hide ends by itself that many days from now. Without
-// it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+// it the pull request stays hidden until `POST /api/v1/pull-requests/unhide`.
 // A repeat call replaces the earlier choice (hide until restored, then
 // hide for 7 days, ends with the 7 days). The server forgets the record
 // once the pull request is no longer open, so the list never grows
@@ -19717,7 +19724,7 @@ func (c *ClientWithResponses) HidePullRequestWithBodyWithResponse(ctx context.Co
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/hide (the `HidePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/hide (the `HidePullRequest` operationId).
 func (c *ClientWithResponses) HidePullRequestWithResponse(ctx context.Context, body HidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*HidePullRequestResponse, error) {
 	rsp, err := c.HidePullRequest(ctx, body, reqEditors...)
 	if err != nil {
@@ -19757,7 +19764,7 @@ func (c *ClientWithResponses) HidePullRequestWithResponse(ctx context.Context, b
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/merge (the `MergePullRequest` operationId).
 func (c *ClientWithResponses) MergePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MergePullRequestResponse, error) {
 	rsp, err := c.MergePullRequestWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19797,7 +19804,7 @@ func (c *ClientWithResponses) MergePullRequestWithBodyWithResponse(ctx context.C
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/merge (the `MergePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/merge (the `MergePullRequest` operationId).
 func (c *ClientWithResponses) MergePullRequestWithResponse(ctx context.Context, body MergePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*MergePullRequestResponse, error) {
 	rsp, err := c.MergePullRequest(ctx, body, reqEditors...)
 	if err != nil {
@@ -19830,7 +19837,7 @@ func (c *ClientWithResponses) MergePullRequestWithResponse(ctx context.Context, 
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
+// Corresponds with POST /api/v1/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 func (c *ClientWithResponses) PostPullRequestRenovateRebaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostPullRequestRenovateRebaseResponse, error) {
 	rsp, err := c.PostPullRequestRenovateRebaseWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19863,7 +19870,7 @@ func (c *ClientWithResponses) PostPullRequestRenovateRebaseWithBodyWithResponse(
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
+// Corresponds with POST /api/v1/pull-requests/renovate-rebase (the `PostPullRequestRenovateRebase` operationId).
 func (c *ClientWithResponses) PostPullRequestRenovateRebaseWithResponse(ctx context.Context, body PostPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPullRequestRenovateRebaseResponse, error) {
 	rsp, err := c.PostPullRequestRenovateRebase(ctx, body, reqEditors...)
 	if err != nil {
@@ -19889,7 +19896,7 @@ func (c *ClientWithResponses) PostPullRequestRenovateRebaseWithResponse(ctx cont
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+// Corresponds with POST /api/v1/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
 func (c *ClientWithResponses) CancelPullRequestRenovateRebaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelPullRequestRenovateRebaseResponse, error) {
 	rsp, err := c.CancelPullRequestRenovateRebaseWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19915,7 +19922,7 @@ func (c *ClientWithResponses) CancelPullRequestRenovateRebaseWithBodyWithRespons
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
+// Corresponds with POST /api/v1/pull-requests/renovate-rebase/cancel (the `CancelPullRequestRenovateRebase` operationId).
 func (c *ClientWithResponses) CancelPullRequestRenovateRebaseWithResponse(ctx context.Context, body CancelPullRequestRenovateRebaseJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelPullRequestRenovateRebaseResponse, error) {
 	rsp, err := c.CancelPullRequestRenovateRebase(ctx, body, reqEditors...)
 	if err != nil {
@@ -19946,7 +19953,7 @@ func (c *ClientWithResponses) CancelPullRequestRenovateRebaseWithResponse(ctx co
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/reopen (the `ReopenPullRequest` operationId).
 func (c *ClientWithResponses) ReopenPullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReopenPullRequestResponse, error) {
 	rsp, err := c.ReopenPullRequestWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -19977,7 +19984,7 @@ func (c *ClientWithResponses) ReopenPullRequestWithBodyWithResponse(ctx context.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/reopen (the `ReopenPullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/reopen (the `ReopenPullRequest` operationId).
 func (c *ClientWithResponses) ReopenPullRequestWithResponse(ctx context.Context, body ReopenPullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*ReopenPullRequestResponse, error) {
 	rsp, err := c.ReopenPullRequest(ctx, body, reqEditors...)
 	if err != nil {
@@ -20033,7 +20040,7 @@ func (c *ClientWithResponses) ReopenPullRequestWithResponse(ctx context.Context,
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+// Corresponds with POST /api/v1/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 func (c *ClientWithResponses) RerunPullRequestChecksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RerunPullRequestChecksResponse, error) {
 	rsp, err := c.RerunPullRequestChecksWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20089,7 +20096,7 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithBodyWithResponse(ctx con
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
+// Corresponds with POST /api/v1/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 func (c *ClientWithResponses) RerunPullRequestChecksWithResponse(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*RerunPullRequestChecksResponse, error) {
 	rsp, err := c.RerunPullRequestChecks(ctx, body, reqEditors...)
 	if err != nil {
@@ -20100,12 +20107,12 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithResponse(ctx context.Con
 
 // UnhidePullRequestWithBodyWithResponse Bring a hidden pull request back onto the signed-in user's dashboard
 //
-// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+// The reverse of POST /api/v1/pull-requests/hide. Idempotent: restoring a
 // pull request that isn't hidden is a 204 too.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/unhide (the `UnhidePullRequest` operationId).
 func (c *ClientWithResponses) UnhidePullRequestWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UnhidePullRequestResponse, error) {
 	rsp, err := c.UnhidePullRequestWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20116,12 +20123,12 @@ func (c *ClientWithResponses) UnhidePullRequestWithBodyWithResponse(ctx context.
 
 // UnhidePullRequestWithResponse Bring a hidden pull request back onto the signed-in user's dashboard
 //
-// The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+// The reverse of POST /api/v1/pull-requests/hide. Idempotent: restoring a
 // pull request that isn't hidden is a 204 too.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/unhide (the `UnhidePullRequest` operationId).
+// Corresponds with POST /api/v1/pull-requests/unhide (the `UnhidePullRequest` operationId).
 func (c *ClientWithResponses) UnhidePullRequestWithResponse(ctx context.Context, body UnhidePullRequestJSONRequestBody, reqEditors ...RequestEditorFn) (*UnhidePullRequestResponse, error) {
 	rsp, err := c.UnhidePullRequest(ctx, body, reqEditors...)
 	if err != nil {
@@ -20148,7 +20155,7 @@ func (c *ClientWithResponses) UnhidePullRequestWithResponse(ctx context.Context,
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
+// Corresponds with POST /api/v1/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
 func (c *ClientWithResponses) UpdatePullRequestBranchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePullRequestBranchResponse, error) {
 	rsp, err := c.UpdatePullRequestBranchWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20175,7 +20182,7 @@ func (c *ClientWithResponses) UpdatePullRequestBranchWithBodyWithResponse(ctx co
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
+// Corresponds with POST /api/v1/pull-requests/update-branch (the `UpdatePullRequestBranch` operationId).
 func (c *ClientWithResponses) UpdatePullRequestBranchWithResponse(ctx context.Context, body UpdatePullRequestBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePullRequestBranchResponse, error) {
 	rsp, err := c.UpdatePullRequestBranch(ctx, body, reqEditors...)
 	if err != nil {
@@ -20190,11 +20197,11 @@ func (c *ClientWithResponses) UpdatePullRequestBranchWithResponse(ctx context.Co
 // resets, oldest first: the ones still `queued`, and the
 // final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
 // client can show the outcome in its Activity list. The same list
-// rides along on GET /api/dashboard as `queuedActions`.
+// rides along on GET /api/v1/dashboard as `queuedActions`.
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/queued-actions (the `ListQueuedActions` operationId).
+// Corresponds with GET /api/v1/queued-actions (the `ListQueuedActions` operationId).
 func (c *ClientWithResponses) ListQueuedActionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListQueuedActionsResponse, error) {
 	rsp, err := c.ListQueuedActions(ctx, reqEditors...)
 	if err != nil {
@@ -20229,7 +20236,7 @@ func (c *ClientWithResponses) ListQueuedActionsWithResponse(ctx context.Context,
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+// Corresponds with POST /api/v1/queued-actions (the `QueueAction` operationId).
 func (c *ClientWithResponses) QueueActionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*QueueActionResponse, error) {
 	rsp, err := c.QueueActionWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20264,7 +20271,7 @@ func (c *ClientWithResponses) QueueActionWithBodyWithResponse(ctx context.Contex
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/queued-actions (the `QueueAction` operationId).
+// Corresponds with POST /api/v1/queued-actions (the `QueueAction` operationId).
 func (c *ClientWithResponses) QueueActionWithResponse(ctx context.Context, body QueueActionJSONRequestBody, reqEditors ...RequestEditorFn) (*QueueActionResponse, error) {
 	rsp, err := c.QueueAction(ctx, body, reqEditors...)
 	if err != nil {
@@ -20281,7 +20288,7 @@ func (c *ClientWithResponses) QueueActionWithResponse(ctx context.Context, body 
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with DELETE /api/queued-actions/{id} (the `CancelQueuedAction` operationId).
+// Corresponds with DELETE /api/v1/queued-actions/{id} (the `CancelQueuedAction` operationId).
 func (c *ClientWithResponses) CancelQueuedActionWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CancelQueuedActionResponse, error) {
 	rsp, err := c.CancelQueuedAction(ctx, id, reqEditors...)
 	if err != nil {
@@ -20295,7 +20302,7 @@ func (c *ClientWithResponses) CancelQueuedActionWithResponse(ctx context.Context
 // What the release dialog on the Main branches page shows for a
 // repository's latest published release: its title, when it was
 // published, its notes and the thumbs reactions on them. Fetched live on
-// every call, never as part of GET /api/main-branches' snapshot, so a
+// every call, never as part of GET /api/v1/main-branches' snapshot, so a
 // release nobody opens costs no budget.
 //
 // GitHub answers with one GraphQL query. Only GitHub rows carry a latest
@@ -20307,13 +20314,13 @@ func (c *ClientWithResponses) CancelQueuedActionWithResponse(ctx context.Context
 // 20,000 characters (`truncated`), and a reaction names at most its
 // first 10 people while `count` is the full number.
 //
-// The error answers are those of GET /api/pull-requests/details, with
+// The error answers are those of GET /api/v1/pull-requests/details, with
 // the same codes. A tag that has no published release is a 404, and so is a draft,
 // a pre-release or a release with no publish date.
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/releases/details (the `GetReleaseDetails` operationId).
+// Corresponds with GET /api/v1/releases/details (the `GetReleaseDetails` operationId).
 func (c *ClientWithResponses) GetReleaseDetailsWithResponse(ctx context.Context, params *GetReleaseDetailsParams, reqEditors ...RequestEditorFn) (*GetReleaseDetailsResponse, error) {
 	rsp, err := c.GetReleaseDetails(ctx, params, reqEditors...)
 	if err != nil {
@@ -20324,13 +20331,13 @@ func (c *ClientWithResponses) GetReleaseDetailsWithResponse(ctx context.Context,
 
 // DisableAutoUpdateBranchWithBodyWithResponse Turn off automatic branch updates for one tracked repo
 //
-// The reverse of POST /api/repos/auto-update-branch/enable.
+// The reverse of POST /api/v1/repos/auto-update-branch/enable.
 // Idempotent: disabling a repo that was never enabled is a no-op,
 // not an error.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
+// Corresponds with POST /api/v1/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
 func (c *ClientWithResponses) DisableAutoUpdateBranchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DisableAutoUpdateBranchResponse, error) {
 	rsp, err := c.DisableAutoUpdateBranchWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20341,13 +20348,13 @@ func (c *ClientWithResponses) DisableAutoUpdateBranchWithBodyWithResponse(ctx co
 
 // DisableAutoUpdateBranchWithResponse Turn off automatic branch updates for one tracked repo
 //
-// The reverse of POST /api/repos/auto-update-branch/enable.
+// The reverse of POST /api/v1/repos/auto-update-branch/enable.
 // Idempotent: disabling a repo that was never enabled is a no-op,
 // not an error.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
+// Corresponds with POST /api/v1/repos/auto-update-branch/disable (the `DisableAutoUpdateBranch` operationId).
 func (c *ClientWithResponses) DisableAutoUpdateBranchWithResponse(ctx context.Context, body DisableAutoUpdateBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*DisableAutoUpdateBranchResponse, error) {
 	rsp, err := c.DisableAutoUpdateBranch(ctx, body, reqEditors...)
 	if err != nil {
@@ -20367,7 +20374,7 @@ func (c *ClientWithResponses) DisableAutoUpdateBranchWithResponse(ctx context.Co
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
+// Corresponds with POST /api/v1/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
 func (c *ClientWithResponses) EnableAutoUpdateBranchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnableAutoUpdateBranchResponse, error) {
 	rsp, err := c.EnableAutoUpdateBranchWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20387,7 +20394,7 @@ func (c *ClientWithResponses) EnableAutoUpdateBranchWithBodyWithResponse(ctx con
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
+// Corresponds with POST /api/v1/repos/auto-update-branch/enable (the `EnableAutoUpdateBranch` operationId).
 func (c *ClientWithResponses) EnableAutoUpdateBranchWithResponse(ctx context.Context, body EnableAutoUpdateBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*EnableAutoUpdateBranchResponse, error) {
 	rsp, err := c.EnableAutoUpdateBranch(ctx, body, reqEditors...)
 	if err != nil {
@@ -20399,7 +20406,7 @@ func (c *ClientWithResponses) EnableAutoUpdateBranchWithResponse(ctx context.Con
 // IgnoreRepoWithBodyWithResponse Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 //
 // Reversible, not destructive: the repo itself keeps
-// appearing in GET /api/dashboard's `repos` array with accurate
+// appearing in GET /api/v1/dashboard's `repos` array with accurate
 // webhook-coverage status, and keeps being fetched and counted —
 // only the pullRequests and/or issues entries the request scopes
 // stop appearing there and on Insights. A repeat call
@@ -20410,7 +20417,7 @@ func (c *ClientWithResponses) EnableAutoUpdateBranchWithResponse(ctx context.Con
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
+// Corresponds with POST /api/v1/repos/ignore (the `IgnoreRepo` operationId).
 func (c *ClientWithResponses) IgnoreRepoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*IgnoreRepoResponse, error) {
 	rsp, err := c.IgnoreRepoWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20422,7 +20429,7 @@ func (c *ClientWithResponses) IgnoreRepoWithBodyWithResponse(ctx context.Context
 // IgnoreRepoWithResponse Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
 //
 // Reversible, not destructive: the repo itself keeps
-// appearing in GET /api/dashboard's `repos` array with accurate
+// appearing in GET /api/v1/dashboard's `repos` array with accurate
 // webhook-coverage status, and keeps being fetched and counted —
 // only the pullRequests and/or issues entries the request scopes
 // stop appearing there and on Insights. A repeat call
@@ -20433,7 +20440,7 @@ func (c *ClientWithResponses) IgnoreRepoWithBodyWithResponse(ctx context.Context
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/ignore (the `IgnoreRepo` operationId).
+// Corresponds with POST /api/v1/repos/ignore (the `IgnoreRepo` operationId).
 func (c *ClientWithResponses) IgnoreRepoWithResponse(ctx context.Context, body IgnoreRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*IgnoreRepoResponse, error) {
 	rsp, err := c.IgnoreRepo(ctx, body, reqEditors...)
 	if err != nil {
@@ -20444,12 +20451,12 @@ func (c *ClientWithResponses) IgnoreRepoWithResponse(ctx context.Context, body I
 
 // DisableRebaseBotsWithBodyWithResponse Stop rebasing Dependabot and Renovate pull requests for one tracked repo
 //
-// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+// The reverse of POST /api/v1/repos/rebase-bots/enable. Idempotent:
 // disabling a repo that was never enabled is a no-op, not an error.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+// Corresponds with POST /api/v1/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
 func (c *ClientWithResponses) DisableRebaseBotsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DisableRebaseBotsResponse, error) {
 	rsp, err := c.DisableRebaseBotsWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20460,12 +20467,12 @@ func (c *ClientWithResponses) DisableRebaseBotsWithBodyWithResponse(ctx context.
 
 // DisableRebaseBotsWithResponse Stop rebasing Dependabot and Renovate pull requests for one tracked repo
 //
-// The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+// The reverse of POST /api/v1/repos/rebase-bots/enable. Idempotent:
 // disabling a repo that was never enabled is a no-op, not an error.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
+// Corresponds with POST /api/v1/repos/rebase-bots/disable (the `DisableRebaseBots` operationId).
 func (c *ClientWithResponses) DisableRebaseBotsWithResponse(ctx context.Context, body DisableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*DisableRebaseBotsResponse, error) {
 	rsp, err := c.DisableRebaseBots(ctx, body, reqEditors...)
 	if err != nil {
@@ -20487,7 +20494,7 @@ func (c *ClientWithResponses) DisableRebaseBotsWithResponse(ctx context.Context,
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+// Corresponds with POST /api/v1/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
 func (c *ClientWithResponses) EnableRebaseBotsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnableRebaseBotsResponse, error) {
 	rsp, err := c.EnableRebaseBotsWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20509,7 +20516,7 @@ func (c *ClientWithResponses) EnableRebaseBotsWithBodyWithResponse(ctx context.C
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
+// Corresponds with POST /api/v1/repos/rebase-bots/enable (the `EnableRebaseBots` operationId).
 func (c *ClientWithResponses) EnableRebaseBotsWithResponse(ctx context.Context, body EnableRebaseBotsJSONRequestBody, reqEditors ...RequestEditorFn) (*EnableRebaseBotsResponse, error) {
 	rsp, err := c.EnableRebaseBots(ctx, body, reqEditors...)
 	if err != nil {
@@ -20520,12 +20527,12 @@ func (c *ClientWithResponses) EnableRebaseBotsWithResponse(ctx context.Context, 
 
 // UnignoreRepoWithBodyWithResponse Stop ignoring one tracked repo
 //
-// The reverse of POST /api/repos/ignore. Idempotent: un-ignoring a
+// The reverse of POST /api/v1/repos/ignore. Idempotent: un-ignoring a
 // repo that was never ignored is a no-op, not an error.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/unignore (the `UnignoreRepo` operationId).
+// Corresponds with POST /api/v1/repos/unignore (the `UnignoreRepo` operationId).
 func (c *ClientWithResponses) UnignoreRepoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UnignoreRepoResponse, error) {
 	rsp, err := c.UnignoreRepoWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20536,12 +20543,12 @@ func (c *ClientWithResponses) UnignoreRepoWithBodyWithResponse(ctx context.Conte
 
 // UnignoreRepoWithResponse Stop ignoring one tracked repo
 //
-// The reverse of POST /api/repos/ignore. Idempotent: un-ignoring a
+// The reverse of POST /api/v1/repos/ignore. Idempotent: un-ignoring a
 // repo that was never ignored is a no-op, not an error.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/repos/unignore (the `UnignoreRepo` operationId).
+// Corresponds with POST /api/v1/repos/unignore (the `UnignoreRepo` operationId).
 func (c *ClientWithResponses) UnignoreRepoWithResponse(ctx context.Context, body UnignoreRepoJSONRequestBody, reqEditors ...RequestEditorFn) (*UnignoreRepoResponse, error) {
 	rsp, err := c.UnignoreRepo(ctx, body, reqEditors...)
 	if err != nil {
@@ -20556,11 +20563,11 @@ func (c *ClientWithResponses) UnignoreRepoWithResponse(ctx context.Context, body
 // webhook token and secret are returned, since the user pastes them
 // into the forge's webhook setup, and a first read creates them. For
 // a read that creates nothing and omits both, see
-// `GET /api/settings/summary`.
+// `GET /api/v1/settings/summary`.
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/settings (the `GetSettings` operationId).
+// Corresponds with GET /api/v1/settings (the `GetSettings` operationId).
 func (c *ClientWithResponses) GetSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSettingsResponse, error) {
 	rsp, err := c.GetSettings(ctx, reqEditors...)
 	if err != nil {
@@ -20579,7 +20586,7 @@ func (c *ClientWithResponses) GetSettingsWithResponse(ctx context.Context, reqEd
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /api/settings (the `PutSettings` operationId).
+// Corresponds with PUT /api/v1/settings (the `PutSettings` operationId).
 func (c *ClientWithResponses) PutSettingsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutSettingsResponse, error) {
 	rsp, err := c.PutSettingsWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20598,7 +20605,7 @@ func (c *ClientWithResponses) PutSettingsWithBodyWithResponse(ctx context.Contex
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /api/settings (the `PutSettings` operationId).
+// Corresponds with PUT /api/v1/settings (the `PutSettings` operationId).
 func (c *ClientWithResponses) PutSettingsWithResponse(ctx context.Context, body PutSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*PutSettingsResponse, error) {
 	rsp, err := c.PutSettings(ctx, body, reqEditors...)
 	if err != nil {
@@ -20610,7 +20617,7 @@ func (c *ClientWithResponses) PutSettingsWithResponse(ctx context.Context, body 
 // GetFilterStateWithResponse The signed-in user's own saved dashboard/Insights filter state
 //
 // A lightweight read of one opaque blob, deliberately not
-// GET /api/settings itself for the same reason GET /api/settings/theme
+// GET /api/v1/settings itself for the same reason GET /api/v1/settings/theme
 // isn't either: this loads on every dashboard/Insights visit and
 // shouldn't provision webhook credentials as a side effect.
 // `{}` for a user who's never saved any filters yet, not a 404.
@@ -20619,7 +20626,7 @@ func (c *ClientWithResponses) PutSettingsWithResponse(ctx context.Context, body 
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/settings/filter-state (the `GetFilterState` operationId).
+// Corresponds with GET /api/v1/settings/filter-state (the `GetFilterState` operationId).
 func (c *ClientWithResponses) GetFilterStateWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetFilterStateResponse, error) {
 	rsp, err := c.GetFilterState(ctx, reqEditors...)
 	if err != nil {
@@ -20631,7 +20638,7 @@ func (c *ClientWithResponses) GetFilterStateWithResponse(ctx context.Context, re
 // SetFilterStateWithBodyWithResponse Save the signed-in user's own dashboard/Insights filter state
 //
 // A dedicated, lightweight save separate from the main
-// PUT /api/settings — filters change on nearly every click, a
+// PUT /api/v1/settings — filters change on nearly every click, a
 // mismatch for that endpoint's "always a full form submit"
 // convention. The body replaces the saved state entirely,
 // the same "always a full submit, just of a much smaller and
@@ -20645,7 +20652,7 @@ func (c *ClientWithResponses) GetFilterStateWithResponse(ctx context.Context, re
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /api/settings/filter-state (the `SetFilterState` operationId).
+// Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
 func (c *ClientWithResponses) SetFilterStateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetFilterStateResponse, error) {
 	rsp, err := c.SetFilterStateWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20657,7 +20664,7 @@ func (c *ClientWithResponses) SetFilterStateWithBodyWithResponse(ctx context.Con
 // SetFilterStateWithResponse Save the signed-in user's own dashboard/Insights filter state
 //
 // A dedicated, lightweight save separate from the main
-// PUT /api/settings — filters change on nearly every click, a
+// PUT /api/v1/settings — filters change on nearly every click, a
 // mismatch for that endpoint's "always a full form submit"
 // convention. The body replaces the saved state entirely,
 // the same "always a full submit, just of a much smaller and
@@ -20671,7 +20678,7 @@ func (c *ClientWithResponses) SetFilterStateWithBodyWithResponse(ctx context.Con
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /api/settings/filter-state (the `SetFilterState` operationId).
+// Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
 func (c *ClientWithResponses) SetFilterStateWithResponse(ctx context.Context, body SetFilterStateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetFilterStateResponse, error) {
 	rsp, err := c.SetFilterState(ctx, body, reqEditors...)
 	if err != nil {
@@ -20682,7 +20689,7 @@ func (c *ClientWithResponses) SetFilterStateWithResponse(ctx context.Context, bo
 
 // GetSettingsSummaryWithResponse The signed-in user's settings, read without side effects
 //
-// The same data as `GET /api/settings`, minus the webhook token and
+// The same data as `GET /api/v1/settings`, minus the webhook token and
 // secret, plus `webhookConfigured`. It never provisions webhook
 // credentials: for a user who has none yet it answers
 // `webhookConfigured: false` and creates nothing. Forge tokens are
@@ -20691,7 +20698,7 @@ func (c *ClientWithResponses) SetFilterStateWithResponse(ctx context.Context, bo
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/settings/summary (the `GetSettingsSummary` operationId).
+// Corresponds with GET /api/v1/settings/summary (the `GetSettingsSummary` operationId).
 func (c *ClientWithResponses) GetSettingsSummaryWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSettingsSummaryResponse, error) {
 	rsp, err := c.GetSettingsSummary(ctx, reqEditors...)
 	if err != nil {
@@ -20704,14 +20711,14 @@ func (c *ClientWithResponses) GetSettingsSummaryWithResponse(ctx context.Context
 //
 // A lightweight, side-effect-free read of one field — theme — for
 // every page to check on load. Deliberately not
-// GET /api/settings itself: that handler also provisions webhook
+// GET /api/v1/settings itself: that handler also provisions webhook
 // credentials on first call (EnsureWebhookCredentials), which
 // every page loading shouldn't trigger for a user who's never
 // opened Settings at all.
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/settings/theme (the `GetTheme` operationId).
+// Corresponds with GET /api/v1/settings/theme (the `GetTheme` operationId).
 func (c *ClientWithResponses) GetThemeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetThemeResponse, error) {
 	rsp, err := c.GetTheme(ctx, reqEditors...)
 	if err != nil {
@@ -20723,7 +20730,7 @@ func (c *ClientWithResponses) GetThemeWithResponse(ctx context.Context, reqEdito
 // SetThemeWithBodyWithResponse Save the signed-in user's own theme preference
 //
 // A dedicated, instant save — deliberately not routed
-// through the main PUT /api/settings, whose every other field is
+// through the main PUT /api/v1/settings, whose every other field is
 // a plain replace rather than a per-field merge: a request
 // carrying only theme through that handler would blank every
 // other saved setting. Picking a theme applies immediately, the
@@ -20733,7 +20740,7 @@ func (c *ClientWithResponses) GetThemeWithResponse(ctx context.Context, reqEdito
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /api/settings/theme (the `SetTheme` operationId).
+// Corresponds with PUT /api/v1/settings/theme (the `SetTheme` operationId).
 func (c *ClientWithResponses) SetThemeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetThemeResponse, error) {
 	rsp, err := c.SetThemeWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20745,7 +20752,7 @@ func (c *ClientWithResponses) SetThemeWithBodyWithResponse(ctx context.Context, 
 // SetThemeWithResponse Save the signed-in user's own theme preference
 //
 // A dedicated, instant save — deliberately not routed
-// through the main PUT /api/settings, whose every other field is
+// through the main PUT /api/v1/settings, whose every other field is
 // a plain replace rather than a per-field merge: a request
 // carrying only theme through that handler would blank every
 // other saved setting. Picking a theme applies immediately, the
@@ -20755,7 +20762,7 @@ func (c *ClientWithResponses) SetThemeWithBodyWithResponse(ctx context.Context, 
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /api/settings/theme (the `SetTheme` operationId).
+// Corresponds with PUT /api/v1/settings/theme (the `SetTheme` operationId).
 func (c *ClientWithResponses) SetThemeWithResponse(ctx context.Context, body SetThemeJSONRequestBody, reqEditors ...RequestEditorFn) (*SetThemeResponse, error) {
 	rsp, err := c.SetTheme(ctx, body, reqEditors...)
 	if err != nil {
@@ -20768,12 +20775,12 @@ func (c *ClientWithResponses) SetThemeWithResponse(ctx context.Context, body Set
 //
 // A lightweight, side-effect-free read of one field, for every page to
 // check on load so it can show times in the user's zone. Deliberately
-// not GET /api/settings, for the reason GET /api/settings/theme isn't.
+// not GET /api/v1/settings, for the reason GET /api/v1/settings/theme isn't.
 // Empty means "use the browser's own zone".
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/settings/timezone (the `GetTimezone` operationId).
+// Corresponds with GET /api/v1/settings/timezone (the `GetTimezone` operationId).
 func (c *ClientWithResponses) GetTimezoneWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTimezoneResponse, error) {
 	rsp, err := c.GetTimezone(ctx, reqEditors...)
 	if err != nil {
@@ -20784,13 +20791,13 @@ func (c *ClientWithResponses) GetTimezoneWithResponse(ctx context.Context, reqEd
 
 // SetTimezoneWithBodyWithResponse Save the signed-in user's own time zone
 //
-// A dedicated, instant save, not routed through PUT /api/settings,
+// A dedicated, instant save, not routed through PUT /api/v1/settings,
 // which replaces every other field. Exists for browsers that report
 // UTC to every page, such as Firefox with fingerprint resistance.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+// Corresponds with PUT /api/v1/settings/timezone (the `SetTimezone` operationId).
 func (c *ClientWithResponses) SetTimezoneWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetTimezoneResponse, error) {
 	rsp, err := c.SetTimezoneWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20801,13 +20808,13 @@ func (c *ClientWithResponses) SetTimezoneWithBodyWithResponse(ctx context.Contex
 
 // SetTimezoneWithResponse Save the signed-in user's own time zone
 //
-// A dedicated, instant save, not routed through PUT /api/settings,
+// A dedicated, instant save, not routed through PUT /api/v1/settings,
 // which replaces every other field. Exists for browsers that report
 // UTC to every page, such as Firefox with fingerprint resistance.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /api/settings/timezone (the `SetTimezone` operationId).
+// Corresponds with PUT /api/v1/settings/timezone (the `SetTimezone` operationId).
 func (c *ClientWithResponses) SetTimezoneWithResponse(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*SetTimezoneResponse, error) {
 	rsp, err := c.SetTimezone(ctx, body, reqEditors...)
 	if err != nil {
@@ -20848,11 +20855,11 @@ func (c *ClientWithResponses) SetTimezoneWithResponse(ctx context.Context, body 
 // the caller has saved, and a GitHub App installation id is a number the
 // caller types in, so until the dashboard has one user, someone who saves
 // another account's installation id sees that installation's counts. `budgets` are the rate limits each forge last
-// reported, the same figures as `forges` on GET /api/dashboard.
+// reported, the same figures as `forges` on GET /api/v1/dashboard.
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/stats/forge-api (the `GetForgeApiStats` operationId).
+// Corresponds with GET /api/v1/stats/forge-api (the `GetForgeApiStats` operationId).
 func (c *ClientWithResponses) GetForgeApiStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetForgeApiStatsResponse, error) {
 	rsp, err := c.GetForgeApiStats(ctx, reqEditors...)
 	if err != nil {
@@ -20867,7 +20874,7 @@ func (c *ClientWithResponses) GetForgeApiStatsWithResponse(ctx context.Context, 
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with GET /api/tokens (the `ListAPITokens` operationId).
+// Corresponds with GET /api/v1/tokens (the `ListAPITokens` operationId).
 func (c *ClientWithResponses) ListAPITokensWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAPITokensResponse, error) {
 	rsp, err := c.ListAPITokens(ctx, reqEditors...)
 	if err != nil {
@@ -20880,7 +20887,7 @@ func (c *ClientWithResponses) ListAPITokensWithResponse(ctx context.Context, req
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/tokens (the `CreateAPIToken` operationId).
+// Corresponds with POST /api/v1/tokens (the `CreateAPIToken` operationId).
 func (c *ClientWithResponses) CreateAPITokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAPITokenResponse, error) {
 	rsp, err := c.CreateAPITokenWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
@@ -20893,7 +20900,7 @@ func (c *ClientWithResponses) CreateAPITokenWithBodyWithResponse(ctx context.Con
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /api/tokens (the `CreateAPIToken` operationId).
+// Corresponds with POST /api/v1/tokens (the `CreateAPIToken` operationId).
 func (c *ClientWithResponses) CreateAPITokenWithResponse(ctx context.Context, body CreateAPITokenJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAPITokenResponse, error) {
 	rsp, err := c.CreateAPIToken(ctx, body, reqEditors...)
 	if err != nil {
@@ -20912,13 +20919,81 @@ func (c *ClientWithResponses) CreateAPITokenWithResponse(ctx context.Context, bo
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with DELETE /api/tokens/{id} (the `DeleteAPIToken` operationId).
+// Corresponds with DELETE /api/v1/tokens/{id} (the `DeleteAPIToken` operationId).
 func (c *ClientWithResponses) DeleteAPITokenWithResponse(ctx context.Context, id PathTokenID, reqEditors ...RequestEditorFn) (*DeleteAPITokenResponse, error) {
 	rsp, err := c.DeleteAPIToken(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseDeleteAPITokenResponse(rsp)
+}
+
+// EnsureWebhookWithBodyWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
+//
+// Creates a webhook on the named repo, pointed at the signed-in
+// user's own webhook URL and secret, subscribed to the events
+// docs/webhooks.md's manual steps recommend. If one already exists
+// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
+// does — matching by URL path, not object identity) it's brought
+// back to active with the right events instead of creating a
+// duplicate.
+//
+// One of a small number of endpoints in this API that write to a
+// forge rather than just reading from it — see also the
+// pull-requests tag.
+//
+// A refusal from the forge (403, 404, 429 and 502) answers with the
+// same `ActionError` a refused pull request action does, so a client
+// reads one shape: `code` is `permission` or `rate_limited` where
+// the forge said so (with `resetsAt` for a rate limit), and
+// `unknown` otherwise, with a plain `message` either way. No new
+// code is needed: a repo the forge can't find is `unknown` with its
+// own message. 400 and 401 stay a plain `Error`, since they are
+// about the request, not a refusal by the forge.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
+func (c *ClientWithResponses) EnsureWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error) {
+	rsp, err := c.EnsureWebhookWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnsureWebhookResponse(rsp)
+}
+
+// EnsureWebhookWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
+//
+// Creates a webhook on the named repo, pointed at the signed-in
+// user's own webhook URL and secret, subscribed to the events
+// docs/webhooks.md's manual steps recommend. If one already exists
+// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
+// does — matching by URL path, not object identity) it's brought
+// back to active with the right events instead of creating a
+// duplicate.
+//
+// One of a small number of endpoints in this API that write to a
+// forge rather than just reading from it — see also the
+// pull-requests tag.
+//
+// A refusal from the forge (403, 404, 429 and 502) answers with the
+// same `ActionError` a refused pull request action does, so a client
+// reads one shape: `code` is `permission` or `rate_limited` where
+// the forge said so (with `resetsAt` for a rate limit), and
+// `unknown` otherwise, with a plain `message` either way. No new
+// code is needed: a repo the forge can't find is `unknown` with its
+// own message. 400 and 401 stay a plain `Error`, since they are
+// about the request, not a refusal by the forge.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
+func (c *ClientWithResponses) EnsureWebhookWithResponse(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error) {
+	rsp, err := c.EnsureWebhook(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEnsureWebhookResponse(rsp)
 }
 
 // GetVersionWithResponse The running server's own version
@@ -20938,74 +21013,6 @@ func (c *ClientWithResponses) GetVersionWithResponse(ctx context.Context, reqEdi
 		return nil, err
 	}
 	return ParseGetVersionResponse(rsp)
-}
-
-// EnsureWebhookWithBodyWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-//
-// Creates a webhook on the named repo, pointed at the signed-in
-// user's own webhook URL and secret, subscribed to the events
-// docs/webhooks.md's manual steps recommend. If one already exists
-// there (found the same way GET /api/dashboard's own `hasWebhook`
-// does — matching by URL path, not object identity) it's brought
-// back to active with the right events instead of creating a
-// duplicate.
-//
-// One of a small number of endpoints in this API that write to a
-// forge rather than just reading from it — see also the
-// pull-requests tag.
-//
-// A refusal from the forge (403, 404, 429 and 502) answers with the
-// same `ActionError` a refused pull request action does, so a client
-// reads one shape: `code` is `permission` or `rate_limited` where
-// the forge said so (with `resetsAt` for a rate limit), and
-// `unknown` otherwise, with a plain `message` either way. No new
-// code is needed: a repo the forge can't find is `unknown` with its
-// own message. 400 and 401 stay a plain `Error`, since they are
-// about the request, not a refusal by the forge.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
-func (c *ClientWithResponses) EnsureWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error) {
-	rsp, err := c.EnsureWebhookWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseEnsureWebhookResponse(rsp)
-}
-
-// EnsureWebhookWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-//
-// Creates a webhook on the named repo, pointed at the signed-in
-// user's own webhook URL and secret, subscribed to the events
-// docs/webhooks.md's manual steps recommend. If one already exists
-// there (found the same way GET /api/dashboard's own `hasWebhook`
-// does — matching by URL path, not object identity) it's brought
-// back to active with the right events instead of creating a
-// duplicate.
-//
-// One of a small number of endpoints in this API that write to a
-// forge rather than just reading from it — see also the
-// pull-requests tag.
-//
-// A refusal from the forge (403, 404, 429 and 502) answers with the
-// same `ActionError` a refused pull request action does, so a client
-// reads one shape: `code` is `permission` or `rate_limited` where
-// the forge said so (with `resetsAt` for a rate limit), and
-// `unknown` otherwise, with a plain `message` either way. No new
-// code is needed: a repo the forge can't find is `unknown` with its
-// own message. 400 and 401 stay a plain `Error`, since they are
-// about the request, not a refusal by the forge.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/webhooks/ensure (the `EnsureWebhook` operationId).
-func (c *ClientWithResponses) EnsureWebhookWithResponse(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error) {
-	rsp, err := c.EnsureWebhook(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseEnsureWebhookResponse(rsp)
 }
 
 // ReceiveForgejoWebhookWithBodyWithResponse Receive a Forgejo repository webhook delivery
@@ -24169,32 +24176,6 @@ func ParseDeleteAPITokenResponse(rsp *http.Response) (*DeleteAPITokenResponse, e
 	return response, nil
 }
 
-// ParseGetVersionResponse parses an HTTP response from a GetVersionWithResponse call
-func ParseGetVersionResponse(rsp *http.Response) (*GetVersionResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetVersionResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Version
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseEnsureWebhookResponse parses an HTTP response from a EnsureWebhookWithResponse call
 func ParseEnsureWebhookResponse(rsp *http.Response) (*EnsureWebhookResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -24253,6 +24234,32 @@ func ParseEnsureWebhookResponse(rsp *http.Response) (*EnsureWebhookResponse, err
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetVersionResponse parses an HTTP response from a GetVersionWithResponse call
+func ParseGetVersionResponse(rsp *http.Response) (*GetVersionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetVersionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Version
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	}
 
