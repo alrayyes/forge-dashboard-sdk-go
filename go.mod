@@ -3,7 +3,7 @@ module github.com/alrayyes/forge-dashboard-sdk-go
 go 1.27.2
 
 require (
-	github.com/oapi-codegen/runtime v1.7.0
+	github.com/oapi-codegen/runtime v1.8.0
 	github.com/stretchr/testify v1.12.1
 )
 
