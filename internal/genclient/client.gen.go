@@ -2200,7 +2200,10 @@ type MainBranch struct {
 	Commit *MainBranchCommit `json:"commit"`
 
 	// DurationSeconds How long the pipeline ran, from its first job starting to its last
-	// finishing. Null while it runs, or when the forge didn't say.
+	// finishing. On GitHub it is the run that finished last, alone, since
+	// a commit's workflows run on their own schedules and days can pass
+	// between two of them. Null while it runs, or when the forge didn't
+	// say.
 	DurationSeconds *int `json:"durationSeconds"`
 
 	// FailingJobs The names of the failed jobs (GitHub checks, Forgejo Actions
@@ -2232,10 +2235,14 @@ type MainBranch struct {
 	// in the order the forge listed them. A client can fold them into
 	// its own pill. They are the jobs `GET /api/v1/main-branches/checks`
 	// lists, grouped as the stream's `run` events group them. Present
-	// for a repository with at least one check. On GitHub they are the
-	// first 50 checks of the newest commit, grouped by the workflow run
-	// each belongs to, so every run says `jobsTruncated` when the commit
-	// has more checks than that. Absent for a repository with no check.
+	// for a repository with at least one check. They hold the newest
+	// run of each workflow on the newest commit: an older run that a
+	// newer run of the same workflow replaces is left out, as it is
+	// from `status` and `checks`. On GitHub the checks are grouped by
+	// the workflow run each belongs to, and only the first 100 of the
+	// commit's rollup are read besides the newest runs, so a run says
+	// `jobsTruncated` when the commit has more checks than that.
+	// Absent for a repository with no check.
 	Runs *[]MainBranchRun `json:"runs,omitempty"`
 
 	// StaleSince Set when this row is the last known one because its forge couldn't
