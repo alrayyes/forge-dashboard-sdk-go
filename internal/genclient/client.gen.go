@@ -5803,6 +5803,12 @@ type ClientInterface interface {
 	// with 403, so a script or agent can't change the filters the user
 	// sees. Each save is logged with the user agent.
 	//
+	// A save whose top-level `rev` is lower than the saved copy's is
+	// ignored and still answers 204. A page that is closing sends its last
+	// save beside one already in flight, so the older one can arrive
+	// last, and it must not replace the newer copy. A body with no `rev`,
+	// or a saved copy with none, is always stored.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
@@ -5822,6 +5828,12 @@ type ClientInterface interface {
 	// A signed-in browser session only: a personal API token is refused
 	// with 403, so a script or agent can't change the filters the user
 	// sees. Each save is logged with the user agent.
+	//
+	// A save whose top-level `rev` is lower than the saved copy's is
+	// ignored and still answers 204. A page that is closing sends its last
+	// save beside one already in flight, so the older one can arrive
+	// last, and it must not replace the newer copy. A body with no `rev`,
+	// or a saved copy with none, is always stored.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -8716,6 +8728,12 @@ func (c *Client) GetFilterState(ctx context.Context, reqEditors ...RequestEditor
 // with 403, so a script or agent can't change the filters the user
 // sees. Each save is logged with the user agent.
 //
+// A save whose top-level `rev` is lower than the saved copy's is
+// ignored and still answers 204. A page that is closing sends its last
+// save beside one already in flight, so the older one can arrive
+// last, and it must not replace the newer copy. A body with no `rev`,
+// or a saved copy with none, is always stored.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
@@ -8745,6 +8763,12 @@ func (c *Client) SetFilterStateWithBody(ctx context.Context, contentType string,
 // A signed-in browser session only: a personal API token is refused
 // with 403, so a script or agent can't change the filters the user
 // sees. Each save is logged with the user agent.
+//
+// A save whose top-level `rev` is lower than the saved copy's is
+// ignored and still answers 204. A page that is closing sends its last
+// save beside one already in flight, so the older one can arrive
+// last, and it must not replace the newer copy. A body with no `rev`,
+// or a saved copy with none, is always stored.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -13872,6 +13896,12 @@ type ClientWithResponsesInterface interface {
 	// with 403, so a script or agent can't change the filters the user
 	// sees. Each save is logged with the user agent.
 	//
+	// A save whose top-level `rev` is lower than the saved copy's is
+	// ignored and still answers 204. A page that is closing sends its last
+	// save beside one already in flight, so the older one can arrive
+	// last, and it must not replace the newer copy. A body with no `rev`,
+	// or a saved copy with none, is always stored.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
@@ -13891,6 +13921,12 @@ type ClientWithResponsesInterface interface {
 	// A signed-in browser session only: a personal API token is refused
 	// with 403, so a script or agent can't change the filters the user
 	// sees. Each save is logged with the user agent.
+	//
+	// A save whose top-level `rev` is lower than the saved copy's is
+	// ignored and still answers 204. A page that is closing sends its last
+	// save beside one already in flight, so the older one can arrive
+	// last, and it must not replace the newer copy. A body with no `rev`,
+	// or a saved copy with none, is always stored.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -20657,6 +20693,12 @@ func (c *ClientWithResponses) GetFilterStateWithResponse(ctx context.Context, re
 // with 403, so a script or agent can't change the filters the user
 // sees. Each save is logged with the user agent.
 //
+// A save whose top-level `rev` is lower than the saved copy's is
+// ignored and still answers 204. A page that is closing sends its last
+// save beside one already in flight, so the older one can arrive
+// last, and it must not replace the newer copy. A body with no `rev`,
+// or a saved copy with none, is always stored.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with PUT /api/v1/settings/filter-state (the `SetFilterState` operationId).
@@ -20682,6 +20724,12 @@ func (c *ClientWithResponses) SetFilterStateWithBodyWithResponse(ctx context.Con
 // A signed-in browser session only: a personal API token is refused
 // with 403, so a script or agent can't change the filters the user
 // sees. Each save is logged with the user agent.
+//
+// A save whose top-level `rev` is lower than the saved copy's is
+// ignored and still answers 204. A page that is closing sends its last
+// save beside one already in flight, so the older one can arrive
+// last, and it must not replace the newer copy. A body with no `rev`,
+// or a saved copy with none, is always stored.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
