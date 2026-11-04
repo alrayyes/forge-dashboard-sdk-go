@@ -12,7 +12,14 @@ permissions:
 
 jobs:
   auto-merge:
-    if: "contains(github.event.pull_request.labels.*.name, 'autorelease: pending')"
+    # The branch name, not only the label: release-please adds the label in a
+    # step after it opens the pull request, and when that run dies on a
+    # GitHub 5xx the label never arrives (#418). The branch is set when the
+    # pull request is created, so it can't go missing. The label stays as a
+    # second way in.
+    if: |
+      github.event.pull_request.head.ref == 'release-please--branches--main' ||
+      contains(github.event.pull_request.labels.*.name, 'autorelease: pending')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

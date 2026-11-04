@@ -35,6 +35,21 @@ jobs:
       # never re-runs to cut the actual tag. RELEASE_TOKEN (a real-identity
       # PAT) sidesteps both. See release-auto-merge.yml for the other half.
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        continue-on-error: true
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ secrets.RELEASE_TOKEN }}
+      # GitHub's API fails with a 5xx now and then (run 41808902721 died with
+      # "Server Error" and left main red, #418). release-please is idempotent:
+      # a second run finds the pull request it opened and finishes the
+      # labelling, so wait a moment and run it once more before failing.
+      - name: Wait before retrying release-please
+        if: steps.release.outcome == 'failure'
+        run: sleep 30
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        if: steps.release.outcome == 'failure'
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
