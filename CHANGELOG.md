@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.185.1](https://github.com/alrayyes/forge-dashboard-sdk-go/compare/v1.185.0...v1.185.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **ci:** survive transient GitHub errors in the release path ([#420](https://github.com/alrayyes/forge-dashboard-sdk-go/issues/420)) ([2cfbdb0](https://github.com/alrayyes/forge-dashboard-sdk-go/commit/2cfbdb0599a361d7017f337a4f590dd16e4a13b1)), closes [#418](https://github.com/alrayyes/forge-dashboard-sdk-go/issues/418)
+
 ## [1.185.0](https://github.com/alrayyes/forge-dashboard-sdk-go/compare/v1.184.0...v1.185.0) (2026-11-04)
 
 
