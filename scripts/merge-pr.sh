@@ -17,11 +17,37 @@
 # direct merge, `gh pr checks --required` must pass: it exits non-zero while
 # any required check is pending or failing.
 # https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request
+#
+# GitHub's API answers a 5xx or "Something went wrong" now and then (a 502
+# and a GraphQL error both turned up on #417). Those say nothing about the
+# pull request, so a call that gets one is retried (RETRY_DELAY seconds
+# apart, RETRIES times) before it counts as a failure. Any other refusal
+# fails at once.
 set -euo pipefail
 
 : "${PR_URL:?PR_URL is required}"
+RETRIES=${RETRIES:-4}
+RETRY_DELAY=${RETRY_DELAY:-15}
 
-if out=$(gh pr merge --auto --squash "$PR_URL" 2>&1); then
+# gh_retry <gh args...>: runs gh, sets $out to its output and returns its
+# status, retrying only when the output looks like a transient GitHub error.
+gh_retry() {
+  local attempt=1 rc
+  while :; do
+    rc=0
+    out=$(gh "$@" 2>&1) || rc=$?
+    [ "$rc" = 0 ] && return 0
+    if ! grep -qiE 'something went wrong|server error|bad gateway|service unavailable|gateway time-?out|(HTTP|status code:?) 50[0-4]' <<<"$out" \
+      || [ "$attempt" -ge "$RETRIES" ]; then
+      return "$rc"
+    fi
+    echo "transient GitHub error (attempt $attempt/$RETRIES), retrying: $out" >&2
+    sleep "$RETRY_DELAY"
+    attempt=$((attempt + 1))
+  done
+}
+
+if gh_retry pr merge --auto --squash "$PR_URL"; then
   echo "$out"
   exit 0
 fi
@@ -30,7 +56,7 @@ echo "$out" >&2
 case "$out" in
   *"is in unstable status"* | *"is in clean status"*)
     gh pr checks "$PR_URL" --required
-    gh pr merge --squash "$PR_URL"
+    gh_retry pr merge --squash "$PR_URL" || { echo "$out" >&2; exit 1; }
     ;;
   *)
     exit 1
