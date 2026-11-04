@@ -5807,8 +5807,9 @@ type ClientInterface interface {
 	// sees. Each save is logged with the user agent.
 	//
 	// A save whose top-level `rev` is lower than the saved copy's is
-	// ignored and still answers 204. A page that is closing sends its last
-	// save beside one already in flight, so the older one can arrive
+	// ignored and answers 200 with the saved copy's `rev`, so the page can
+	// catch up and send the save again. A page that is closing sends its
+	// last save beside one already in flight, so the older one can arrive
 	// last, and it must not replace the newer copy. A body with no `rev`,
 	// or a saved copy with none, is always stored.
 	//
@@ -5833,8 +5834,9 @@ type ClientInterface interface {
 	// sees. Each save is logged with the user agent.
 	//
 	// A save whose top-level `rev` is lower than the saved copy's is
-	// ignored and still answers 204. A page that is closing sends its last
-	// save beside one already in flight, so the older one can arrive
+	// ignored and answers 200 with the saved copy's `rev`, so the page can
+	// catch up and send the save again. A page that is closing sends its
+	// last save beside one already in flight, so the older one can arrive
 	// last, and it must not replace the newer copy. A body with no `rev`,
 	// or a saved copy with none, is always stored.
 	//
@@ -8732,8 +8734,9 @@ func (c *Client) GetFilterState(ctx context.Context, reqEditors ...RequestEditor
 // sees. Each save is logged with the user agent.
 //
 // A save whose top-level `rev` is lower than the saved copy's is
-// ignored and still answers 204. A page that is closing sends its last
-// save beside one already in flight, so the older one can arrive
+// ignored and answers 200 with the saved copy's `rev`, so the page can
+// catch up and send the save again. A page that is closing sends its
+// last save beside one already in flight, so the older one can arrive
 // last, and it must not replace the newer copy. A body with no `rev`,
 // or a saved copy with none, is always stored.
 //
@@ -8768,8 +8771,9 @@ func (c *Client) SetFilterStateWithBody(ctx context.Context, contentType string,
 // sees. Each save is logged with the user agent.
 //
 // A save whose top-level `rev` is lower than the saved copy's is
-// ignored and still answers 204. A page that is closing sends its last
-// save beside one already in flight, so the older one can arrive
+// ignored and answers 200 with the saved copy's `rev`, so the page can
+// catch up and send the save again. A page that is closing sends its
+// last save beside one already in flight, so the older one can arrive
 // last, and it must not replace the newer copy. A body with no `rev`,
 // or a saved copy with none, is always stored.
 //
@@ -13900,8 +13904,9 @@ type ClientWithResponsesInterface interface {
 	// sees. Each save is logged with the user agent.
 	//
 	// A save whose top-level `rev` is lower than the saved copy's is
-	// ignored and still answers 204. A page that is closing sends its last
-	// save beside one already in flight, so the older one can arrive
+	// ignored and answers 200 with the saved copy's `rev`, so the page can
+	// catch up and send the save again. A page that is closing sends its
+	// last save beside one already in flight, so the older one can arrive
 	// last, and it must not replace the newer copy. A body with no `rev`,
 	// or a saved copy with none, is always stored.
 	//
@@ -13926,8 +13931,9 @@ type ClientWithResponsesInterface interface {
 	// sees. Each save is logged with the user agent.
 	//
 	// A save whose top-level `rev` is lower than the saved copy's is
-	// ignored and still answers 204. A page that is closing sends its last
-	// save beside one already in flight, so the older one can arrive
+	// ignored and answers 200 with the saved copy's `rev`, so the page can
+	// catch up and send the save again. A page that is closing sends its
+	// last save beside one already in flight, so the older one can arrive
 	// last, and it must not replace the newer copy. A body with no `rev`,
 	// or a saved copy with none, is always stored.
 	//
@@ -17630,12 +17636,25 @@ func (r GetFilterStateResponse) ContentType() string {
 type SetFilterStateResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		// Rev The saved copy's revision.
+		Rev float32 `json:"rev"`
+	}
 	// JSON400 the response for an HTTP 400 `application/json` response
 	JSON400 *Error
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
 	// JSON403 the response for an HTTP 403 `application/json` response
 	JSON403 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SetFilterStateResponse) GetJSON200() *struct {
+	// Rev The saved copy's revision.
+	Rev float32 `json:"rev"`
+} {
+	return r.JSON200
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -20697,8 +20716,9 @@ func (c *ClientWithResponses) GetFilterStateWithResponse(ctx context.Context, re
 // sees. Each save is logged with the user agent.
 //
 // A save whose top-level `rev` is lower than the saved copy's is
-// ignored and still answers 204. A page that is closing sends its last
-// save beside one already in flight, so the older one can arrive
+// ignored and answers 200 with the saved copy's `rev`, so the page can
+// catch up and send the save again. A page that is closing sends its
+// last save beside one already in flight, so the older one can arrive
 // last, and it must not replace the newer copy. A body with no `rev`,
 // or a saved copy with none, is always stored.
 //
@@ -20729,8 +20749,9 @@ func (c *ClientWithResponses) SetFilterStateWithBodyWithResponse(ctx context.Con
 // sees. Each save is logged with the user agent.
 //
 // A save whose top-level `rev` is lower than the saved copy's is
-// ignored and still answers 204. A page that is closing sends its last
-// save beside one already in flight, so the older one can arrive
+// ignored and answers 200 with the saved copy's `rev`, so the page can
+// catch up and send the save again. A page that is closing sends its
+// last save beside one already in flight, so the older one can arrive
 // last, and it must not replace the newer copy. A body with no `rev`,
 // or a saved copy with none, is always stored.
 //
@@ -23891,6 +23912,16 @@ func ParseSetFilterStateResponse(rsp *http.Response) (*SetFilterStateResponse, e
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			// Rev The saved copy's revision.
+			Rev float32 `json:"rev"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case rsp.StatusCode == 204:
 		break // No content-type
 
