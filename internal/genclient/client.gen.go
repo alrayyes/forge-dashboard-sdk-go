@@ -2425,21 +2425,24 @@ type MergeStatus string
 type NavCounts struct {
 	// Bots A pull request page's numbers. `running`, `failed` and
 	// `passed` count the pull requests whose CI is pending, failing and
-	// succeeded. A pull request with no checks counts in `total` only, so
-	// the four numbers need not add up. All four are always present.
+	// succeeded, and `noChecks` those with no checks at all. One held for
+	// workflow approval is in `total` only, so the numbers need not add up.
+	// All five are always present.
 	Bots   NavPullRequestCount `json:"bots"`
 	Issues NavIssueCount       `json:"issues"`
 
 	// PullRequests A pull request page's numbers. `running`, `failed` and
 	// `passed` count the pull requests whose CI is pending, failing and
-	// succeeded. A pull request with no checks counts in `total` only, so
-	// the four numbers need not add up. All four are always present.
+	// succeeded, and `noChecks` those with no checks at all. One held for
+	// workflow approval is in `total` only, so the numbers need not add up.
+	// All five are always present.
 	PullRequests NavPullRequestCount `json:"pullRequests"`
 
 	// Releases A pull request page's numbers. `running`, `failed` and
 	// `passed` count the pull requests whose CI is pending, failing and
-	// succeeded. A pull request with no checks counts in `total` only, so
-	// the four numbers need not add up. All four are always present.
+	// succeeded, and `noChecks` those with no checks at all. One held for
+	// workflow approval is in `total` only, so the numbers need not add up.
+	// All five are always present.
 	Releases NavPullRequestCount `json:"releases"`
 }
 
@@ -2453,8 +2456,9 @@ type NavIssueCount struct {
 
 // NavPullRequestCount A pull request page's numbers. `running`, `failed` and
 // `passed` count the pull requests whose CI is pending, failing and
-// succeeded. A pull request with no checks counts in `total` only, so
-// the four numbers need not add up. All four are always present.
+// succeeded, and `noChecks` those with no checks at all. One held for
+// workflow approval is in `total` only, so the numbers need not add up.
+// All five are always present.
 type NavPullRequestCount struct {
 	// Failed How many of them have failing CI. A pull request whose only
 	// failure is workflow runs held until someone approves them
@@ -2462,6 +2466,11 @@ type NavPullRequestCount struct {
 	// as nothing failed; one with a job that really failed beside a
 	// held run still counts.
 	Failed int `json:"failed"`
+
+	// NoChecks How many of them have no checks (CI `none`). Not counted as
+	// running: nothing is pending, so there is nothing to wait for
+	// that the pull request itself can show.
+	NoChecks int `json:"noChecks"`
 
 	// Passed How many of them have CI that succeeded.
 	Passed int `json:"passed"`
