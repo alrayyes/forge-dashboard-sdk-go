@@ -1365,8 +1365,8 @@ type BranchDeletionReason string
 // differ from this field until the next refresh. A run that was only
 // cancelled reads as cancelled in that fold. GitHub says `cancelled`
 // here too when cancelled runs are the only reason its rollup reads
-// failed (no failed check, no held run, nothing running); Forgejo's says
-// `none` or `success`. `cancelled` is not failing (the failing filter and
+// failed (no failed check, no held run, nothing running). Forgejo's does
+// when every failure status is a cancelled Actions job and nothing waits. `cancelled` is not failing (the failing filter and
 // the failed counts leave it out) and not a pass (merge rules that want a
 // pass still wait).
 type CIStatus string
@@ -2125,8 +2125,8 @@ type LinkedPullRequest struct {
 	// differ from this field until the next refresh. A run that was only
 	// cancelled reads as cancelled in that fold. GitHub says `cancelled`
 	// here too when cancelled runs are the only reason its rollup reads
-	// failed (no failed check, no held run, nothing running); Forgejo's says
-	// `none` or `success`. `cancelled` is not failing (the failing filter and
+	// failed (no failed check, no held run, nothing running). Forgejo's does
+	// when every failure status is a cancelled Actions job and nothing waits. `cancelled` is not failing (the failing filter and
 	// the failed counts leave it out) and not a pass (merge rules that want a
 	// pass still wait).
 	Ci CIStatus `json:"ci"`
@@ -2711,8 +2711,8 @@ type PullRequest struct {
 	// differ from this field until the next refresh. A run that was only
 	// cancelled reads as cancelled in that fold. GitHub says `cancelled`
 	// here too when cancelled runs are the only reason its rollup reads
-	// failed (no failed check, no held run, nothing running); Forgejo's says
-	// `none` or `success`. `cancelled` is not failing (the failing filter and
+	// failed (no failed check, no held run, nothing running). Forgejo's does
+	// when every failure status is a cancelled Actions job and nothing waits. `cancelled` is not failing (the failing filter and
 	// the failed counts leave it out) and not a pass (merge rules that want a
 	// pass still wait).
 	Ci CIStatus `json:"ci"`
