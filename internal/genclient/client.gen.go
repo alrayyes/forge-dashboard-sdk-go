@@ -1890,9 +1890,9 @@ type ForgeApiStats struct {
 // "unreachable" is a request that got no response; "upstream_error" is
 // the forge answering with a 5xx (a gateway timeout, say), and the
 // status is in ForgeHealth.upstreamStatus. "unauthorized" covers both a
-// bad token and a forbidden request; "not_found" usually means a wrong instance URL. "conflict" is only
-// ever returned from a pull-request write — the forge reports the PR
-// itself isn't currently mergeable. "unknown" covers a signal this
+// bad token and a forbidden request; "not_found" usually means a wrong
+// instance URL. "conflict" is only ever returned from a pull-request
+// write — the forge reports the PR itself isn't currently mergeable. "unknown" covers a signal this
 // service doesn't recognize, rather than a guessed-at specific cause.
 type ForgeErrorKind string
 
@@ -1909,9 +1909,9 @@ type ForgeHealth struct {
 	// "unreachable" is a request that got no response; "upstream_error" is
 	// the forge answering with a 5xx (a gateway timeout, say), and the
 	// status is in ForgeHealth.upstreamStatus. "unauthorized" covers both a
-	// bad token and a forbidden request; "not_found" usually means a wrong instance URL. "conflict" is only
-	// ever returned from a pull-request write — the forge reports the PR
-	// itself isn't currently mergeable. "unknown" covers a signal this
+	// bad token and a forbidden request; "not_found" usually means a wrong
+	// instance URL. "conflict" is only ever returned from a pull-request
+	// write — the forge reports the PR itself isn't currently mergeable. "unknown" covers a signal this
 	// service doesn't recognize, rather than a guessed-at specific cause.
 	ErrorKind *ForgeErrorKind `json:"errorKind,omitempty"`
 	Forge     Forge           `json:"forge"`
