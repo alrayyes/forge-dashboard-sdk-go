@@ -3970,6 +3970,17 @@ type GetPullRequestDetailsParams struct {
 	Number int `form:"number" json:"number"`
 }
 
+// GetPullRequestRerunnableParams defines parameters for GetPullRequestRerunnable.
+type GetPullRequestRerunnableParams struct {
+	Forge Forge `form:"forge" json:"forge"`
+
+	// FullName "owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.
+	FullName string `form:"fullName" json:"fullName"`
+
+	// Number Matching a PullRequest.number from GET /api/v1/dashboard.
+	Number int `form:"number" json:"number"`
+}
+
 // GetReleaseDetailsParams defines parameters for GetReleaseDetails.
 type GetReleaseDetailsParams struct {
 	Forge Forge `form:"forge" json:"forge"`
@@ -5531,6 +5542,29 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 	RerunPullRequestChecks(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPullRequestRerunnable Say whether Rerun failed checks would find a job on one pull request, without rerunning anything
+	//
+	// Reads what POST /api/v1/pull-requests/rerun-checks reads and restarts
+	// nothing: on GitHub the failed check runs on the head commit, each mapped
+	// to its workflow run; on Forgejo the failed Actions runs on the head
+	// commit, after the same version check. The bulk "Rerun failed checks"
+	// control asks it for each failing row, to sort them before it sends a
+	// request.
+	//
+	// "No" is an answer, not an error: `rerunnable` is false and `reason`
+	// carries the same sentence the rerun's 409 would (only non-Actions checks
+	// failed, nothing ran, a Forgejo older than 17). A forge that can't be read
+	// keeps its own status. The forge can still refuse the rerun itself (the
+	// run is too old, the token can't write to Actions), which only the rerun
+	// learns.
+	//
+	// This costs forge requests on every call (the pull request, its check
+	// runs and one job lookup per failed check on GitHub), so it is never part
+	// of the snapshot.
+	//
+	// Corresponds with GET /api/v1/pull-requests/rerunnable (the `GetPullRequestRerunnable` operationId).
+	GetPullRequestRerunnable(ctx context.Context, params *GetPullRequestRerunnableParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UnhidePullRequestWithBody Bring a hidden pull request back onto the signed-in user's dashboard
 	//
@@ -8234,6 +8268,39 @@ func (c *Client) RerunPullRequestChecksWithBody(ctx context.Context, contentType
 // Corresponds with POST /api/v1/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 func (c *Client) RerunPullRequestChecks(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRerunPullRequestChecksRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetPullRequestRerunnable Say whether Rerun failed checks would find a job on one pull request, without rerunning anything
+//
+// Reads what POST /api/v1/pull-requests/rerun-checks reads and restarts
+// nothing: on GitHub the failed check runs on the head commit, each mapped
+// to its workflow run; on Forgejo the failed Actions runs on the head
+// commit, after the same version check. The bulk "Rerun failed checks"
+// control asks it for each failing row, to sort them before it sends a
+// request.
+//
+// "No" is an answer, not an error: `rerunnable` is false and `reason`
+// carries the same sentence the rerun's 409 would (only non-Actions checks
+// failed, nothing ran, a Forgejo older than 17). A forge that can't be read
+// keeps its own status. The forge can still refuse the rerun itself (the
+// run is too old, the token can't write to Actions), which only the rerun
+// learns.
+//
+// This costs forge requests on every call (the pull request, its check
+// runs and one job lookup per failed check on GitHub), so it is never part
+// of the snapshot.
+//
+// Corresponds with GET /api/v1/pull-requests/rerunnable (the `GetPullRequestRerunnable` operationId).
+func (c *Client) GetPullRequestRerunnable(ctx context.Context, params *GetPullRequestRerunnableParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPullRequestRerunnableRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -11182,6 +11249,72 @@ func NewRerunPullRequestChecksRequestWithBody(server string, contentType string,
 	return req, nil
 }
 
+// NewGetPullRequestRerunnableRequest constructs an http.Request for the GetPullRequestRerunnable method
+func NewGetPullRequestRerunnableRequest(server string, params *GetPullRequestRerunnableParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/pull-requests/rerunnable")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "fullName", params.FullName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "number", params.Number, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewUnhidePullRequestRequest calls the generic UnhidePullRequest builder with application/json body
 func NewUnhidePullRequestRequest(server string, body UnhidePullRequestJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -13738,6 +13871,31 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/pull-requests/rerun-checks (the `RerunPullRequestChecks` operationId).
 	RerunPullRequestChecksWithResponse(ctx context.Context, body RerunPullRequestChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*RerunPullRequestChecksResponse, error)
+
+	// GetPullRequestRerunnableWithResponse Say whether Rerun failed checks would find a job on one pull request, without rerunning anything
+	//
+	// Reads what POST /api/v1/pull-requests/rerun-checks reads and restarts
+	// nothing: on GitHub the failed check runs on the head commit, each mapped
+	// to its workflow run; on Forgejo the failed Actions runs on the head
+	// commit, after the same version check. The bulk "Rerun failed checks"
+	// control asks it for each failing row, to sort them before it sends a
+	// request.
+	//
+	// "No" is an answer, not an error: `rerunnable` is false and `reason`
+	// carries the same sentence the rerun's 409 would (only non-Actions checks
+	// failed, nothing ran, a Forgejo older than 17). A forge that can't be read
+	// keeps its own status. The forge can still refuse the rerun itself (the
+	// run is too old, the token can't write to Actions), which only the rerun
+	// learns.
+	//
+	// This costs forge requests on every call (the pull request, its check
+	// runs and one job lookup per failed check on GitHub), so it is never part
+	// of the snapshot.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/pull-requests/rerunnable (the `GetPullRequestRerunnable` operationId).
+	GetPullRequestRerunnableWithResponse(ctx context.Context, params *GetPullRequestRerunnableParams, reqEditors ...RequestEditorFn) (*GetPullRequestRerunnableResponse, error)
 
 	// UnhidePullRequestWithBodyWithResponse Bring a hidden pull request back onto the signed-in user's dashboard
 	//
@@ -17109,6 +17267,97 @@ func (r RerunPullRequestChecksResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RerunPullRequestChecksResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetPullRequestRerunnableResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		// Reason The forge's plain sentence for why nothing can be rerun. Present only when `rerunnable` is false.
+		Reason     *string `json:"reason,omitempty"`
+		Rerunnable bool    `json:"rerunnable"`
+	}
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetPullRequestRerunnableResponse) GetJSON200() *struct {
+	// Reason The forge's plain sentence for why nothing can be rerun. Present only when `rerunnable` is false.
+	Reason     *string `json:"reason,omitempty"`
+	Rerunnable bool    `json:"rerunnable"`
+} {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetPullRequestRerunnableResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetPullRequestRerunnableResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetPullRequestRerunnableResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetPullRequestRerunnableResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r GetPullRequestRerunnableResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r GetPullRequestRerunnableResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r GetPullRequestRerunnableResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPullRequestRerunnableResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPullRequestRerunnableResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetPullRequestRerunnableResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -20517,6 +20766,37 @@ func (c *ClientWithResponses) RerunPullRequestChecksWithResponse(ctx context.Con
 	return ParseRerunPullRequestChecksResponse(rsp)
 }
 
+// GetPullRequestRerunnableWithResponse Say whether Rerun failed checks would find a job on one pull request, without rerunning anything
+//
+// Reads what POST /api/v1/pull-requests/rerun-checks reads and restarts
+// nothing: on GitHub the failed check runs on the head commit, each mapped
+// to its workflow run; on Forgejo the failed Actions runs on the head
+// commit, after the same version check. The bulk "Rerun failed checks"
+// control asks it for each failing row, to sort them before it sends a
+// request.
+//
+// "No" is an answer, not an error: `rerunnable` is false and `reason`
+// carries the same sentence the rerun's 409 would (only non-Actions checks
+// failed, nothing ran, a Forgejo older than 17). A forge that can't be read
+// keeps its own status. The forge can still refuse the rerun itself (the
+// run is too old, the token can't write to Actions), which only the rerun
+// learns.
+//
+// This costs forge requests on every call (the pull request, its check
+// runs and one job lookup per failed check on GitHub), so it is never part
+// of the snapshot.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/pull-requests/rerunnable (the `GetPullRequestRerunnable` operationId).
+func (c *ClientWithResponses) GetPullRequestRerunnableWithResponse(ctx context.Context, params *GetPullRequestRerunnableParams, reqEditors ...RequestEditorFn) (*GetPullRequestRerunnableResponse, error) {
+	rsp, err := c.GetPullRequestRerunnable(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPullRequestRerunnableResponse(rsp)
+}
+
 // UnhidePullRequestWithBodyWithResponse Bring a hidden pull request back onto the signed-in user's dashboard
 //
 // The reverse of POST /api/v1/pull-requests/hide. Idempotent: restoring a
@@ -23666,6 +23946,78 @@ func ParseRerunPullRequestChecksResponse(rsp *http.Response) (*RerunPullRequestC
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
 		var dest ActionError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPullRequestRerunnableResponse parses an HTTP response from a GetPullRequestRerunnableWithResponse call
+func ParseGetPullRequestRerunnableResponse(rsp *http.Response) (*GetPullRequestRerunnableResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPullRequestRerunnableResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			// Reason The forge's plain sentence for why nothing can be rerun. Present only when `rerunnable` is false.
+			Reason     *string `json:"reason,omitempty"`
+			Rerunnable bool    `json:"rerunnable"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
