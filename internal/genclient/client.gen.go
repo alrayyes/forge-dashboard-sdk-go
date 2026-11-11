@@ -415,16 +415,16 @@ func (e DetailsCommentFormat) Valid() bool {
 
 // Defines values for Forge.
 const (
-	Forgejo Forge = "forgejo"
-	Github  Forge = "github"
+	ForgeForgejo Forge = "forgejo"
+	ForgeGithub  Forge = "github"
 )
 
 // Valid indicates whether the value is a known member of the Forge enum.
 func (e Forge) Valid() bool {
 	switch e {
-	case Forgejo:
+	case ForgeForgejo:
 		return true
-	case Github:
+	case ForgeGithub:
 		return true
 	default:
 		return false
@@ -812,6 +812,24 @@ func (e UpdateRequestPhase) Valid() bool {
 	case UpdateRequestPhaseExpired:
 		return true
 	case UpdateRequestPhaseQueued:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetImageParamsForge.
+const (
+	GetImageParamsForgeForgejo GetImageParamsForge = "forgejo"
+	GetImageParamsForgeGithub  GetImageParamsForge = "github"
+)
+
+// Valid indicates whether the value is a known member of the GetImageParamsForge enum.
+func (e GetImageParamsForge) Valid() bool {
+	switch e {
+	case GetImageParamsForgeForgejo:
+		return true
+	case GetImageParamsForgeGithub:
 		return true
 	default:
 		return false
@@ -3901,6 +3919,17 @@ type StreamDashboardParams struct {
 	Sid *string `form:"sid,omitempty" json:"sid,omitempty"`
 }
 
+// GetImageParams defines parameters for GetImage.
+type GetImageParams struct {
+	Forge GetImageParamsForge `form:"forge" json:"forge"`
+
+	// Url The absolute address of the image, as written in the Markdown.
+	Url string `form:"url" json:"url"`
+}
+
+// GetImageParamsForge defines parameters for GetImage.
+type GetImageParamsForge string
+
 // GetIssueDetailsParams defines parameters for GetIssueDetails.
 type GetIssueDetailsParams struct {
 	Forge Forge `form:"forge" json:"forge"`
@@ -4500,6 +4529,31 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
 	WatchDashboardStreamChecks(ctx context.Context, body WatchDashboardStreamChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetImage Read an image embedded in a forge's Markdown, through the server
+	//
+	// The details dialog shows the images in a description or comment by
+	// pointing its `<img>` here, never at the forge or a third party. The
+	// server fetches the image and returns the bytes, so the browser sends no
+	// request to another host, and a private repository's attachment loads
+	// without the forge token ever reaching the browser.
+	//
+	// Only the forge the item belongs to is reached. Forgejo: the saved
+	// instance, with the saved token sent to that host only. GitHub:
+	// `github.com` and its user-content hosts (`user-images`,
+	// `private-user-images` and `raw.githubusercontent.com`), without a
+	// token, since its attachment links are signed. Any other host, scheme or
+	// address answers 403 without a request. A redirect is followed only to
+	// another allowed host, and at most three times. GitHub's hosts are also
+	// refused at connect time if they resolve to a non-public address.
+	//
+	// The body must be a PNG, JPEG, GIF or WebP by its own bytes, not by the
+	// host's `Content-Type`, and at most 8 MiB. SVG and anything else answers
+	// 415. The answer carries `nosniff` and a sandboxing
+	// `Content-Security-Policy`, and is cacheable by the browser for an hour.
+	//
+	// Corresponds with GET /api/v1/images (the `GetImage` operationId).
+	GetImage(ctx context.Context, params *GetImageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CloseIssueWithBody Close one issue, on the signed-in user's behalf
 	//
@@ -6808,6 +6862,41 @@ func (c *Client) WatchDashboardStreamChecksWithBody(ctx context.Context, content
 // Corresponds with POST /api/v1/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
 func (c *Client) WatchDashboardStreamChecks(ctx context.Context, body WatchDashboardStreamChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWatchDashboardStreamChecksRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetImage Read an image embedded in a forge's Markdown, through the server
+//
+// The details dialog shows the images in a description or comment by
+// pointing its `<img>` here, never at the forge or a third party. The
+// server fetches the image and returns the bytes, so the browser sends no
+// request to another host, and a private repository's attachment loads
+// without the forge token ever reaching the browser.
+//
+// Only the forge the item belongs to is reached. Forgejo: the saved
+// instance, with the saved token sent to that host only. GitHub:
+// `github.com` and its user-content hosts (`user-images`,
+// `private-user-images` and `raw.githubusercontent.com`), without a
+// token, since its attachment links are signed. Any other host, scheme or
+// address answers 403 without a request. A redirect is followed only to
+// another allowed host, and at most three times. GitHub's hosts are also
+// refused at connect time if they resolve to a non-public address.
+//
+// The body must be a PNG, JPEG, GIF or WebP by its own bytes, not by the
+// host's `Content-Type`, and at most 8 MiB. SVG and anything else answers
+// 415. The answer carries `nosniff` and a sandboxing
+// `Content-Security-Policy`, and is cacheable by the browser for an hour.
+//
+// Corresponds with GET /api/v1/images (the `GetImage` operationId).
+func (c *Client) GetImage(ctx context.Context, params *GetImageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetImageRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -10168,6 +10257,64 @@ func NewWatchDashboardStreamChecksRequestWithBody(server string, contentType str
 	return req, nil
 }
 
+// NewGetImageRequest constructs an http.Request for the GetImage method
+func NewGetImageRequest(server string, params *GetImageParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/images")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "forge", params.Forge, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "url", params.Url, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewCloseIssueRequest calls the generic CloseIssue builder with application/json body
 func NewCloseIssueRequest(server string, body CloseIssueJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -12579,6 +12726,33 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/dashboard/stream/watch (the `WatchDashboardStreamChecks` operationId).
 	WatchDashboardStreamChecksWithResponse(ctx context.Context, body WatchDashboardStreamChecksJSONRequestBody, reqEditors ...RequestEditorFn) (*WatchDashboardStreamChecksResponse, error)
+
+	// GetImageWithResponse Read an image embedded in a forge's Markdown, through the server
+	//
+	// The details dialog shows the images in a description or comment by
+	// pointing its `<img>` here, never at the forge or a third party. The
+	// server fetches the image and returns the bytes, so the browser sends no
+	// request to another host, and a private repository's attachment loads
+	// without the forge token ever reaching the browser.
+	//
+	// Only the forge the item belongs to is reached. Forgejo: the saved
+	// instance, with the saved token sent to that host only. GitHub:
+	// `github.com` and its user-content hosts (`user-images`,
+	// `private-user-images` and `raw.githubusercontent.com`), without a
+	// token, since its attachment links are signed. Any other host, scheme or
+	// address answers 403 without a request. A redirect is followed only to
+	// another allowed host, and at most three times. GitHub's hosts are also
+	// refused at connect time if they resolve to a non-public address.
+	//
+	// The body must be a PNG, JPEG, GIF or WebP by its own bytes, not by the
+	// host's `Content-Type`, and at most 8 MiB. SVG and anything else answers
+	// 415. The answer carries `nosniff` and a sandboxing
+	// `Content-Security-Policy`, and is cacheable by the browser for an hour.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/images (the `GetImage` operationId).
+	GetImageWithResponse(ctx context.Context, params *GetImageParams, reqEditors ...RequestEditorFn) (*GetImageResponse, error)
 
 	// CloseIssueWithBodyWithResponse Close one issue, on the signed-in user's behalf
 	//
@@ -15350,6 +15524,89 @@ func (r WatchDashboardStreamChecksResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r WatchDashboardStreamChecksResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetImageResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *Error
+	// JSON415 the response for an HTTP 415 `application/json` response
+	JSON415 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetImageResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetImageResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetImageResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetImageResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r GetImageResponse) GetJSON413() *Error {
+	return r.JSON413
+}
+
+// GetJSON415 returns the response for an HTTP 415 `application/json` response
+func (r GetImageResponse) GetJSON415() *Error {
+	return r.JSON415
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r GetImageResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r GetImageResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetImageResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetImageResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetImageResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -19026,6 +19283,39 @@ func (c *ClientWithResponses) WatchDashboardStreamChecksWithResponse(ctx context
 	return ParseWatchDashboardStreamChecksResponse(rsp)
 }
 
+// GetImageWithResponse Read an image embedded in a forge's Markdown, through the server
+//
+// The details dialog shows the images in a description or comment by
+// pointing its `<img>` here, never at the forge or a third party. The
+// server fetches the image and returns the bytes, so the browser sends no
+// request to another host, and a private repository's attachment loads
+// without the forge token ever reaching the browser.
+//
+// Only the forge the item belongs to is reached. Forgejo: the saved
+// instance, with the saved token sent to that host only. GitHub:
+// `github.com` and its user-content hosts (`user-images`,
+// `private-user-images` and `raw.githubusercontent.com`), without a
+// token, since its attachment links are signed. Any other host, scheme or
+// address answers 403 without a request. A redirect is followed only to
+// another allowed host, and at most three times. GitHub's hosts are also
+// refused at connect time if they resolve to a non-public address.
+//
+// The body must be a PNG, JPEG, GIF or WebP by its own bytes, not by the
+// host's `Content-Type`, and at most 8 MiB. SVG and anything else answers
+// 415. The answer carries `nosniff` and a sandboxing
+// `Content-Security-Policy`, and is cacheable by the browser for an hour.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/images (the `GetImage` operationId).
+func (c *ClientWithResponses) GetImageWithResponse(ctx context.Context, params *GetImageParams, reqEditors ...RequestEditorFn) (*GetImageResponse, error) {
+	rsp, err := c.GetImage(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetImageResponse(rsp)
+}
+
 // CloseIssueWithBodyWithResponse Close one issue, on the signed-in user's behalf
 //
 // Closes the named issue. The Issues page's dialog offers it, on its own
@@ -22065,6 +22355,74 @@ func ParseWatchDashboardStreamChecksResponse(rsp *http.Response) (*WatchDashboar
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetImageResponse parses an HTTP response from a GetImageWithResponse call
+func ParseGetImageResponse(rsp *http.Response) (*GetImageResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetImageResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
