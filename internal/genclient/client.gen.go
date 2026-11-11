@@ -433,12 +433,13 @@ func (e Forge) Valid() bool {
 
 // Defines values for ForgeErrorKind.
 const (
-	ForgeErrorKindConflict     ForgeErrorKind = "conflict"
-	ForgeErrorKindNotFound     ForgeErrorKind = "not_found"
-	ForgeErrorKindRateLimited  ForgeErrorKind = "rate_limited"
-	ForgeErrorKindUnauthorized ForgeErrorKind = "unauthorized"
-	ForgeErrorKindUnknown      ForgeErrorKind = "unknown"
-	ForgeErrorKindUnreachable  ForgeErrorKind = "unreachable"
+	ForgeErrorKindConflict      ForgeErrorKind = "conflict"
+	ForgeErrorKindNotFound      ForgeErrorKind = "not_found"
+	ForgeErrorKindRateLimited   ForgeErrorKind = "rate_limited"
+	ForgeErrorKindUnauthorized  ForgeErrorKind = "unauthorized"
+	ForgeErrorKindUnknown       ForgeErrorKind = "unknown"
+	ForgeErrorKindUnreachable   ForgeErrorKind = "unreachable"
+	ForgeErrorKindUpstreamError ForgeErrorKind = "upstream_error"
 )
 
 // Valid indicates whether the value is a known member of the ForgeErrorKind enum.
@@ -455,6 +456,8 @@ func (e ForgeErrorKind) Valid() bool {
 	case ForgeErrorKindUnknown:
 		return true
 	case ForgeErrorKindUnreachable:
+		return true
+	case ForgeErrorKindUpstreamError:
 		return true
 	default:
 		return false
@@ -1884,8 +1887,10 @@ type ForgeApiStats struct {
 
 // ForgeErrorKind Why a forge is unreachable, or why a write to it was rejected, as
 // coarse as every forge this service talks to can agree on.
-// "unauthorized" covers both a bad token and a forbidden request;
-// "not_found" usually means a wrong instance URL. "conflict" is only
+// "unreachable" is a request that got no response; "upstream_error" is
+// the forge answering with a 5xx (a gateway timeout, say), and the
+// status is in ForgeHealth.upstreamStatus. "unauthorized" covers both a
+// bad token and a forbidden request; "not_found" usually means a wrong instance URL. "conflict" is only
 // ever returned from a pull-request write — the forge reports the PR
 // itself isn't currently mergeable. "unknown" covers a signal this
 // service doesn't recognize, rather than a guessed-at specific cause.
@@ -1901,8 +1906,10 @@ type ForgeHealth struct {
 
 	// ErrorKind Why a forge is unreachable, or why a write to it was rejected, as
 	// coarse as every forge this service talks to can agree on.
-	// "unauthorized" covers both a bad token and a forbidden request;
-	// "not_found" usually means a wrong instance URL. "conflict" is only
+	// "unreachable" is a request that got no response; "upstream_error" is
+	// the forge answering with a 5xx (a gateway timeout, say), and the
+	// status is in ForgeHealth.upstreamStatus. "unauthorized" covers both a
+	// bad token and a forbidden request; "not_found" usually means a wrong instance URL. "conflict" is only
 	// ever returned from a pull-request write — the forge reports the PR
 	// itself isn't currently mergeable. "unknown" covers a signal this
 	// service doesn't recognize, rather than a guessed-at specific cause.
@@ -1946,6 +1953,9 @@ type ForgeHealth struct {
 	// reaches it replaces this entry. A client says "starting up,
 	// showing data from 3 minutes ago", and never "unreachable".
 	Starting *bool `json:"starting,omitempty"`
+
+	// UpstreamStatus The 5xx status the forge answered with, set only when errorKind is upstream_error. The forge is not shown as down until three fetches in a row have failed, whatever the cause, with the latest a 5xx; one failure among healthy ones changes nothing.
+	UpstreamStatus *int `json:"upstreamStatus,omitempty"`
 }
 
 // Health defines model for Health.
