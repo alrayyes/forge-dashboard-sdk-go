@@ -341,6 +341,24 @@ func (e CIStatus) Valid() bool {
 	}
 }
 
+// Defines values for CheckWaitingFor.
+const (
+	Jobs   CheckWaitingFor = "jobs"
+	Runner CheckWaitingFor = "runner"
+)
+
+// Valid indicates whether the value is a known member of the CheckWaitingFor enum.
+func (e CheckWaitingFor) Valid() bool {
+	switch e {
+	case Jobs:
+		return true
+	case Runner:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CheckStatus.
 const (
 	CheckStatusCompleted  CheckStatus = "completed"
@@ -1543,7 +1561,23 @@ type Check struct {
 
 	// Url That job's own page on the forge that ran it — never the pull request's own page.
 	Url string `json:"url"`
+
+	// WaitingFor Why a queued Forgejo job has not started: `jobs` when it waits on
+	// earlier jobs it needs (Forgejo's `blocked`), `runner` when it is
+	// ready and waits for a runner to pick it up (`waiting`). The page
+	// words it. Absent for GitHub, for a job that is not queued, and
+	// for a blocked job in a run that has failed, which will never
+	// start.
+	WaitingFor *CheckWaitingFor `json:"waitingFor,omitempty"`
 }
+
+// CheckWaitingFor Why a queued Forgejo job has not started: `jobs` when it waits on
+// earlier jobs it needs (Forgejo's `blocked`), `runner` when it is
+// ready and waits for a runner to pick it up (`waiting`). The page
+// words it. Absent for GitHub, for a job that is not queued, and
+// for a blocked job in a run that has failed, which will never
+// start.
+type CheckWaitingFor string
 
 // CheckConclusion How a finished job ended, in the forge's own word. Sent only when
 // `status` is "completed". It is not folded onto a fixed set: GitHub
