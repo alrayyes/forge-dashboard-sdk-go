@@ -2055,11 +2055,21 @@ type Issue struct {
 	// MentionedByPullRequests The open pull requests that mention the issue without closing it,
 	// the other side of a pull request's `mentionsIssues`, ordered by
 	// repository and number and with the same entry as
-	// `linkedPullRequests`. A pull request that closes the issue is only
-	// in `linkedPullRequests`. Always present, and empty when there are
-	// none. The pull requests counted are the same as in `linkedPullRequests`.
+	// `linkedPullRequests`. A pull request that closes or references the
+	// issue is only in that list. Always present, and empty when there
+	// are none. The pull requests counted are the same as in
+	// `linkedPullRequests`.
 	MentionedByPullRequests []LinkedPullRequest `json:"mentionedByPullRequests"`
 	Number                  int                 `json:"number"`
+
+	// ReferencedByPullRequests The open pull requests that reference the issue without closing it
+	// (`Refs #5`, `Related to #5`, `See #5`), the other side of a pull
+	// request's `refsIssues`, ordered by repository and number and with
+	// the same entry as `linkedPullRequests`. A pull request that closes
+	// the issue is only in `linkedPullRequests`. Always present, and
+	// empty when there are none. The pull requests counted are the same
+	// as in `linkedPullRequests`.
+	ReferencedByPullRequests []LinkedPullRequest `json:"referencedByPullRequests"`
 
 	// Repo Examples: alrayyes/hush-hush
 	Repo      string    `json:"repo"`
