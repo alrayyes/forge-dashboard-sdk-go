@@ -1777,8 +1777,13 @@ type Dashboard struct {
 	// present, and `0` when the request set `includeDrafts=true`, so
 	// a client can render "N hidden" without a special case. Drafts
 	// in a repo the account ignores aren't counted, since none of
-	// that repo's pull requests show.
+	// that repo's pull requests show. The sum of `hiddenDraftsByPage`.
 	HiddenDrafts int `json:"hiddenDrafts"`
+
+	// HiddenDraftsByPage `hiddenDrafts` split by the page that lists each draft, so a page
+	// reads its own number and never shows a Show drafts button for
+	// drafts that belong on another page.
+	HiddenDraftsByPage HiddenDraftCounts `json:"hiddenDraftsByPage"`
 
 	// HiddenPullRequests How many pull requests the user hid that are still open and not
 	// expired. Always present, so a client can render "Hidden (N)"
@@ -2054,6 +2059,19 @@ type Health struct {
 
 // HealthStatus defines model for Health.Status.
 type HealthStatus string
+
+// HiddenDraftCounts How many draft pull requests the board left out, per page that lists
+// them: release pull requests under `releases`, Dependabot and Renovate
+// under `bots`, the rest under `pullRequests`, the same split as
+// `navCounts`. A page shows its Show drafts button only when its own
+// number is above zero, so the button never appears on a page where it
+// would reveal nothing. Always present, with zeros when there is nothing
+// hidden or the request set `includeDrafts=true`.
+type HiddenDraftCounts struct {
+	Bots         int `json:"bots"`
+	PullRequests int `json:"pullRequests"`
+	Releases     int `json:"releases"`
+}
 
 // Issue defines model for Issue.
 type Issue struct {
