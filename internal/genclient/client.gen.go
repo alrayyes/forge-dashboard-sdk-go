@@ -2059,7 +2059,7 @@ type HealthStatus string
 type Issue struct {
 	Author string `json:"author"`
 
-	// AuthorAvatarUrl The forge's own avatar URL for whoever filed the issue, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+	// AuthorAvatarUrl The forge's own avatar URL for whoever filed the issue, passed through unchanged. The page loads it through GET /api/v1/images. Empty when the forge supplies none, such as a deleted account.
 	AuthorAvatarUrl string `json:"authorAvatarUrl"`
 
 	// AuthorUrl The author's profile page on the forge, built by the server from the forge's own web address. Empty when there is nothing to link to, such as a deleted account.
@@ -2653,7 +2653,7 @@ type NavPullRequestCount struct {
 
 // Person Who wrote a description or a comment.
 type Person struct {
-	// AvatarUrl The forge's own avatar URL, passed through unchanged and never proxied.
+	// AvatarUrl The forge's own avatar URL, passed through unchanged. The page loads it through GET /api/v1/images.
 	AvatarUrl string `json:"avatarUrl"`
 	Login     string `json:"login"`
 
@@ -2699,7 +2699,7 @@ type PullRequest struct {
 	AllowedActions []AllowedAction `json:"allowedActions"`
 	Author         string          `json:"author"`
 
-	// AuthorAvatarUrl The forge's own avatar URL for the author, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+	// AuthorAvatarUrl The forge's own avatar URL for the author, passed through unchanged. The page loads it through GET /api/v1/images. Empty when the forge supplies none, such as a deleted account.
 	AuthorAvatarUrl string `json:"authorAvatarUrl"`
 
 	// AuthorUrl The author's profile page on the forge, built by the server from the forge's own web address, so a client needs no rule per forge. A GitHub bot links to its app page. Empty when there is nothing to link to, such as a deleted account.
@@ -3510,7 +3510,7 @@ type RepoStatus struct {
 	// repository's own avatar. Absent otherwise, and never the
 	// generated social card GitHub shows for a repository with none,
 	// nor the owner's avatar. Always an https URL, passed through
-	// unchanged and never proxied: on GitHub exactly
+	// unchanged; the page loads it through GET /api/v1/images. On GitHub exactly
 	// repository-images.githubusercontent.com, on Forgejo the
 	// instance's own host. A GitHub custom image is a wide banner,
 	// not a square logo.
@@ -4726,7 +4726,8 @@ type ClientInterface interface {
 	// Only the forge the item belongs to is reached. Forgejo: the saved
 	// instance, with the saved token sent to that host only. GitHub:
 	// `github.com` and its user-content hosts (`user-images`,
-	// `private-user-images` and `raw.githubusercontent.com`), without a
+	// `private-user-images`, `raw`, `avatars` and `repository-images`
+	// under `githubusercontent.com`), without a
 	// token, since its attachment links are signed. A
 	// `github.com/user-attachments/...` link in a private repository is not
 	// served unsigned, so when `fullName` and `number` (or `tag`) name the
@@ -4859,8 +4860,8 @@ type ClientInterface interface {
 	// 20,000 characters (`truncated`), the conversation keeps its first 50
 	// comments (`commentsTruncated`, with the full `commentCount`), and a
 	// reaction names at most its first 10 people while `count` is the full
-	// number. An avatar is the forge's own URL, passed through unchanged and
-	// never proxied.
+	// number. An avatar is the forge's own URL, passed through unchanged;
+	// the page loads it through GET /api/v1/images.
 	//
 	// The error answers are those of GET /api/v1/pull-requests/details, with
 	// the same codes. An issue that doesn't exist is a 404, and a forge that
@@ -5349,12 +5350,8 @@ type ClientInterface interface {
 	// 20,000 characters (`truncated`), the conversation keeps its first 50
 	// comments (`commentsTruncated`, with the full `commentCount`), and a
 	// reaction names at most its first 10 people while `count` is the full
-	// number. An avatar is the forge's own URL, passed through unchanged
-	// and never proxied; this app sets no Content-Security-Policy today, so
-	// the browser loads it directly. A future policy's `img-src` has to
-	// allow avatars.githubusercontent.com, repository-images.githubusercontent.com
-	// (a GitHub repository's logo, see `logoUrl` on a repo in GET
-	// /api/v1/dashboard) and the Forgejo host.
+	// number. An avatar is the forge's own URL, passed through unchanged;
+	// the page loads it through GET /api/v1/images, never from the forge.
 	//
 	// A forge that can't be read is an error, never an empty thread.
 	//
@@ -7099,7 +7096,8 @@ func (c *Client) WatchDashboardStreamChecks(ctx context.Context, body WatchDashb
 // Only the forge the item belongs to is reached. Forgejo: the saved
 // instance, with the saved token sent to that host only. GitHub:
 // `github.com` and its user-content hosts (`user-images`,
-// `private-user-images` and `raw.githubusercontent.com`), without a
+// `private-user-images`, `raw`, `avatars` and `repository-images`
+// under `githubusercontent.com`), without a
 // token, since its attachment links are signed. A
 // `github.com/user-attachments/...` link in a private repository is not
 // served unsigned, so when `fullName` and `number` (or `tag`) name the
@@ -7282,8 +7280,8 @@ func (c *Client) CommentOnIssue(ctx context.Context, body CommentOnIssueJSONRequ
 // 20,000 characters (`truncated`), the conversation keeps its first 50
 // comments (`commentsTruncated`, with the full `commentCount`), and a
 // reaction names at most its first 10 people while `count` is the full
-// number. An avatar is the forge's own URL, passed through unchanged and
-// never proxied.
+// number. An avatar is the forge's own URL, passed through unchanged;
+// the page loads it through GET /api/v1/images.
 //
 // The error answers are those of GET /api/v1/pull-requests/details, with
 // the same codes. An issue that doesn't exist is a 404, and a forge that
@@ -7962,12 +7960,8 @@ func (c *Client) PostPullRequestDependabotAction(ctx context.Context, body PostP
 // 20,000 characters (`truncated`), the conversation keeps its first 50
 // comments (`commentsTruncated`, with the full `commentCount`), and a
 // reaction names at most its first 10 people while `count` is the full
-// number. An avatar is the forge's own URL, passed through unchanged
-// and never proxied; this app sets no Content-Security-Policy today, so
-// the browser loads it directly. A future policy's `img-src` has to
-// allow avatars.githubusercontent.com, repository-images.githubusercontent.com
-// (a GitHub repository's logo, see `logoUrl` on a repo in GET
-// /api/v1/dashboard) and the Forgejo host.
+// number. An avatar is the forge's own URL, passed through unchanged;
+// the page loads it through GET /api/v1/images, never from the forge.
 //
 // A forge that can't be read is an error, never an empty thread.
 //
@@ -13097,7 +13091,8 @@ type ClientWithResponsesInterface interface {
 	// Only the forge the item belongs to is reached. Forgejo: the saved
 	// instance, with the saved token sent to that host only. GitHub:
 	// `github.com` and its user-content hosts (`user-images`,
-	// `private-user-images` and `raw.githubusercontent.com`), without a
+	// `private-user-images`, `raw`, `avatars` and `repository-images`
+	// under `githubusercontent.com`), without a
 	// token, since its attachment links are signed. A
 	// `github.com/user-attachments/...` link in a private repository is not
 	// served unsigned, so when `fullName` and `number` (or `tag`) name the
@@ -13232,8 +13227,8 @@ type ClientWithResponsesInterface interface {
 	// 20,000 characters (`truncated`), the conversation keeps its first 50
 	// comments (`commentsTruncated`, with the full `commentCount`), and a
 	// reaction names at most its first 10 people while `count` is the full
-	// number. An avatar is the forge's own URL, passed through unchanged and
-	// never proxied.
+	// number. An avatar is the forge's own URL, passed through unchanged;
+	// the page loads it through GET /api/v1/images.
 	//
 	// The error answers are those of GET /api/v1/pull-requests/details, with
 	// the same codes. An issue that doesn't exist is a 404, and a forge that
@@ -13728,12 +13723,8 @@ type ClientWithResponsesInterface interface {
 	// 20,000 characters (`truncated`), the conversation keeps its first 50
 	// comments (`commentsTruncated`, with the full `commentCount`), and a
 	// reaction names at most its first 10 people while `count` is the full
-	// number. An avatar is the forge's own URL, passed through unchanged
-	// and never proxied; this app sets no Content-Security-Policy today, so
-	// the browser loads it directly. A future policy's `img-src` has to
-	// allow avatars.githubusercontent.com, repository-images.githubusercontent.com
-	// (a GitHub repository's logo, see `logoUrl` on a repo in GET
-	// /api/v1/dashboard) and the Forgejo host.
+	// number. An avatar is the forge's own URL, passed through unchanged;
+	// the page loads it through GET /api/v1/images, never from the forge.
 	//
 	// A forge that can't be read is an error, never an empty thread.
 	//
@@ -19777,7 +19768,8 @@ func (c *ClientWithResponses) WatchDashboardStreamChecksWithResponse(ctx context
 // Only the forge the item belongs to is reached. Forgejo: the saved
 // instance, with the saved token sent to that host only. GitHub:
 // `github.com` and its user-content hosts (`user-images`,
-// `private-user-images` and `raw.githubusercontent.com`), without a
+// `private-user-images`, `raw`, `avatars` and `repository-images`
+// under `githubusercontent.com`), without a
 // token, since its attachment links are signed. A
 // `github.com/user-attachments/...` link in a private repository is not
 // served unsigned, so when `fullName` and `number` (or `tag`) name the
@@ -19942,8 +19934,8 @@ func (c *ClientWithResponses) CommentOnIssueWithResponse(ctx context.Context, bo
 // 20,000 characters (`truncated`), the conversation keeps its first 50
 // comments (`commentsTruncated`, with the full `commentCount`), and a
 // reaction names at most its first 10 people while `count` is the full
-// number. An avatar is the forge's own URL, passed through unchanged and
-// never proxied.
+// number. An avatar is the forge's own URL, passed through unchanged;
+// the page loads it through GET /api/v1/images.
 //
 // The error answers are those of GET /api/v1/pull-requests/details, with
 // the same codes. An issue that doesn't exist is a 404, and a forge that
@@ -20552,12 +20544,8 @@ func (c *ClientWithResponses) PostPullRequestDependabotActionWithResponse(ctx co
 // 20,000 characters (`truncated`), the conversation keeps its first 50
 // comments (`commentsTruncated`, with the full `commentCount`), and a
 // reaction names at most its first 10 people while `count` is the full
-// number. An avatar is the forge's own URL, passed through unchanged
-// and never proxied; this app sets no Content-Security-Policy today, so
-// the browser loads it directly. A future policy's `img-src` has to
-// allow avatars.githubusercontent.com, repository-images.githubusercontent.com
-// (a GitHub repository's logo, see `logoUrl` on a repo in GET
-// /api/v1/dashboard) and the Forgejo host.
+// number. An avatar is the forge's own URL, passed through unchanged;
+// the page loads it through GET /api/v1/images, never from the forge.
 //
 // A forge that can't be read is an error, never an empty thread.
 //
