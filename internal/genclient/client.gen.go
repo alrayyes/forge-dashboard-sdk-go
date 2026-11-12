@@ -497,6 +497,27 @@ func (e IssueDetailsState) Valid() bool {
 	}
 }
 
+// Defines values for IssueRelation.
+const (
+	Closes   IssueRelation = "closes"
+	Mentions IssueRelation = "mentions"
+	Refs     IssueRelation = "refs"
+)
+
+// Valid indicates whether the value is a known member of the IssueRelation enum.
+func (e IssueRelation) Valid() bool {
+	switch e {
+	case Closes:
+		return true
+	case Mentions:
+		return true
+	case Refs:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MainBranchStatus.
 const (
 	MainBranchStatusAwaitingApproval MainBranchStatus = "awaiting_approval"
@@ -1662,6 +1683,13 @@ type ClosingIssue struct {
 	// Examples: /issues.html?issue=github/alrayyes/hush-hush/12
 	PageUrl string `json:"pageUrl"`
 
+	// Relation How a pull request relates to an issue: `closes` (it will close the
+	// issue on merge), `refs` (it says Refs, Ref, Related to or See, so it
+	// works on an issue that stays open) or `mentions` (the issue is named
+	// in passing). A pull request holds an issue under one relation, closes
+	// first.
+	Relation IssueRelation `json:"relation"`
+
 	// Repo The issue's repository as `owner/name`, which is not always the pull request's own.
 	Repo string `json:"repo"`
 
@@ -2091,6 +2119,13 @@ type IssueDetails struct {
 // while the dialog is open shows the change.
 type IssueDetailsState string
 
+// IssueRelation How a pull request relates to an issue: `closes` (it will close the
+// issue on merge), `refs` (it says Refs, Ref, Related to or See, so it
+// works on an issue that stays open) or `mentions` (the issue is named
+// in passing). A pull request holds an issue under one relation, closes
+// first.
+type IssueRelation string
+
 // Label defines model for Label.
 type Label struct {
 	// Color The label's colour as a hex string with no leading "#",
@@ -2447,9 +2482,9 @@ type MainBranches struct {
 	GeneratedAt time.Time `json:"generatedAt"`
 }
 
-// MentionedIssue One issue or pull request a pull request mentions without closing it.
-// The number is an issue's or a pull request's, which the forge's address
-// tells apart.
+// MentionedIssue One issue or pull request a pull request mentions or references
+// without closing it. The number is an issue's or a pull request's,
+// which the forge's address tells apart.
 type MentionedIssue struct {
 	Number int `json:"number"`
 
@@ -2460,6 +2495,13 @@ type MentionedIssue struct {
 	//
 	// Examples: /issues.html?issue=github/alrayyes/hush-hush/12
 	PageUrl string `json:"pageUrl"`
+
+	// Relation How a pull request relates to an issue: `closes` (it will close the
+	// issue on merge), `refs` (it says Refs, Ref, Related to or See, so it
+	// works on an issue that stays open) or `mentions` (the issue is named
+	// in passing). A pull request holds an issue under one relation, closes
+	// first.
+	Relation IssueRelation `json:"relation"`
 
 	// Repo The repository as `owner/name`, which is not always the pull request's own.
 	Repo string `json:"repo"`
@@ -2941,6 +2983,18 @@ type PullRequest struct {
 	// isn't a draft: what the Ready quick filter lists. Always
 	// present. A pull request with no checks isn't ready.
 	ReadyToMerge bool `json:"readyToMerge"`
+
+	// RefsIssues The issues the title or description references with a keyword,
+	// work on a ticket that stays open: `Refs`, `Ref`, `Related to` or
+	// `See`, with an optional colon, then `#NUMBER` or
+	// `owner/repo#NUMBER` (several may follow one keyword, as in
+	// `Refs #3, #4 and #5`), at most 20, in order of first appearance and
+	// without repeats. Each entry has `relation` `refs`. A ticket the
+	// pull request also closes is only in `closesIssues`. Read from the
+	// title and description on both forges, with the same rules as
+	// `mentionsIssues` for code, comments and link text. Always present,
+	// and empty when there are none.
+	RefsIssues []MentionedIssue `json:"refsIssues"`
 
 	// Repo Owner-qualified repository name.
 	//
