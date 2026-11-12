@@ -1419,6 +1419,10 @@ type Check struct {
 	// `failure`. A client decides what each word means and what to do
 	// with one it doesn't know.
 	//
+	// `startup_failure` is a workflow run that never started. It has no
+	// jobs, so the check carries the workflow's name, `url` is the run's
+	// page, and there is no `jobId`.
+	//
 	// `action_required` means the job needs someone's approval, and `url`
 	// is where to give it. The page shows it as waiting for approval,
 	// the same as a held run whose `status` is "waiting".
@@ -1449,6 +1453,12 @@ type Check struct {
 	// approval, which have no output to read.
 	JobId *int   `json:"jobId,omitempty"`
 	Name  string `json:"name"`
+
+	// NotReported Set on a required check the base branch names that nothing on the
+	// head commit has reported: no job, no status. It is not a job. Its
+	// `status` is "queued", `url` is empty, `required` is true, and it is
+	// in none of a pull request's counts. Absent otherwise. GitHub only.
+	NotReported *bool `json:"notReported,omitempty"`
 
 	// Required Whether the base branch's protection makes this check block the
 	// merge (GitHub required status checks and rulesets, Forgejo
@@ -1517,6 +1527,10 @@ type Check struct {
 // commit status, which has no conclusion, is sent as `success` or
 // `failure`. A client decides what each word means and what to do
 // with one it doesn't know.
+//
+// `startup_failure` is a workflow run that never started. It has no
+// jobs, so the check carries the workflow's name, `url` is the run's
+// page, and there is no `jobId`.
 //
 // `action_required` means the job needs someone's approval, and `url`
 // is where to give it. The page shows it as waiting for approval,
