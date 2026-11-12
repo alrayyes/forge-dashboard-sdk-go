@@ -1744,8 +1744,15 @@ type Dashboard struct {
 	// shorter (2) until the viewer's first refresh has finished, so a
 	// page that is still loading picks the data up soon after it is
 	// ready, and the normal 30 from then on.
-	ReadIntervalSeconds int          `json:"readIntervalSeconds"`
-	Repos               []RepoStatus `json:"repos"`
+	ReadIntervalSeconds int `json:"readIntervalSeconds"`
+
+	// RecentlyStarted True for the first five minutes after the server process started.
+	// A restart empties the in-memory state and the first full refresh is
+	// the heaviest moment, so a forge that has not answered yet is
+	// starting up, not down. A client words its unreachable banner as
+	// starting up while this is true. Always present.
+	RecentlyStarted bool         `json:"recentlyStarted"`
+	Repos           []RepoStatus `json:"repos"`
 
 	// SettingsHiddenIssueCount How many open issues the user's own settings (`hideDependencyDashboard`
 	// and `ignoredTitles`) left out of `issues`, so a client can say
