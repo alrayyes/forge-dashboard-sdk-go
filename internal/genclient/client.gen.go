@@ -878,6 +878,21 @@ func (e GetImageParamsForge) Valid() bool {
 	}
 }
 
+// Defines values for GetImageParamsKind.
+const (
+	Avatar GetImageParamsKind = "avatar"
+)
+
+// Valid indicates whether the value is a known member of the GetImageParamsKind enum.
+func (e GetImageParamsKind) Valid() bool {
+	switch e {
+	case Avatar:
+		return true
+	default:
+		return false
+	}
+}
+
 // APIToken A personal API token's own metadata — never the token value
 // itself, which only ever appears once, in
 // APITokenCreateResponse's own response body at creation time.
@@ -4117,10 +4132,16 @@ type GetImageParams struct {
 
 	// Tag GitHub only. The release the image is embedded in; wins over `number`.
 	Tag *string `form:"tag,omitempty" json:"tag,omitempty"`
+
+	// Kind Set to `avatar` for an avatar or repository logo, which has a 512 KiB size cap instead of 8 MiB.
+	Kind *GetImageParamsKind `form:"kind,omitempty" json:"kind,omitempty"`
 }
 
 // GetImageParamsForge defines parameters for GetImage.
 type GetImageParamsForge string
+
+// GetImageParamsKind defines parameters for GetImage.
+type GetImageParamsKind string
 
 // GetIssueDetailsParams defines parameters for GetIssueDetails.
 type GetIssueDetailsParams struct {
@@ -4760,9 +4781,15 @@ type ClientInterface interface {
 	// refused at connect time if they resolve to a non-public address.
 	//
 	// The body must be a PNG, JPEG, GIF or WebP by its own bytes, not by the
-	// host's `Content-Type`, and at most 8 MiB. SVG and anything else answers
-	// 415. The answer carries `nosniff` and a sandboxing
-	// `Content-Security-Policy`, and is cacheable by the browser for an hour.
+	// host's `Content-Type`, and at most 8 MiB (512 KiB with `kind=avatar`).
+	// SVG and anything else answers 415.
+	//
+	// The cost is bounded. At most 8 fetches run upstream at once; another
+	// request waits up to 5 seconds for a slot, then answers 503 with
+	// `Retry-After`. A fetched image is served again from a server-side cache
+	// for 5 minutes, without a new upstream fetch. The answer carries
+	// `nosniff` and a sandboxing `Content-Security-Policy`, and is cacheable
+	// by the browser for an hour.
 	//
 	// Corresponds with GET /api/v1/images (the `GetImage` operationId).
 	GetImage(ctx context.Context, params *GetImageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7130,9 +7157,15 @@ func (c *Client) WatchDashboardStreamChecks(ctx context.Context, body WatchDashb
 // refused at connect time if they resolve to a non-public address.
 //
 // The body must be a PNG, JPEG, GIF or WebP by its own bytes, not by the
-// host's `Content-Type`, and at most 8 MiB. SVG and anything else answers
-// 415. The answer carries `nosniff` and a sandboxing
-// `Content-Security-Policy`, and is cacheable by the browser for an hour.
+// host's `Content-Type`, and at most 8 MiB (512 KiB with `kind=avatar`).
+// SVG and anything else answers 415.
+//
+// The cost is bounded. At most 8 fetches run upstream at once; another
+// request waits up to 5 seconds for a slot, then answers 503 with
+// `Retry-After`. A fetched image is served again from a server-side cache
+// for 5 minutes, without a new upstream fetch. The answer carries
+// `nosniff` and a sandboxing `Content-Security-Policy`, and is cacheable
+// by the browser for an hour.
 //
 // Corresponds with GET /api/v1/images (the `GetImage` operationId).
 func (c *Client) GetImage(ctx context.Context, params *GetImageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -10606,6 +10639,18 @@ func NewGetImageRequest(server string, params *GetImageParams) (*http.Request, e
 
 		}
 
+		if params.Kind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", *params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -13125,9 +13170,15 @@ type ClientWithResponsesInterface interface {
 	// refused at connect time if they resolve to a non-public address.
 	//
 	// The body must be a PNG, JPEG, GIF or WebP by its own bytes, not by the
-	// host's `Content-Type`, and at most 8 MiB. SVG and anything else answers
-	// 415. The answer carries `nosniff` and a sandboxing
-	// `Content-Security-Policy`, and is cacheable by the browser for an hour.
+	// host's `Content-Type`, and at most 8 MiB (512 KiB with `kind=avatar`).
+	// SVG and anything else answers 415.
+	//
+	// The cost is bounded. At most 8 fetches run upstream at once; another
+	// request waits up to 5 seconds for a slot, then answers 503 with
+	// `Retry-After`. A fetched image is served again from a server-side cache
+	// for 5 minutes, without a new upstream fetch. The answer carries
+	// `nosniff` and a sandboxing `Content-Security-Policy`, and is cacheable
+	// by the browser for an hour.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -15931,6 +15982,11 @@ func (r WatchDashboardStreamChecksResponse) ContentType() string {
 	return ""
 }
 
+// GetImageResponse503Headers the declared response headers of an HTTP 503 response for GetImage
+type GetImageResponse503Headers struct {
+	RetryAfter *string
+}
+
 type GetImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -15948,6 +16004,10 @@ type GetImageResponse struct {
 	JSON415 *Error
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *Error
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *Error
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetImageResponse503Headers
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
@@ -15983,6 +16043,11 @@ func (r GetImageResponse) GetJSON415() *Error {
 // GetJSON502 returns the response for an HTTP 502 `application/json` response
 func (r GetImageResponse) GetJSON502() *Error {
 	return r.JSON502
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetImageResponse) GetJSON503() *Error {
+	return r.JSON503
 }
 
 // GetBody returns the raw response body bytes
@@ -19802,9 +19867,15 @@ func (c *ClientWithResponses) WatchDashboardStreamChecksWithResponse(ctx context
 // refused at connect time if they resolve to a non-public address.
 //
 // The body must be a PNG, JPEG, GIF or WebP by its own bytes, not by the
-// host's `Content-Type`, and at most 8 MiB. SVG and anything else answers
-// 415. The answer carries `nosniff` and a sandboxing
-// `Content-Security-Policy`, and is cacheable by the browser for an hour.
+// host's `Content-Type`, and at most 8 MiB (512 KiB with `kind=avatar`).
+// SVG and anything else answers 415.
+//
+// The cost is bounded. At most 8 fetches run upstream at once; another
+// request waits up to 5 seconds for a slot, then answers 503 with
+// `Retry-After`. A fetched image is served again from a server-side cache
+// for 5 minutes, without a new upstream fetch. The answer carries
+// `nosniff` and a sandboxing `Content-Security-Policy`, and is cacheable
+// by the browser for an hour.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -22952,6 +23023,26 @@ func ParseGetImageResponse(rsp *http.Response) (*GetImageResponse, error) {
 		}
 		response.JSON502 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 503:
+		var headers GetImageResponse503Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil
