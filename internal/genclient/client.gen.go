@@ -1894,7 +1894,7 @@ type DetailsComment struct {
 	Edited    bool                 `json:"edited"`
 	Format    DetailsCommentFormat `json:"format"`
 
-	// Id The forge's own identifier for the comment.
+	// Id The forge's own identifier for the comment. On GitHub, the number its REST comments route takes.
 	Id string `json:"id"`
 
 	// Reactions The two reactions the dialog shows, `+1` and `-1` on both forges.
@@ -4133,6 +4133,14 @@ type GetImageParams struct {
 	// Tag GitHub only. The release the image is embedded in; wins over `number`.
 	Tag *string `form:"tag,omitempty" json:"tag,omitempty"`
 
+	// Comment GitHub only. The number of the issue or pull request comment the
+	// image is embedded in (a `DetailsComment.id`); wins over `tag` and
+	// `number`. A comment's body is a different object from the item's, so
+	// the server reads that comment's rendered HTML for the signed
+	// address. A value that isn't a positive whole number looks nothing
+	// up.
+	Comment *int `form:"comment,omitempty" json:"comment,omitempty"`
+
 	// Kind Set to `avatar` for an avatar or repository logo, which has a 512 KiB size cap instead of 8 MiB.
 	Kind *GetImageParamsKind `form:"kind,omitempty" json:"kind,omitempty"`
 }
@@ -4769,8 +4777,9 @@ type ClientInterface interface {
 	// under `githubusercontent.com`), without a
 	// token, since its attachment links are signed. A
 	// `github.com/user-attachments/...` link in a private repository is not
-	// served unsigned, so when `fullName` and `number` (or `tag`) name the
-	// item it sits in, the server reads that item's rendered HTML through the
+	// served unsigned, so when `fullName` and `number` (or `tag`, or the
+	// `comment` it was posted in) name where it sits, the server reads that
+	// item's or comment's rendered HTML through the
 	// GitHub API with the saved token and fetches the signed address found
 	// there instead, without the token. If the lookup finds nothing or fails, or the signed address is on a host
 	// that isn't allowed or doesn't load, the link is fetched as written.
@@ -7145,8 +7154,9 @@ func (c *Client) WatchDashboardStreamChecks(ctx context.Context, body WatchDashb
 // under `githubusercontent.com`), without a
 // token, since its attachment links are signed. A
 // `github.com/user-attachments/...` link in a private repository is not
-// served unsigned, so when `fullName` and `number` (or `tag`) name the
-// item it sits in, the server reads that item's rendered HTML through the
+// served unsigned, so when `fullName` and `number` (or `tag`, or the
+// `comment` it was posted in) name where it sits, the server reads that
+// item's or comment's rendered HTML through the
 // GitHub API with the saved token and fetches the signed address found
 // there instead, without the token. If the lookup finds nothing or fails, or the signed address is on a host
 // that isn't allowed or doesn't load, the link is fetched as written.
@@ -10639,6 +10649,18 @@ func NewGetImageRequest(server string, params *GetImageParams) (*http.Request, e
 
 		}
 
+		if params.Comment != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "comment", *params.Comment, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.Kind != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", *params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -13158,8 +13180,9 @@ type ClientWithResponsesInterface interface {
 	// under `githubusercontent.com`), without a
 	// token, since its attachment links are signed. A
 	// `github.com/user-attachments/...` link in a private repository is not
-	// served unsigned, so when `fullName` and `number` (or `tag`) name the
-	// item it sits in, the server reads that item's rendered HTML through the
+	// served unsigned, so when `fullName` and `number` (or `tag`, or the
+	// `comment` it was posted in) name where it sits, the server reads that
+	// item's or comment's rendered HTML through the
 	// GitHub API with the saved token and fetches the signed address found
 	// there instead, without the token. If the lookup finds nothing or fails, or the signed address is on a host
 	// that isn't allowed or doesn't load, the link is fetched as written.
@@ -19855,8 +19878,9 @@ func (c *ClientWithResponses) WatchDashboardStreamChecksWithResponse(ctx context
 // under `githubusercontent.com`), without a
 // token, since its attachment links are signed. A
 // `github.com/user-attachments/...` link in a private repository is not
-// served unsigned, so when `fullName` and `number` (or `tag`) name the
-// item it sits in, the server reads that item's rendered HTML through the
+// served unsigned, so when `fullName` and `number` (or `tag`, or the
+// `comment` it was posted in) name where it sits, the server reads that
+// item's or comment's rendered HTML through the
 // GitHub API with the saved token and fetches the signed address found
 // there instead, without the token. If the lookup finds nothing or fails, or the signed address is on a host
 // that isn't allowed or doesn't load, the link is fetched as written.
