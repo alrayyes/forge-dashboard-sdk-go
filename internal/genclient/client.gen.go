@@ -3797,6 +3797,15 @@ type SettingsRequest struct {
 // exception: they're ours to hand back in the clear, since the user
 // has to paste them into the forge's own webhook setup.
 type SettingsResponse struct {
+	// ForgejoSkippedAvatarHosts Other hosts a Forgejo avatar was refused for lately: the image
+	// proxy only fetches from the saved instance, so an avatar on
+	// Gravatar or Libravatar is skipped and the page shows an initial.
+	// Lowercase, sorted, at most eight, and never the instance's own
+	// host. A host is listed while its avatars keep being asked for and
+	// drops off after about ten minutes without one, so the list is
+	// empty when nothing is skipped. Held in memory: a restart empties it.
+	ForgejoSkippedAvatarHosts []string `json:"forgejoSkippedAvatarHosts"`
+
 	// ForgejoTokenSet Whether a Forgejo token is currently saved.
 	ForgejoTokenSet bool `json:"forgejoTokenSet"`
 
@@ -3913,20 +3922,28 @@ type SettingsResponseTheme string
 // only whether one is set. Field meanings are those of the same-named
 // SettingsResponse properties.
 type SettingsSummary struct {
-	ForgejoTokenSet         bool                 `json:"forgejoTokenSet"`
-	ForgejoUrl              string               `json:"forgejoUrl"`
-	ForgejoUsername         string               `json:"forgejoUsername"`
-	GithubAppConfigured     bool                 `json:"githubAppConfigured"`
-	GithubAppInstallationId int64                `json:"githubAppInstallationId"`
-	GithubTokenSet          bool                 `json:"githubTokenSet"`
-	GithubUsername          string               `json:"githubUsername"`
-	HideDependencyDashboard bool                 `json:"hideDependencyDashboard"`
-	IgnoredTitleCounts      []*int               `json:"ignoredTitleCounts"`
-	IgnoredTitles           []string             `json:"ignoredTitles"`
-	RenovateAuthors         []string             `json:"renovateAuthors"`
-	RenovateRebaseLabel     string               `json:"renovateRebaseLabel"`
-	Theme                   SettingsSummaryTheme `json:"theme"`
-	Timezone                string               `json:"timezone"`
+	// ForgejoSkippedAvatarHosts Other hosts a Forgejo avatar was refused for lately: the image
+	// proxy only fetches from the saved instance, so an avatar on
+	// Gravatar or Libravatar is skipped and the page shows an initial.
+	// Lowercase, sorted, at most eight, and never the instance's own
+	// host. A host is listed while its avatars keep being asked for and
+	// drops off after about ten minutes without one, so the list is
+	// empty when nothing is skipped. Held in memory: a restart empties it.
+	ForgejoSkippedAvatarHosts []string             `json:"forgejoSkippedAvatarHosts"`
+	ForgejoTokenSet           bool                 `json:"forgejoTokenSet"`
+	ForgejoUrl                string               `json:"forgejoUrl"`
+	ForgejoUsername           string               `json:"forgejoUsername"`
+	GithubAppConfigured       bool                 `json:"githubAppConfigured"`
+	GithubAppInstallationId   int64                `json:"githubAppInstallationId"`
+	GithubTokenSet            bool                 `json:"githubTokenSet"`
+	GithubUsername            string               `json:"githubUsername"`
+	HideDependencyDashboard   bool                 `json:"hideDependencyDashboard"`
+	IgnoredTitleCounts        []*int               `json:"ignoredTitleCounts"`
+	IgnoredTitles             []string             `json:"ignoredTitles"`
+	RenovateAuthors           []string             `json:"renovateAuthors"`
+	RenovateRebaseLabel       string               `json:"renovateRebaseLabel"`
+	Theme                     SettingsSummaryTheme `json:"theme"`
+	Timezone                  string               `json:"timezone"`
 
 	// WebhookConfigured Whether this user's webhook token and secret exist. They are
 	// created the first time the Settings page reads
