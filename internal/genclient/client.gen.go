@@ -115,22 +115,22 @@ func (e AdvisoryReason) Valid() bool {
 
 // Defines values for AdvisorySeverity.
 const (
-	Critical AdvisorySeverity = "critical"
-	High     AdvisorySeverity = "high"
-	Low      AdvisorySeverity = "low"
-	Medium   AdvisorySeverity = "medium"
+	AdvisorySeverityCritical AdvisorySeverity = "critical"
+	AdvisorySeverityHigh     AdvisorySeverity = "high"
+	AdvisorySeverityLow      AdvisorySeverity = "low"
+	AdvisorySeverityMedium   AdvisorySeverity = "medium"
 )
 
 // Valid indicates whether the value is a known member of the AdvisorySeverity enum.
 func (e AdvisorySeverity) Valid() bool {
 	switch e {
-	case Critical:
+	case AdvisorySeverityCritical:
 		return true
-	case High:
+	case AdvisorySeverityHigh:
 		return true
-	case Low:
+	case AdvisorySeverityLow:
 		return true
-	case Medium:
+	case AdvisorySeverityMedium:
 		return true
 	default:
 		return false
@@ -590,6 +590,30 @@ func (e MergeStatus) Valid() bool {
 	case MergeStatusUnknown:
 		return true
 	case MergeStatusUnstable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProviderStatusIndicator.
+const (
+	ProviderStatusIndicatorCritical ProviderStatusIndicator = "critical"
+	ProviderStatusIndicatorMajor    ProviderStatusIndicator = "major"
+	ProviderStatusIndicatorMinor    ProviderStatusIndicator = "minor"
+	ProviderStatusIndicatorNone     ProviderStatusIndicator = "none"
+)
+
+// Valid indicates whether the value is a known member of the ProviderStatusIndicator enum.
+func (e ProviderStatusIndicator) Valid() bool {
+	switch e {
+	case ProviderStatusIndicatorCritical:
+		return true
+	case ProviderStatusIndicatorMajor:
+		return true
+	case ProviderStatusIndicatorMinor:
+		return true
+	case ProviderStatusIndicatorNone:
 		return true
 	default:
 		return false
@@ -2025,6 +2049,9 @@ type ForgeHealth struct {
 	ErrorKind *ForgeErrorKind `json:"errorKind,omitempty"`
 	Forge     Forge           `json:"forge"`
 
+	// ProviderStatus What the forge's own status page reports, set only for GitHub, only while it is unreachable (reachable is false, errorKind unreachable, upstream_error or unknown), and only when the page names an incident or a degraded component the dashboard uses (API Requests, Pull Requests, Actions or Webhooks). The page is read only after a failed call, at most once a minute, with a request that carries nothing about the user. Omitted when the page reports nothing there, when it can't be read, and for Forgejo, which has no such page. A client says "GitHub reports an incident" and leaves the cause of a failure with no incident to the forge's own error.
+	ProviderStatus *ProviderStatus `json:"providerStatus,omitempty"`
+
 	// RateLimitGraphQL GitHub's GraphQL budget — a completely separate 5000/hour allowance from rateLimitREST, populated from the rateLimit block GitHub embeds in every GraphQL response. Never set for a forge with no GraphQL API (Forgejo).
 	RateLimitGraphQL *RateLimit `json:"rateLimitGraphQL,omitempty"`
 
@@ -2718,6 +2745,21 @@ type PresenceReport struct {
 	// once it is hidden or the person has stopped using it.
 	Visible bool `json:"visible"`
 }
+
+// ProviderStatus defines model for ProviderStatus.
+type ProviderStatus struct {
+	// Components The affected components the dashboard uses, as the page names them ("Pull Requests").
+	Components *[]string `json:"components,omitempty"`
+
+	// Incidents Titles of the open incidents on those components.
+	Incidents *[]string `json:"incidents,omitempty"`
+
+	// Indicator The status page's overall level. It covers every GitHub component, including ones the dashboard doesn't use, so read incidents and components for what concerns this service.
+	Indicator ProviderStatusIndicator `json:"indicator"`
+}
+
+// ProviderStatusIndicator The status page's overall level. It covers every GitHub component, including ones the dashboard doesn't use, so read incidents and components for what concerns this service.
+type ProviderStatusIndicator string
 
 // PullRequest defines model for PullRequest.
 type PullRequest struct {
