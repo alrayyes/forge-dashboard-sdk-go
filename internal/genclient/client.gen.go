@@ -4873,7 +4873,7 @@ type ClientInterface interface {
 	// Only the forge the item belongs to is reached. Forgejo: the saved
 	// instance, with the saved token sent to that host only. GitHub:
 	// `github.com` and its user-content hosts (`user-images`,
-	// `private-user-images`, `raw`, `avatars` and `repository-images`
+	// `private-user-images`, `raw`, `gist`, `avatars` and `repository-images`
 	// under `githubusercontent.com`), without a
 	// token, since its attachment links are signed. A
 	// `github.com/user-attachments/...` link in a private repository is not
@@ -7250,7 +7250,7 @@ func (c *Client) WatchDashboardStreamChecks(ctx context.Context, body WatchDashb
 // Only the forge the item belongs to is reached. Forgejo: the saved
 // instance, with the saved token sent to that host only. GitHub:
 // `github.com` and its user-content hosts (`user-images`,
-// `private-user-images`, `raw`, `avatars` and `repository-images`
+// `private-user-images`, `raw`, `gist`, `avatars` and `repository-images`
 // under `githubusercontent.com`), without a
 // token, since its attachment links are signed. A
 // `github.com/user-attachments/...` link in a private repository is not
@@ -13288,7 +13288,7 @@ type ClientWithResponsesInterface interface {
 	// Only the forge the item belongs to is reached. Forgejo: the saved
 	// instance, with the saved token sent to that host only. GitHub:
 	// `github.com` and its user-content hosts (`user-images`,
-	// `private-user-images`, `raw`, `avatars` and `repository-images`
+	// `private-user-images`, `raw`, `gist`, `avatars` and `repository-images`
 	// under `githubusercontent.com`), without a
 	// token, since its attachment links are signed. A
 	// `github.com/user-attachments/...` link in a private repository is not
@@ -19986,7 +19986,7 @@ func (c *ClientWithResponses) WatchDashboardStreamChecksWithResponse(ctx context
 // Only the forge the item belongs to is reached. Forgejo: the saved
 // instance, with the saved token sent to that host only. GitHub:
 // `github.com` and its user-content hosts (`user-images`,
-// `private-user-images`, `raw`, `avatars` and `repository-images`
+// `private-user-images`, `raw`, `gist`, `avatars` and `repository-images`
 // under `githubusercontent.com`), without a
 // token, since its attachment links are signed. A
 // `github.com/user-attachments/...` link in a private repository is not
