@@ -917,6 +917,30 @@ func (e GetImageParamsKind) Valid() bool {
 	}
 }
 
+// Defines values for GetImageParamsWidth.
+const (
+	N1280 GetImageParamsWidth = 1280
+	N320  GetImageParamsWidth = 320
+	N640  GetImageParamsWidth = 640
+	N960  GetImageParamsWidth = 960
+)
+
+// Valid indicates whether the value is a known member of the GetImageParamsWidth enum.
+func (e GetImageParamsWidth) Valid() bool {
+	switch e {
+	case N1280:
+		return true
+	case N320:
+		return true
+	case N640:
+		return true
+	case N960:
+		return true
+	default:
+		return false
+	}
+}
+
 // APIToken A personal API token's own metadata — never the token value
 // itself, which only ever appears once, in
 // APITokenCreateResponse's own response body at creation time.
@@ -4202,6 +4226,20 @@ type GetImageParams struct {
 
 	// Kind Set to `avatar` for an avatar or repository logo, which has a 512 KiB size cap instead of 8 MiB.
 	Kind *GetImageParamsKind `form:"kind,omitempty" json:"kind,omitempty"`
+
+	// Width Scale the image down to this many pixels wide, keeping its aspect
+	// ratio, for a thumbnail slot. Absent, the original bytes are
+	// returned, so a viewer can show the full image. Any other value,
+	// or one not written plainly (`0320`, `+320`), answers 400; it is
+	// refused, not snapped. The original is returned
+	// unchanged when it is no wider, when it is a GIF (which may be
+	// animated), when it cannot be decoded (an animated WebP, say), when it is
+	// a JPEG with an EXIF orientation other than upright (orientation in a
+	// PNG or WebP is not read), or
+	// when scaling would not make it smaller. A JPEG stays a JPEG; a PNG
+	// or WebP comes back as a PNG. A source over 16 million pixels,
+	// judged from its header before anything is decoded, answers 413.
+	Width *GetImageParamsWidth `form:"width,omitempty" json:"width,omitempty"`
 }
 
 // GetImageParamsForge defines parameters for GetImage.
@@ -4209,6 +4247,9 @@ type GetImageParamsForge string
 
 // GetImageParamsKind defines parameters for GetImage.
 type GetImageParamsKind string
+
+// GetImageParamsWidth defines parameters for GetImage.
+type GetImageParamsWidth int
 
 // GetIssueDetailsParams defines parameters for GetIssueDetails.
 type GetIssueDetailsParams struct {
@@ -10723,6 +10764,18 @@ func NewGetImageRequest(server string, params *GetImageParams) (*http.Request, e
 		if params.Kind != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", *params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Width != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "width", *params.Width, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
