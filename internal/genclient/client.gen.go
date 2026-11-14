@@ -1872,7 +1872,7 @@ type Dashboard struct {
 	// under `bots`, the rest under `pullRequests`). Always present, with
 	// zeros when there is nothing. A client hides a page's whole nav item at
 	// zero total, and a state's number at zero. Every page except Issues also
-	// carries `running` and `passed`. The Branches badge isn't here: a
+	// carries `running`, `passed` and `cancelled`. The Branches badge isn't here: a
 	// client counts the rows of `mainBranchPage`.
 	NavCounts NavCounts `json:"navCounts"`
 
@@ -2673,29 +2673,29 @@ type MergeStatus string
 // under `bots`, the rest under `pullRequests`). Always present, with
 // zeros when there is nothing. A client hides a page's whole nav item at
 // zero total, and a state's number at zero. Every page except Issues also
-// carries `running` and `passed`. The Branches badge isn't here: a
+// carries `running`, `passed` and `cancelled`. The Branches badge isn't here: a
 // client counts the rows of `mainBranchPage`.
 type NavCounts struct {
-	// Bots A pull request page's numbers. `running`, `failed` and
-	// `passed` count the pull requests whose CI is pending, failing and
-	// succeeded, and `noChecks` those with no checks at all. One held for
-	// workflow approval is in `total` only, so the numbers need not add up.
-	// All five are always present.
+	// Bots A pull request page's numbers. `running`, `failed`, `passed` and
+	// `cancelled` count the pull requests whose CI is pending, failing,
+	// succeeded and cancelled, and `noChecks` those with no checks at all.
+	// One held for workflow approval is in `total` only, so the numbers
+	// need not add up. All six are always present.
 	Bots   NavPullRequestCount `json:"bots"`
 	Issues NavIssueCount       `json:"issues"`
 
-	// PullRequests A pull request page's numbers. `running`, `failed` and
-	// `passed` count the pull requests whose CI is pending, failing and
-	// succeeded, and `noChecks` those with no checks at all. One held for
-	// workflow approval is in `total` only, so the numbers need not add up.
-	// All five are always present.
+	// PullRequests A pull request page's numbers. `running`, `failed`, `passed` and
+	// `cancelled` count the pull requests whose CI is pending, failing,
+	// succeeded and cancelled, and `noChecks` those with no checks at all.
+	// One held for workflow approval is in `total` only, so the numbers
+	// need not add up. All six are always present.
 	PullRequests NavPullRequestCount `json:"pullRequests"`
 
-	// Releases A pull request page's numbers. `running`, `failed` and
-	// `passed` count the pull requests whose CI is pending, failing and
-	// succeeded, and `noChecks` those with no checks at all. One held for
-	// workflow approval is in `total` only, so the numbers need not add up.
-	// All five are always present.
+	// Releases A pull request page's numbers. `running`, `failed`, `passed` and
+	// `cancelled` count the pull requests whose CI is pending, failing,
+	// succeeded and cancelled, and `noChecks` those with no checks at all.
+	// One held for workflow approval is in `total` only, so the numbers
+	// need not add up. All six are always present.
 	Releases NavPullRequestCount `json:"releases"`
 }
 
@@ -2707,12 +2707,16 @@ type NavIssueCount struct {
 	Total int `json:"total"`
 }
 
-// NavPullRequestCount A pull request page's numbers. `running`, `failed` and
-// `passed` count the pull requests whose CI is pending, failing and
-// succeeded, and `noChecks` those with no checks at all. One held for
-// workflow approval is in `total` only, so the numbers need not add up.
-// All five are always present.
+// NavPullRequestCount A pull request page's numbers. `running`, `failed`, `passed` and
+// `cancelled` count the pull requests whose CI is pending, failing,
+// succeeded and cancelled, and `noChecks` those with no checks at all.
+// One held for workflow approval is in `total` only, so the numbers
+// need not add up. All six are always present.
 type NavPullRequestCount struct {
+	// Cancelled How many of them have CI whose only non-passing runs were
+	// cancelled. Not counted as `failed`: nothing broke.
+	Cancelled int `json:"cancelled"`
+
 	// Failed How many of them have failing CI. A pull request whose only
 	// failure is workflow runs held until someone approves them
 	// (`awaitingWorkflowApproval`) is counted in `total` and not here,
