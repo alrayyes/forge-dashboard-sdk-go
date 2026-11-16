@@ -2056,6 +2056,9 @@ type ForgeCapabilities struct {
 	// AdvisorySource Where the repository advisories come from. Open-ended, so a new source is not a breaking change; today `dependabot` and `osv`.
 	AdvisorySource string `json:"advisorySource"`
 
+	// AdvisoryUnknownNeedsReason True when an `unknown` advisory answer is worth showing only if the row names a reason. Without one it usually means a repository with nothing to check. False when every `unknown` answer is a failure to read.
+	AdvisoryUnknownNeedsReason bool `json:"advisoryUnknownNeedsReason"`
+
 	// ApprovalGatedRuns True when a run can be held until a person approves it.
 	ApprovalGatedRuns bool `json:"approvalGatedRuns"`
 
