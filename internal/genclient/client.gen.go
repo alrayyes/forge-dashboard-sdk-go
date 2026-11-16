@@ -3017,6 +3017,13 @@ type PullRequest struct {
 	CrossRepository bool `json:"crossRepository"`
 	Draft           bool `json:"draft"`
 
+	// EditedByOthers Whether a Dependabot pull request's head branch holds a commit
+	// Dependabot didn't write, such as a bot refreshing a lockfile on it.
+	// Dependabot refuses to rebase such a branch, so the pull request
+	// offers Update branch instead of Dependabot's Rebase. Always false
+	// for any other author. Always present.
+	EditedByOthers bool `json:"editedByOthers"`
+
 	// Empty Whether merging this pull request would produce an empty
 	// commit — its content already landed on the base branch some
 	// other way. False whenever this service can't tell (the
