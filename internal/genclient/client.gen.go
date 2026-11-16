@@ -2051,6 +2051,42 @@ type ForgeApiStats struct {
 	Since time.Time `json:"since"`
 }
 
+// ForgeCapabilities What one forge can do, as facts a client reads instead of testing the forge's name. A forge this service learns to talk to is one more set of values here, so a client that reads these needs no change for it.
+type ForgeCapabilities struct {
+	// AdvisorySource Where the repository advisories come from. Open-ended, so a new source is not a breaking change; today `dependabot` and `osv`.
+	AdvisorySource string `json:"advisorySource"`
+
+	// ApprovalGatedRuns True when a run can be held until a person approves it.
+	ApprovalGatedRuns bool `json:"approvalGatedRuns"`
+
+	// AutoMergeHeldByApp True when this app holds an armed auto-merge and merges the pull request itself once its checks pass. False when the forge holds it and merges on its own.
+	AutoMergeHeldByApp bool `json:"autoMergeHeldByApp"`
+
+	// ChecksViaWebhook True when the forge reports check results by webhook, so a pending run is polled only when no event arrived. False when results are found by polling.
+	ChecksViaWebhook bool `json:"checksViaWebhook"`
+
+	// DependabotCommands True when a `@dependabot` comment does anything on this forge.
+	DependabotCommands bool `json:"dependabotCommands"`
+
+	// IssueRefSyntax The forms the forge's text uses to reference an issue. Open-ended; today `hash_or_gh_prefix` (a hash sign or a `GH-` prefix before the number) and `hash` (the hash sign only).
+	IssueRefSyntax string `json:"issueRefSyntax"`
+
+	// Label The forge's name as a person reads it, such as `GitHub`.
+	Label string `json:"label"`
+
+	// RateLimitModel How the forge budgets requests. Open-ended; today `graphql_and_rest` (two separate allowances) and `rest`.
+	RateLimitModel string `json:"rateLimitModel"`
+
+	// ServerLogExcerpts True when a failed job's excerpt is read from the log endpoint (`excerpt=true`). False when the check list already carries it.
+	ServerLogExcerpts bool `json:"serverLogExcerpts"`
+
+	// ServesRunningLog True when a job's log can be read while the job runs.
+	ServesRunningLog bool `json:"servesRunningLog"`
+
+	// StatusPageUrl The forge's public status page, or an empty string when it has none.
+	StatusPageUrl string `json:"statusPageUrl"`
+}
+
 // ForgeErrorKind Why a forge is unreachable, or why a write to it was rejected, as
 // coarse as every forge this service talks to can agree on.
 // "unreachable" is a request that got no response; "upstream_error" is
@@ -2064,6 +2100,9 @@ type ForgeErrorKind string
 
 // ForgeHealth defines model for ForgeHealth.
 type ForgeHealth struct {
+	// Capabilities What one forge can do, as facts a client reads instead of testing the forge's name. A forge this service learns to talk to is one more set of values here, so a client that reads these needs no change for it.
+	Capabilities ForgeCapabilities `json:"capabilities"`
+
 	// DependabotCommandsBlocked Why a "@dependabot" comment sent through this forge's credential would be refused. Dependabot only honours commands from a user with push access and ignores GitHub App accounts whatever permissions the App holds. Set only for GitHub when the connected credential is an App with no personal access token saved to send commands as. The Dependabot buttons lock with this text, auto-update-branch skips Dependabot pull requests, and the dependabot-action endpoint answers 409 with it. Omitted when commands work.
 	DependabotCommandsBlocked *string `json:"dependabotCommandsBlocked,omitempty"`
 
