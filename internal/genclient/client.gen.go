@@ -29,6 +29,7 @@ const (
 	ActionErrorCodeChecksPending       ActionErrorCode = "checks_pending"
 	ActionErrorCodeConflict            ActionErrorCode = "conflict"
 	ActionErrorCodeForgeError          ActionErrorCode = "forge_error"
+	ActionErrorCodeForgeUnreachable    ActionErrorCode = "forge_unreachable"
 	ActionErrorCodeNotMergeable        ActionErrorCode = "not_mergeable"
 	ActionErrorCodeNotOpen             ActionErrorCode = "not_open"
 	ActionErrorCodeNotRateLimited      ActionErrorCode = "not_rate_limited"
@@ -61,6 +62,8 @@ func (e ActionErrorCode) Valid() bool {
 	case ActionErrorCodeConflict:
 		return true
 	case ActionErrorCodeForgeError:
+		return true
+	case ActionErrorCodeForgeUnreachable:
 		return true
 	case ActionErrorCodeNotMergeable:
 		return true
@@ -1280,6 +1283,12 @@ type AllowedAction struct {
 
 		// Next What unlocks it, when something does.
 		Next *string `json:"next,omitempty"`
+
+		// Since Only with `forge_unreachable`: when the rows on show were
+		// read. While the forge can't be asked every action is listed
+		// blocked with this code, whatever reason the earlier answer
+		// gave, and `message` is the same sentence a row's pills use.
+		Since *time.Time `json:"since,omitempty"`
 	} `json:"blocked,omitempty"`
 
 	// Primary True on the one action a client draws as the pull request's main
@@ -3380,6 +3389,9 @@ type PullRequestStatus struct {
 
 	// Next What unlocks it or what to do about it, when there is something.
 	Next *string `json:"next,omitempty"`
+
+	// Since Set only with `forge_unreachable`, and says when the rows on show were read.
+	Since *time.Time `json:"since,omitempty"`
 }
 
 // QueuedAction A safe action queued to run when a rate-limited forge resets. A
