@@ -2106,7 +2106,7 @@ type ForgeApiStats struct {
 
 // ForgeCapabilities What one forge can do, as facts a client reads instead of testing the forge's name. A forge this service learns to talk to is one more set of values here, so a client that reads these needs no change for it.
 type ForgeCapabilities struct {
-	// AdvisorySource Where the repository advisories come from. Open-ended, so a new source is not a breaking change; today `dependabot` and `osv`.
+	// AdvisorySource Where the repository advisories come from. Open-ended, so a new source is not a breaking change; today `dependabot` and `osv`. A client keys its advisory wording (notice text, unreadable reasons) by this value, not by the forge's name, and says something neutral for a source it has no words for.
 	AdvisorySource string `json:"advisorySource"`
 
 	// AdvisoryUnknownNeedsReason True when an `unknown` advisory answer is worth showing only if the row names a reason. Without one it usually means a repository with nothing to check. False when every `unknown` answer is a failure to read.
