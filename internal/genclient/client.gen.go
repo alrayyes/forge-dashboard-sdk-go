@@ -86,6 +86,24 @@ func (e ActionErrorCode) Valid() bool {
 	}
 }
 
+// Defines values for AdvisoryListRefreshFailed.
+const (
+	AdvisoryListRefreshFailedFailed    AdvisoryListRefreshFailed = "failed"
+	AdvisoryListRefreshFailedThrottled AdvisoryListRefreshFailed = "throttled"
+)
+
+// Valid indicates whether the value is a known member of the AdvisoryListRefreshFailed enum.
+func (e AdvisoryListRefreshFailed) Valid() bool {
+	switch e {
+	case AdvisoryListRefreshFailedFailed:
+		return true
+	case AdvisoryListRefreshFailedThrottled:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdvisoryReason.
 const (
 	AdvisoryReasonFailed      AdvisoryReason = "failed"
@@ -1111,6 +1129,14 @@ type Advisories struct {
 	// Highest The worst severity among the open advisories. Absent when there are none.
 	Highest *AdvisorySeverity `json:"highest,omitempty"`
 
+	// ListReadAt Set when the read that produced this count also kept the full list
+	// behind it, so opening the advisories dialog needs no call to the
+	// forge: GET /api/v1/main-branches/advisories answers from that list.
+	// It is when the forge was read. Absent when no list is kept, and
+	// the dashboard then reads one when the dialog opens. The advisory
+	// text itself is never part of the stream.
+	ListReadAt *time.Time `json:"listReadAt,omitempty"`
+
 	// Partial Only on a Forgejo repository whose `state` is "known": its lock
 	// files list packages the dashboard leaves out because they are not
 	// public (a private registry, a git or path source, a module on the
@@ -1225,6 +1251,9 @@ type AdvisoryList struct {
 	// Partial Set on a known Forgejo list that leaves out packages the dashboard may not send to OSV, because they may be private. Absent otherwise.
 	Partial *bool `json:"partial,omitempty"`
 
+	// ReadAt When the forge was read for this list. The same value on every answer served from the dashboard's own copy, so a client can tell a changed list from a repeated one.
+	ReadAt *time.Time `json:"readAt,omitempty"`
+
 	// Reason Why `state` is "unknown", when the dashboard can tell. Absent when
 	// the state is "known". "refused" is a 403: the credential lacks the
 	// Dependabot alerts permission. "switched_off" is a 404: alerts are off
@@ -1239,6 +1268,12 @@ type AdvisoryList struct {
 	// read is still running in the background, is "unknown" with no reason.
 	Reason *AdvisoryReason `json:"reason,omitempty"`
 
+	// RefreshFailed Set when the read failed or was rate limited (a refresh, or an
+	// open after the kept list had aged out) and `advisories` is the last good list instead, never
+	// an empty one. `readAt` then says how old that list is. Absent when
+	// the read succeeded.
+	RefreshFailed *AdvisoryListRefreshFailed `json:"refreshFailed,omitempty"`
+
 	// State "known" is an answer the forge gave. "unknown" is no answer, and must
 	// never be shown as zero.
 	State AdvisoryState `json:"state"`
@@ -1246,6 +1281,12 @@ type AdvisoryList struct {
 	// Url The repository's advisories page on the forge. Absent when none are open or the state is unknown, and for Forgejo, which has no page for a whole repository.
 	Url *string `json:"url,omitempty"`
 }
+
+// AdvisoryListRefreshFailed Set when the read failed or was rate limited (a refresh, or an
+// open after the kept list had aged out) and `advisories` is the last good list instead, never
+// an empty one. `readAt` then says how old that list is. Absent when
+// the read succeeded.
+type AdvisoryListRefreshFailed string
 
 // AdvisoryReason Why `state` is "unknown", when the dashboard can tell. Absent when
 // the state is "known". "refused" is a 403: the credential lacks the
@@ -4500,6 +4541,9 @@ type ListAdvisoriesParams struct {
 
 	// FullName "owner/repo", matching a MainBranch.fullName from GET /api/v1/main-branches.
 	FullName string `form:"fullName" json:"fullName"`
+
+	// Refresh Read the forge again instead of answering from the list the dashboard kept.
+	Refresh *bool `form:"refresh,omitempty" json:"refresh,omitempty"`
 }
 
 // GetPullRequestDetailsParams defines parameters for GetPullRequestDetails.
@@ -5399,9 +5443,17 @@ type ClientInterface interface {
 	// What the advisories dialog on the Main branches page shows for one
 	// repository: each open Dependabot alert with the fields GitHub's own
 	// alert page shows. The list and the detail view are the same answer, so
-	// opening one advisory costs no second call. Fetched live on every call,
-	// never as part of GET /api/v1/main-branches' snapshot, so a repository
-	// nobody opens costs no budget.
+	// opening one advisory costs no second call. Never part of GET
+	// /api/v1/main-branches' snapshot, so a repository nobody opens costs no
+	// budget.
+	//
+	// The dashboard keeps the list it reads for 15 minutes, the same as a
+	// row's advisory count, and the read that fills a row's count keeps the
+	// list too. So an open within that time answers from the kept list with
+	// no call to the forge, and `readAt` says when it was read. Pass
+	// `refresh=true` to read the forge again. If a read, on a refresh or because
+	// the kept list had aged out, fails or is rate limited, the answer is the
+	// last good list with `refreshFailed` set.
 	//
 	// Sorted by severity, highest first, then newest first. GitHub reads them
 	// through the Dependabot alerts of the repository. A Forgejo repository
@@ -7969,9 +8021,17 @@ func (c *Client) GetMainBranches(ctx context.Context, reqEditors ...RequestEdito
 // What the advisories dialog on the Main branches page shows for one
 // repository: each open Dependabot alert with the fields GitHub's own
 // alert page shows. The list and the detail view are the same answer, so
-// opening one advisory costs no second call. Fetched live on every call,
-// never as part of GET /api/v1/main-branches' snapshot, so a repository
-// nobody opens costs no budget.
+// opening one advisory costs no second call. Never part of GET
+// /api/v1/main-branches' snapshot, so a repository nobody opens costs no
+// budget.
+//
+// The dashboard keeps the list it reads for 15 minutes, the same as a
+// row's advisory count, and the read that fills a row's count keeps the
+// list too. So an open within that time answers from the kept list with
+// no call to the forge, and `readAt` says when it was read. Pass
+// `refresh=true` to read the forge again. If a read, on a refresh or because
+// the kept list had aged out, fails or is rate limited, the answer is the
+// last good list with `refreshFailed` set.
 //
 // Sorted by severity, highest first, then newest first. GitHub reads them
 // through the Dependabot alerts of the repository. A Forgejo repository
@@ -11626,6 +11686,18 @@ func NewListAdvisoriesRequest(server string, params *ListAdvisoriesParams) (*htt
 			}
 		}
 
+		if params.Refresh != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "refresh", *params.Refresh, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -14159,9 +14231,17 @@ type ClientWithResponsesInterface interface {
 	// What the advisories dialog on the Main branches page shows for one
 	// repository: each open Dependabot alert with the fields GitHub's own
 	// alert page shows. The list and the detail view are the same answer, so
-	// opening one advisory costs no second call. Fetched live on every call,
-	// never as part of GET /api/v1/main-branches' snapshot, so a repository
-	// nobody opens costs no budget.
+	// opening one advisory costs no second call. Never part of GET
+	// /api/v1/main-branches' snapshot, so a repository nobody opens costs no
+	// budget.
+	//
+	// The dashboard keeps the list it reads for 15 minutes, the same as a
+	// row's advisory count, and the read that fills a row's count keeps the
+	// list too. So an open within that time answers from the kept list with
+	// no call to the forge, and `readAt` says when it was read. Pass
+	// `refresh=true` to read the forge again. If a read, on a refresh or because
+	// the kept list had aged out, fails or is rate limited, the answer is the
+	// last good list with `refreshFailed` set.
 	//
 	// Sorted by severity, highest first, then newest first. GitHub reads them
 	// through the Dependabot alerts of the repository. A Forgejo repository
@@ -21160,9 +21240,17 @@ func (c *ClientWithResponses) GetMainBranchesWithResponse(ctx context.Context, r
 // What the advisories dialog on the Main branches page shows for one
 // repository: each open Dependabot alert with the fields GitHub's own
 // alert page shows. The list and the detail view are the same answer, so
-// opening one advisory costs no second call. Fetched live on every call,
-// never as part of GET /api/v1/main-branches' snapshot, so a repository
-// nobody opens costs no budget.
+// opening one advisory costs no second call. Never part of GET
+// /api/v1/main-branches' snapshot, so a repository nobody opens costs no
+// budget.
+//
+// The dashboard keeps the list it reads for 15 minutes, the same as a
+// row's advisory count, and the read that fills a row's count keeps the
+// list too. So an open within that time answers from the kept list with
+// no call to the forge, and `readAt` says when it was read. Pass
+// `refresh=true` to read the forge again. If a read, on a refresh or because
+// the kept list had aged out, fails or is rate limited, the answer is the
+// last good list with `refreshFailed` set.
 //
 // Sorted by severity, highest first, then newest first. GitHub reads them
 // through the Dependabot alerts of the repository. A Forgejo repository
