@@ -541,16 +541,37 @@ func (e IssueDetailsKind) Valid() bool {
 
 // Defines values for IssueDetailsState.
 const (
-	Closed IssueDetailsState = "closed"
-	Open   IssueDetailsState = "open"
+	IssueDetailsStateClosed IssueDetailsState = "closed"
+	IssueDetailsStateOpen   IssueDetailsState = "open"
 )
 
 // Valid indicates whether the value is a known member of the IssueDetailsState enum.
 func (e IssueDetailsState) Valid() bool {
 	switch e {
-	case Closed:
+	case IssueDetailsStateClosed:
 		return true
-	case Open:
+	case IssueDetailsStateOpen:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for IssuePullRequestState.
+const (
+	IssuePullRequestStateClosed IssuePullRequestState = "closed"
+	IssuePullRequestStateMerged IssuePullRequestState = "merged"
+	IssuePullRequestStateOpen   IssuePullRequestState = "open"
+)
+
+// Valid indicates whether the value is a known member of the IssuePullRequestState enum.
+func (e IssuePullRequestState) Valid() bool {
+	switch e {
+	case IssuePullRequestStateClosed:
+		return true
+	case IssuePullRequestStateMerged:
+		return true
+	case IssuePullRequestStateOpen:
 		return true
 	default:
 		return false
@@ -2416,6 +2437,11 @@ type IssueDetails struct {
 	// `closed` once it is merged as well as when it is closed unmerged.
 	Kind IssueDetailsKind `json:"kind"`
 
+	// PullRequest Present only when `kind` is `pullRequest`: what the header of a pull
+	// request needs when the board has no row for it, because it is closed,
+	// merged or in a repository the board doesn't track. The dialog words it.
+	PullRequest *IssuePullRequest `json:"pullRequest,omitempty"`
+
 	// State Whether the forge has the issue open or closed right now. The
 	// dialog draws its status from this, so an issue closed or reopened
 	// while the dialog is open shows the change.
@@ -2433,6 +2459,23 @@ type IssueDetailsKind string
 // dialog draws its status from this, so an issue closed or reopened
 // while the dialog is open shows the change.
 type IssueDetailsState string
+
+// IssuePullRequest Present only when `kind` is `pullRequest`: what the header of a pull
+// request needs when the board has no row for it, because it is closed,
+// merged or in a repository the board doesn't track. The dialog words it.
+type IssuePullRequest struct {
+	// Author Who opened it. Null for a deleted account.
+	Author *Person `json:"author"`
+
+	// State Where the pull request stands. `closed` means closed without merging.
+	State IssuePullRequestState `json:"state"`
+
+	// Title The pull request's title, as the forge has it now.
+	Title string `json:"title"`
+}
+
+// IssuePullRequestState Where the pull request stands. `closed` means closed without merging.
+type IssuePullRequestState string
 
 // IssueRelation How a pull request relates to an issue: `closes` (it will close the
 // issue on merge), `refs` (it says Refs, Ref, Related to or See, so it
