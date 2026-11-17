@@ -1586,6 +1586,15 @@ type Check struct {
 	// in none of a pull request's counts. Absent otherwise. GitHub only.
 	NotReported *bool `json:"notReported,omitempty"`
 
+	// ReportedStatus The forge's own word for the job's status, sent only when `status`
+	// is "unknown", so a client can name what it cannot grade. Absent
+	// for every other status. A finished job's own word is its
+	// `conclusion`.
+	//
+	//
+	// Examples: brand_new_status
+	ReportedStatus *string `json:"reportedStatus,omitempty"`
+
 	// Required Whether the base branch's protection makes this check block the
 	// merge (GitHub required status checks and rulesets, Forgejo
 	// `status_check_contexts`). Absent when the forge can't tell — a
