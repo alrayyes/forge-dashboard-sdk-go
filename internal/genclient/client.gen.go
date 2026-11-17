@@ -2133,6 +2133,9 @@ type ForgeCapabilities struct {
 	// RateLimitModel How the forge budgets requests. Open-ended; today `graphql_and_rest` (two separate allowances) and `rest`.
 	RateLimitModel string `json:"rateLimitModel"`
 
+	// ReportsRepoPermissions True when the forge sends the signed-in user's permissions with each repo it lists, so a repo that arrives without them is the forge's omission and says nothing about the user's role. False when the dashboard finds out by trying the endpoint instead.
+	ReportsRepoPermissions bool `json:"reportsRepoPermissions"`
+
 	// ServerLogExcerpts True when a failed job's excerpt is read from the log endpoint (`excerpt=true`). False when the check list already carries it.
 	ServerLogExcerpts bool `json:"serverLogExcerpts"`
 
