@@ -503,6 +503,24 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Defines values for IssueDetailsKind.
+const (
+	IssueDetailsKindIssue       IssueDetailsKind = "issue"
+	IssueDetailsKindPullRequest IssueDetailsKind = "pullRequest"
+)
+
+// Valid indicates whether the value is a known member of the IssueDetailsKind enum.
+func (e IssueDetailsKind) Valid() bool {
+	switch e {
+	case IssueDetailsKindIssue:
+		return true
+	case IssueDetailsKindPullRequest:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IssueDetailsState.
 const (
 	Closed IssueDetailsState = "closed"
@@ -2350,11 +2368,25 @@ type IssueDetails struct {
 	// Description A pull request's description, or the release notes of a release pull request.
 	Description DetailsBody `json:"description"`
 
+	// Kind What the number turned out to be. A forge shares one number space
+	// between issues and pull requests, so a bare number in a description
+	// can name either, and this endpoint answers for both. The
+	// client decides which dialog to open; a pull request's `state` is
+	// `closed` once it is merged as well as when it is closed unmerged.
+	Kind IssueDetailsKind `json:"kind"`
+
 	// State Whether the forge has the issue open or closed right now. The
 	// dialog draws its status from this, so an issue closed or reopened
 	// while the dialog is open shows the change.
 	State IssueDetailsState `json:"state"`
 }
+
+// IssueDetailsKind What the number turned out to be. A forge shares one number space
+// between issues and pull requests, so a bare number in a description
+// can name either, and this endpoint answers for both. The
+// client decides which dialog to open; a pull request's `state` is
+// `closed` once it is merged as well as when it is closed unmerged.
+type IssueDetailsKind string
 
 // IssueDetailsState Whether the forge has the issue open or closed right now. The
 // dialog draws its status from this, so an issue closed or reopened
@@ -4303,6 +4335,23 @@ type GetCheckLogParams struct {
 	// JobId Matching a Check.jobId.
 	JobId int `form:"jobId" json:"jobId"`
 
+	// FinishedAt Matching a Check.completedAt. Send it for a job that has finished and
+	// the server keeps its full output in memory once the job has been
+	// finished for 30 seconds, so the next open of the same job costs no
+	// forge request. The server takes this time on trust: it has no
+	// per-job record of its own to check it against, so a caller who sends
+	// an old time for a running job gets that partial output kept under
+	// that key. The key includes the time, so nobody else's open reads it.
+	// Leave it out for a job that is running: its output is
+	// never kept. A finish time in the future is not kept either. The
+	// response is still `Cache-Control: no-store`, so a browser asks again.
+	FinishedAt *time.Time `form:"finishedAt,omitempty" json:"finishedAt,omitempty"`
+
+	// Attempt Matching a Check.runAttempt, 0 or left out where the forge doesn't
+	// number attempts. With `finishedAt` it names the run the kept output
+	// belongs to, so a rerun reads afresh.
+	Attempt *int `form:"attempt,omitempty" json:"attempt,omitempty"`
+
 	// Excerpt True to answer the job's excerpt (the last lines, at most 2,000
 	// characters) instead of its output. Forgejo only; any other forge
 	// answers 400.
@@ -4908,8 +4957,10 @@ type ClientInterface interface {
 	// Only for a repository the dashboard tracks for you; any other answers 404
 	// without asking the forge.
 	//
-	// Fetched live on every call and never as part of a snapshot, since a log
-	// can be large and most are never opened. GitHub reads the job's log
+	// Never as part of a snapshot, since a log
+	// can be large and most are never opened. A finished job's output is kept
+	// in memory (see `finishedAt`) and served again without asking the forge.
+	// GitHub reads the job's log
 	// through its REST API (one request, then a short-lived download). Forgejo
 	// reads it through the job logs endpoint of its Actions API.
 	//
@@ -5263,6 +5314,10 @@ type ClientInterface interface {
 	// The error answers are those of GET /api/v1/pull-requests/details, with
 	// the same codes. An issue that doesn't exist is a 404, and a forge that
 	// can't be read is an error, never an empty thread.
+	//
+	// The number may also be a pull request, which GitHub and Forgejo both
+	// answer here with `kind: pullRequest`. A number that is neither is a 404
+	// in plain words, never the forge's raw error text.
 	//
 	// Corresponds with GET /api/v1/issues/details (the `GetIssueDetails` operationId).
 	GetIssueDetails(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7282,8 +7337,10 @@ func (c *Client) CancelWorkflowRun(ctx context.Context, body CancelWorkflowRunJS
 // Only for a repository the dashboard tracks for you; any other answers 404
 // without asking the forge.
 //
-// Fetched live on every call and never as part of a snapshot, since a log
-// can be large and most are never opened. GitHub reads the job's log
+// Never as part of a snapshot, since a log
+// can be large and most are never opened. A finished job's output is kept
+// in memory (see `finishedAt`) and served again without asking the forge.
+// GitHub reads the job's log
 // through its REST API (one request, then a short-lived download). Forgejo
 // reads it through the job logs endpoint of its Actions API.
 //
@@ -7787,6 +7844,10 @@ func (c *Client) CommentOnIssue(ctx context.Context, body CommentOnIssueJSONRequ
 // The error answers are those of GET /api/v1/pull-requests/details, with
 // the same codes. An issue that doesn't exist is a 404, and a forge that
 // can't be read is an error, never an empty thread.
+//
+// The number may also be a pull request, which GitHub and Forgejo both
+// answer here with `kind: pullRequest`. A number that is neither is a 404
+// in plain words, never the forge's raw error text.
 //
 // Corresponds with GET /api/v1/issues/details (the `GetIssueDetails` operationId).
 func (c *Client) GetIssueDetails(ctx context.Context, params *GetIssueDetailsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -10718,6 +10779,30 @@ func NewGetCheckLogRequest(server string, params *GetCheckLogParams) (*http.Requ
 			}
 		}
 
+		if params.FinishedAt != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "finishedAt", *params.FinishedAt, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Attempt != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "attempt", *params.Attempt, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.Excerpt != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "excerpt", *params.Excerpt, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
@@ -13614,8 +13699,10 @@ type ClientWithResponsesInterface interface {
 	// Only for a repository the dashboard tracks for you; any other answers 404
 	// without asking the forge.
 	//
-	// Fetched live on every call and never as part of a snapshot, since a log
-	// can be large and most are never opened. GitHub reads the job's log
+	// Never as part of a snapshot, since a log
+	// can be large and most are never opened. A finished job's output is kept
+	// in memory (see `finishedAt`) and served again without asking the forge.
+	// GitHub reads the job's log
 	// through its REST API (one request, then a short-lived download). Forgejo
 	// reads it through the job logs endpoint of its Actions API.
 	//
@@ -13983,6 +14070,10 @@ type ClientWithResponsesInterface interface {
 	// The error answers are those of GET /api/v1/pull-requests/details, with
 	// the same codes. An issue that doesn't exist is a 404, and a forge that
 	// can't be read is an error, never an empty thread.
+	//
+	// The number may also be a pull request, which GitHub and Forgejo both
+	// answer here with `kind: pullRequest`. A number that is neither is a 404
+	// in plain words, never the forge's raw error text.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -20495,8 +20586,10 @@ func (c *ClientWithResponses) CancelWorkflowRunWithResponse(ctx context.Context,
 // Only for a repository the dashboard tracks for you; any other answers 404
 // without asking the forge.
 //
-// Fetched live on every call and never as part of a snapshot, since a log
-// can be large and most are never opened. GitHub reads the job's log
+// Never as part of a snapshot, since a log
+// can be large and most are never opened. A finished job's output is kept
+// in memory (see `finishedAt`) and served again without asking the forge.
+// GitHub reads the job's log
 // through its REST API (one request, then a short-lived download). Forgejo
 // reads it through the job logs endpoint of its Actions API.
 //
@@ -20954,6 +21047,10 @@ func (c *ClientWithResponses) CommentOnIssueWithResponse(ctx context.Context, bo
 // The error answers are those of GET /api/v1/pull-requests/details, with
 // the same codes. An issue that doesn't exist is a 404, and a forge that
 // can't be read is an error, never an empty thread.
+//
+// The number may also be a pull request, which GitHub and Forgejo both
+// answer here with `kind: pullRequest`. A number that is neither is a 404
+// in plain words, never the forge's raw error text.
 //
 // Returns a wrapper object for the known response body format(s).
 //
