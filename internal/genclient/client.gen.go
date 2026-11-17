@@ -1856,6 +1856,11 @@ type ClosingIssue struct {
 	Url string `json:"url"`
 }
 
+// ConnectionAuthorizeResponse defines model for ConnectionAuthorizeResponse.
+type ConnectionAuthorizeResponse struct {
+	AuthorizeUrl string `json:"authorizeUrl"`
+}
+
 // Credential A registered passkey's own metadata — never the
 // credential itself, which never leaves the authenticator that
 // created it; WebAuthn's whole design is that the server only ever
@@ -3974,6 +3979,16 @@ type SettingsRequest struct {
 // exception: they're ours to hand back in the clear, since the user
 // has to paste them into the forge's own webhook setup.
 type SettingsResponse struct {
+	// ForgejoOAuthConfigured Whether this server has a Forgejo OAuth client (`FORGEJO_OAUTH_CLIENT_ID`
+	// and `FORGEJO_OAUTH_CLIENT_SECRET`), so `POST /api/v1/connections/forgejo`
+	// can work at all.
+	ForgejoOAuthConfigured bool `json:"forgejoOAuthConfigured"`
+
+	// ForgejoOAuthConnected Whether a Forgejo account is linked with OAuth. Like `forgejoTokenSet`
+	// it says only that one is on file; the access and refresh tokens are
+	// never returned. A linked account wins over a pasted token.
+	ForgejoOAuthConnected bool `json:"forgejoOAuthConnected"`
+
 	// ForgejoSkippedAvatarHosts Other hosts a Forgejo avatar was refused for lately: the image
 	// proxy only fetches from the saved instance, so an avatar on
 	// Gravatar or Libravatar is skipped and the page shows an initial.
@@ -4099,6 +4114,9 @@ type SettingsResponseTheme string
 // only whether one is set. Field meanings are those of the same-named
 // SettingsResponse properties.
 type SettingsSummary struct {
+	ForgejoOAuthConfigured bool `json:"forgejoOAuthConfigured"`
+	ForgejoOAuthConnected  bool `json:"forgejoOAuthConnected"`
+
 	// ForgejoSkippedAvatarHosts Other hosts a Forgejo avatar was refused for lately: the image
 	// proxy only fetches from the saved instance, so an avatar on
 	// Gravatar or Libravatar is skipped and the page shows an initial.
@@ -4147,6 +4165,11 @@ type StackPosition struct {
 type StackRef struct {
 	Number int    `json:"number"`
 	Url    string `json:"url"`
+}
+
+// StartForgejoConnectionRequest defines model for StartForgejoConnectionRequest.
+type StartForgejoConnectionRequest struct {
+	InstanceUrl string `json:"instanceUrl"`
 }
 
 // StreamWatchRequest defines model for StreamWatchRequest.
@@ -4284,6 +4307,13 @@ type GetCheckLogParams struct {
 	// characters) instead of its output. Forgejo only; any other forge
 	// answers 400.
 	Excerpt *bool `form:"excerpt,omitempty" json:"excerpt,omitempty"`
+}
+
+// FinishForgejoConnectionParams defines parameters for FinishForgejoConnection.
+type FinishForgejoConnectionParams struct {
+	Code  *string `form:"code,omitempty" json:"code,omitempty"`
+	State *string `form:"state,omitempty" json:"state,omitempty"`
+	Error *string `form:"error,omitempty" json:"error,omitempty"`
 }
 
 // GetDashboardParams defines parameters for GetDashboard.
@@ -4476,6 +4506,9 @@ type FinishRegistrationJSONRequestBody = WebAuthnCeremonyOptions
 
 // CancelWorkflowRunJSONRequestBody defines body for CancelWorkflowRun for application/json ContentType.
 type CancelWorkflowRunJSONRequestBody = CancelRunRequest
+
+// StartForgejoConnectionJSONRequestBody defines body for StartForgejoConnection for application/json ContentType.
+type StartForgejoConnectionJSONRequestBody = StartForgejoConnectionRequest
 
 // WatchDashboardStreamChecksJSONRequestBody defines body for WatchDashboardStreamChecks for application/json ContentType.
 type WatchDashboardStreamChecksJSONRequestBody = StreamWatchRequest
@@ -4898,6 +4931,63 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/v1/checks/log (the `GetCheckLog` operationId).
 	GetCheckLog(ctx context.Context, params *GetCheckLogParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DisconnectForgejo Unlink the Forgejo account
+	//
+	// Deletes the stored token pair. When a pasted Forgejo token is saved,
+	// the instance URL and account name stay and the dashboard goes back to
+	// that token; otherwise both are cleared. Passkey sign-in is unaffected.
+	//
+	// Corresponds with DELETE /api/v1/connections/forgejo (the `DisconnectForgejo` operationId).
+	DisconnectForgejo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartForgejoConnectionWithBody Start linking a Forgejo account with OAuth
+	//
+	// Begins the authorization code flow with PKCE (RFC 9700) against the
+	// given Forgejo instance and returns the instance's consent page URL.
+	// The browser goes there; Forgejo sends it back to
+	// `GET /api/v1/connections/forgejo/callback`. Fails with 409 when an
+	// instance is already connected: the instance is locked until
+	// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
+	// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
+	// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
+	// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+	// `SettingsResponse.forgejoOAuthConfigured`.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/connections/forgejo (the `StartForgejoConnection` operationId).
+	StartForgejoConnectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartForgejoConnection Start linking a Forgejo account with OAuth
+	//
+	// Begins the authorization code flow with PKCE (RFC 9700) against the
+	// given Forgejo instance and returns the instance's consent page URL.
+	// The browser goes there; Forgejo sends it back to
+	// `GET /api/v1/connections/forgejo/callback`. Fails with 409 when an
+	// instance is already connected: the instance is locked until
+	// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
+	// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
+	// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
+	// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+	// `SettingsResponse.forgejoOAuthConfigured`.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/connections/forgejo (the `StartForgejoConnection` operationId).
+	StartForgejoConnection(ctx context.Context, body StartForgejoConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// FinishForgejoConnection Forgejo's redirect back after consent
+	//
+	// Checks `state` (single use, ten minutes), exchanges `code` with the
+	// PKCE verifier, stores the token pair encrypted, and redirects the
+	// browser to `/settings`. A missing, wrong, used or expired `state`
+	// answers 400 and stores nothing. So does a refused code, a bad PKCE
+	// verifier, or an error the forge sent back in the query. Nothing is
+	// stored when the account name can't be read either (502).
+	//
+	// Corresponds with GET /api/v1/connections/forgejo/callback (the `FinishForgejoConnection` operationId).
+	FinishForgejoConnection(ctx context.Context, params *FinishForgejoConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetDashboard The aggregated view
 	//
@@ -7216,6 +7306,103 @@ func (c *Client) CancelWorkflowRun(ctx context.Context, body CancelWorkflowRunJS
 // Corresponds with GET /api/v1/checks/log (the `GetCheckLog` operationId).
 func (c *Client) GetCheckLog(ctx context.Context, params *GetCheckLogParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetCheckLogRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DisconnectForgejo Unlink the Forgejo account
+//
+// Deletes the stored token pair. When a pasted Forgejo token is saved,
+// the instance URL and account name stay and the dashboard goes back to
+// that token; otherwise both are cleared. Passkey sign-in is unaffected.
+//
+// Corresponds with DELETE /api/v1/connections/forgejo (the `DisconnectForgejo` operationId).
+func (c *Client) DisconnectForgejo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDisconnectForgejoRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StartForgejoConnectionWithBody Start linking a Forgejo account with OAuth
+//
+// Begins the authorization code flow with PKCE (RFC 9700) against the
+// given Forgejo instance and returns the instance's consent page URL.
+// The browser goes there; Forgejo sends it back to
+// `GET /api/v1/connections/forgejo/callback`. Fails with 409 when an
+// instance is already connected: the instance is locked until
+// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
+// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
+// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
+// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+// `SettingsResponse.forgejoOAuthConfigured`.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/connections/forgejo (the `StartForgejoConnection` operationId).
+func (c *Client) StartForgejoConnectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartForgejoConnectionRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StartForgejoConnection Start linking a Forgejo account with OAuth
+//
+// Begins the authorization code flow with PKCE (RFC 9700) against the
+// given Forgejo instance and returns the instance's consent page URL.
+// The browser goes there; Forgejo sends it back to
+// `GET /api/v1/connections/forgejo/callback`. Fails with 409 when an
+// instance is already connected: the instance is locked until
+// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
+// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
+// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
+// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+// `SettingsResponse.forgejoOAuthConfigured`.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/connections/forgejo (the `StartForgejoConnection` operationId).
+func (c *Client) StartForgejoConnection(ctx context.Context, body StartForgejoConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartForgejoConnectionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// FinishForgejoConnection Forgejo's redirect back after consent
+//
+// Checks `state` (single use, ten minutes), exchanges `code` with the
+// PKCE verifier, stores the token pair encrypted, and redirects the
+// browser to `/settings`. A missing, wrong, used or expired `state`
+// answers 400 and stores nothing. So does a refused code, a bad PKCE
+// verifier, or an error the forge sent back in the query. Nothing is
+// stored when the account name can't be read either (502).
+//
+// Corresponds with GET /api/v1/connections/forgejo/callback (the `FinishForgejoConnection` operationId).
+func (c *Client) FinishForgejoConnection(ctx context.Context, params *FinishForgejoConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFinishForgejoConnectionRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -10557,6 +10744,151 @@ func NewGetCheckLogRequest(server string, params *GetCheckLogParams) (*http.Requ
 	return req, nil
 }
 
+// NewDisconnectForgejoRequest constructs an http.Request for the DisconnectForgejo method
+func NewDisconnectForgejoRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/connections/forgejo")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewStartForgejoConnectionRequest calls the generic StartForgejoConnection builder with application/json body
+func NewStartForgejoConnectionRequest(server string, body StartForgejoConnectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewStartForgejoConnectionRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewStartForgejoConnectionRequestWithBody constructs an http.Request for the StartForgejoConnection method, with any body, and a specified content type
+func NewStartForgejoConnectionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/connections/forgejo")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewFinishForgejoConnectionRequest constructs an http.Request for the FinishForgejoConnection method
+func NewFinishForgejoConnectionRequest(server string, params *FinishForgejoConnectionParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/connections/forgejo/callback")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Code != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "code", *params.Code, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.State != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Error != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "error", *params.Error, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetDashboardRequest constructs an http.Request for the GetDashboard method
 func NewGetDashboardRequest(server string, params *GetDashboardParams) (*http.Request, error) {
 	var err error
@@ -13308,6 +13640,67 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/checks/log (the `GetCheckLog` operationId).
 	GetCheckLogWithResponse(ctx context.Context, params *GetCheckLogParams, reqEditors ...RequestEditorFn) (*GetCheckLogResponse, error)
 
+	// DisconnectForgejoWithResponse Unlink the Forgejo account
+	//
+	// Deletes the stored token pair. When a pasted Forgejo token is saved,
+	// the instance URL and account name stay and the dashboard goes back to
+	// that token; otherwise both are cleared. Passkey sign-in is unaffected.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/connections/forgejo (the `DisconnectForgejo` operationId).
+	DisconnectForgejoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DisconnectForgejoResponse, error)
+
+	// StartForgejoConnectionWithBodyWithResponse Start linking a Forgejo account with OAuth
+	//
+	// Begins the authorization code flow with PKCE (RFC 9700) against the
+	// given Forgejo instance and returns the instance's consent page URL.
+	// The browser goes there; Forgejo sends it back to
+	// `GET /api/v1/connections/forgejo/callback`. Fails with 409 when an
+	// instance is already connected: the instance is locked until
+	// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
+	// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
+	// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
+	// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+	// `SettingsResponse.forgejoOAuthConfigured`.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/connections/forgejo (the `StartForgejoConnection` operationId).
+	StartForgejoConnectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartForgejoConnectionResponse, error)
+
+	// StartForgejoConnectionWithResponse Start linking a Forgejo account with OAuth
+	//
+	// Begins the authorization code flow with PKCE (RFC 9700) against the
+	// given Forgejo instance and returns the instance's consent page URL.
+	// The browser goes there; Forgejo sends it back to
+	// `GET /api/v1/connections/forgejo/callback`. Fails with 409 when an
+	// instance is already connected: the instance is locked until
+	// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
+	// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
+	// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
+	// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+	// `SettingsResponse.forgejoOAuthConfigured`.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/connections/forgejo (the `StartForgejoConnection` operationId).
+	StartForgejoConnectionWithResponse(ctx context.Context, body StartForgejoConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*StartForgejoConnectionResponse, error)
+
+	// FinishForgejoConnectionWithResponse Forgejo's redirect back after consent
+	//
+	// Checks `state` (single use, ten minutes), exchanges `code` with the
+	// PKCE verifier, stores the token pair encrypted, and redirects the
+	// browser to `/settings`. A missing, wrong, used or expired `state`
+	// answers 400 and stores nothing. So does a refused code, a bad PKCE
+	// verifier, or an error the forge sent back in the query. Nothing is
+	// stored when the account name can't be read either (502).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/connections/forgejo/callback (the `FinishForgejoConnection` operationId).
+	FinishForgejoConnectionWithResponse(ctx context.Context, params *FinishForgejoConnectionParams, reqEditors ...RequestEditorFn) (*FinishForgejoConnectionResponse, error)
+
 	// GetDashboardWithResponse The aggregated view
 	//
 	// Returns the most recently fetched snapshot. The backend refreshes
@@ -16051,6 +16444,164 @@ func (r GetCheckLogResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetCheckLogResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DisconnectForgejoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DisconnectForgejoResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r DisconnectForgejoResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DisconnectForgejoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DisconnectForgejoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DisconnectForgejoResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type StartForgejoConnectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ConnectionAuthorizeResponse
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r StartForgejoConnectionResponse) GetJSON200() *ConnectionAuthorizeResponse {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r StartForgejoConnectionResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r StartForgejoConnectionResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r StartForgejoConnectionResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r StartForgejoConnectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r StartForgejoConnectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StartForgejoConnectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r StartForgejoConnectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type FinishForgejoConnectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r FinishForgejoConnectionResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r FinishForgejoConnectionResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r FinishForgejoConnectionResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r FinishForgejoConnectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r FinishForgejoConnectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r FinishForgejoConnectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r FinishForgejoConnectionResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -19976,6 +20527,91 @@ func (c *ClientWithResponses) GetCheckLogWithResponse(ctx context.Context, param
 	return ParseGetCheckLogResponse(rsp)
 }
 
+// DisconnectForgejoWithResponse Unlink the Forgejo account
+//
+// Deletes the stored token pair. When a pasted Forgejo token is saved,
+// the instance URL and account name stay and the dashboard goes back to
+// that token; otherwise both are cleared. Passkey sign-in is unaffected.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/connections/forgejo (the `DisconnectForgejo` operationId).
+func (c *ClientWithResponses) DisconnectForgejoWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DisconnectForgejoResponse, error) {
+	rsp, err := c.DisconnectForgejo(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDisconnectForgejoResponse(rsp)
+}
+
+// StartForgejoConnectionWithBodyWithResponse Start linking a Forgejo account with OAuth
+//
+// Begins the authorization code flow with PKCE (RFC 9700) against the
+// given Forgejo instance and returns the instance's consent page URL.
+// The browser goes there; Forgejo sends it back to
+// `GET /api/v1/connections/forgejo/callback`. Fails with 409 when an
+// instance is already connected: the instance is locked until
+// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
+// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
+// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
+// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+// `SettingsResponse.forgejoOAuthConfigured`.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/connections/forgejo (the `StartForgejoConnection` operationId).
+func (c *ClientWithResponses) StartForgejoConnectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartForgejoConnectionResponse, error) {
+	rsp, err := c.StartForgejoConnectionWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartForgejoConnectionResponse(rsp)
+}
+
+// StartForgejoConnectionWithResponse Start linking a Forgejo account with OAuth
+//
+// Begins the authorization code flow with PKCE (RFC 9700) against the
+// given Forgejo instance and returns the instance's consent page URL.
+// The browser goes there; Forgejo sends it back to
+// `GET /api/v1/connections/forgejo/callback`. Fails with 409 when an
+// instance is already connected: the instance is locked until
+// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
+// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
+// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
+// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+// `SettingsResponse.forgejoOAuthConfigured`.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/connections/forgejo (the `StartForgejoConnection` operationId).
+func (c *ClientWithResponses) StartForgejoConnectionWithResponse(ctx context.Context, body StartForgejoConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*StartForgejoConnectionResponse, error) {
+	rsp, err := c.StartForgejoConnection(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartForgejoConnectionResponse(rsp)
+}
+
+// FinishForgejoConnectionWithResponse Forgejo's redirect back after consent
+//
+// Checks `state` (single use, ten minutes), exchanges `code` with the
+// PKCE verifier, stores the token pair encrypted, and redirects the
+// browser to `/settings`. A missing, wrong, used or expired `state`
+// answers 400 and stores nothing. So does a refused code, a bad PKCE
+// verifier, or an error the forge sent back in the query. Nothing is
+// stored when the account name can't be read either (502).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/connections/forgejo/callback (the `FinishForgejoConnection` operationId).
+func (c *ClientWithResponses) FinishForgejoConnectionWithResponse(ctx context.Context, params *FinishForgejoConnectionParams, reqEditors ...RequestEditorFn) (*FinishForgejoConnectionResponse, error) {
+	rsp, err := c.FinishForgejoConnection(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFinishForgejoConnectionResponse(rsp)
+}
+
 // GetDashboardWithResponse The aggregated view
 //
 // Returns the most recently fetched snapshot. The backend refreshes
@@ -23081,6 +23717,125 @@ func ParseGetCheckLogResponse(rsp *http.Response) (*GetCheckLogResponse, error) 
 			return nil, err
 		}
 		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDisconnectForgejoResponse parses an HTTP response from a DisconnectForgejoWithResponse call
+func ParseDisconnectForgejoResponse(rsp *http.Response) (*DisconnectForgejoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DisconnectForgejoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStartForgejoConnectionResponse parses an HTTP response from a StartForgejoConnectionWithResponse call
+func ParseStartForgejoConnectionResponse(rsp *http.Response) (*StartForgejoConnectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StartForgejoConnectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ConnectionAuthorizeResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseFinishForgejoConnectionResponse parses an HTTP response from a FinishForgejoConnectionWithResponse call
+func ParseFinishForgejoConnectionResponse(rsp *http.Response) (*FinishForgejoConnectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FinishForgejoConnectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 303:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 
