@@ -550,6 +550,7 @@ const (
 	MainBranchStatusNone             MainBranchStatus = "none"
 	MainBranchStatusPassed           MainBranchStatus = "passed"
 	MainBranchStatusRunning          MainBranchStatus = "running"
+	MainBranchStatusUnknown          MainBranchStatus = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the MainBranchStatus enum.
@@ -566,6 +567,8 @@ func (e MainBranchStatus) Valid() bool {
 	case MainBranchStatusPassed:
 		return true
 	case MainBranchStatusRunning:
+		return true
+	case MainBranchStatusUnknown:
 		return true
 	default:
 		return false
@@ -2600,8 +2603,11 @@ type MainBranch struct {
 	// was cancelled (a newer push or a person stopped it, so nothing broke),
 	// "awaiting_approval" when GitHub holds the commit's workflow runs until
 	// a maintainer approves them (they create no check runs, so nothing
-	// runs), "passed" when all finished green, "none" when the commit has
-	// no pipeline at all (or the repository has no commit yet).
+	// runs), "unknown" when nothing failed and nothing is running but a job
+	// is in a state the server cannot grade (it is not a pass, and nothing
+	// says it is still going), "passed" when all finished green, "none" when
+	// the commit has no pipeline at all (or the repository has no commit
+	// yet).
 	//
 	// This is the server's answer, and the CI poll and the MCP tools read
 	// it. The page folds the branch's `runs` into the pill, the counts and
@@ -2688,8 +2694,11 @@ type MainBranchRun struct {
 // was cancelled (a newer push or a person stopped it, so nothing broke),
 // "awaiting_approval" when GitHub holds the commit's workflow runs until
 // a maintainer approves them (they create no check runs, so nothing
-// runs), "passed" when all finished green, "none" when the commit has
-// no pipeline at all (or the repository has no commit yet).
+// runs), "unknown" when nothing failed and nothing is running but a job
+// is in a state the server cannot grade (it is not a pass, and nothing
+// says it is still going), "passed" when all finished green, "none" when
+// the commit has no pipeline at all (or the repository has no commit
+// yet).
 //
 // This is the server's answer, and the CI poll and the MCP tools read
 // it. The page folds the branch's `runs` into the pill, the counts and
