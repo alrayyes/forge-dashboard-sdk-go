@@ -1338,7 +1338,9 @@ type AutoMergeStatus struct {
 	// is simply waiting for the next refresh to merge it.
 	Code *string `json:"code,omitempty"`
 
-	// Message Plain words, safe to show a person.
+	// Message Plain words, safe to show a person. A sentence that would name the
+	// forge says "the forge" instead, and the page puts the forge's
+	// label (`ForgeCapabilities.label`) in its place.
 	Message string `json:"message"`
 
 	// State `waiting` clears by itself: checks still running, a draft, a
