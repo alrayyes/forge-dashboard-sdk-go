@@ -580,19 +580,97 @@ func (e IssuePullRequestState) Valid() bool {
 
 // Defines values for IssueRelation.
 const (
-	Closes   IssueRelation = "closes"
-	Mentions IssueRelation = "mentions"
-	Refs     IssueRelation = "refs"
+	IssueRelationCloses   IssueRelation = "closes"
+	IssueRelationMentions IssueRelation = "mentions"
+	IssueRelationRefs     IssueRelation = "refs"
 )
 
 // Valid indicates whether the value is a known member of the IssueRelation enum.
 func (e IssueRelation) Valid() bool {
 	switch e {
-	case Closes:
+	case IssueRelationCloses:
 		return true
-	case Mentions:
+	case IssueRelationMentions:
 		return true
-	case Refs:
+	case IssueRelationRefs:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ItemReferenceDirection.
+const (
+	Incoming ItemReferenceDirection = "incoming"
+	Outgoing ItemReferenceDirection = "outgoing"
+)
+
+// Valid indicates whether the value is a known member of the ItemReferenceDirection enum.
+func (e ItemReferenceDirection) Valid() bool {
+	switch e {
+	case Incoming:
+		return true
+	case Outgoing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ItemReferenceKind.
+const (
+	ItemReferenceKindIssue       ItemReferenceKind = "issue"
+	ItemReferenceKindPullRequest ItemReferenceKind = "pullRequest"
+)
+
+// Valid indicates whether the value is a known member of the ItemReferenceKind enum.
+func (e ItemReferenceKind) Valid() bool {
+	switch e {
+	case ItemReferenceKindIssue:
+		return true
+	case ItemReferenceKindPullRequest:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ItemReferenceRelation.
+const (
+	ItemReferenceRelationCloses   ItemReferenceRelation = "closes"
+	ItemReferenceRelationMentions ItemReferenceRelation = "mentions"
+	ItemReferenceRelationRefs     ItemReferenceRelation = "refs"
+)
+
+// Valid indicates whether the value is a known member of the ItemReferenceRelation enum.
+func (e ItemReferenceRelation) Valid() bool {
+	switch e {
+	case ItemReferenceRelationCloses:
+		return true
+	case ItemReferenceRelationMentions:
+		return true
+	case ItemReferenceRelationRefs:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ItemReferenceState.
+const (
+	ItemReferenceStateClosed ItemReferenceState = "closed"
+	ItemReferenceStateMerged ItemReferenceState = "merged"
+	ItemReferenceStateOpen   ItemReferenceState = "open"
+)
+
+// Valid indicates whether the value is a known member of the ItemReferenceState enum.
+func (e ItemReferenceState) Valid() bool {
+	switch e {
+	case ItemReferenceStateClosed:
+		return true
+	case ItemReferenceStateMerged:
+		return true
+	case ItemReferenceStateOpen:
 		return true
 	default:
 		return false
@@ -2454,6 +2532,27 @@ type IssueDetails struct {
 	// merged or in a repository the board doesn't track. The dialog words it.
 	PullRequest *IssuePullRequest `json:"pullRequest,omitempty"`
 
+	// References The items related to this one, incoming first and then outgoing.
+	// An empty array means nothing is related. A closed or merged item
+	// has them as well as an open one: the board's own pills list open
+	// pull requests only.
+	//
+	// The `incoming` entries are the items that refer to this one, as
+	// the forge's own timeline records them, newest first, at most the
+	// first 50.
+	//
+	// The `outgoing` entries are the items this one's own title and
+	// description refer to, in the order the text names them (closing
+	// ones first, then references, then mentions), at most 20. The
+	// forge records only what refers to an item, so the text is read
+	// the way the board reads a pull request's and each named item is
+	// looked up for its title and state. An item that can't be read
+	// (missing, no access) is left out, and a lookup that fails leaves
+	// the outgoing entries out without failing the read. A closing
+	// keyword counts as `closes` only in a pull request, and the base
+	// branch isn't checked; in an issue it is a `mentions`.
+	References []ItemReference `json:"references"`
+
 	// State Whether the forge has the issue open or closed right now. The
 	// dialog draws its status from this, so an issue closed or reopened
 	// while the dialog is open shows the change.
@@ -2495,6 +2594,65 @@ type IssuePullRequestState string
 // in passing). A pull request holds an issue under one relation, closes
 // first.
 type IssueRelation string
+
+// ItemReference One issue or pull request that is related to the item whose details were asked for.
+type ItemReference struct {
+	// Direction `incoming` when the related item refers to the asked-for one,
+	// `outgoing` when the asked-for one refers to it. The `relation` is
+	// always the referring item's: what the related item does to the
+	// asked-for one when `incoming`, what the asked-for one does to the
+	// related item when `outgoing`.
+	Direction ItemReferenceDirection `json:"direction"`
+	Forge     Forge                  `json:"forge"`
+
+	// Kind What the related number is. A forge shares one number space between the two.
+	Kind   ItemReferenceKind `json:"kind"`
+	Number int               `json:"number"`
+
+	// PageUrl The address on this dashboard that opens the related item's pop-up:
+	// `/pull-requests.html?pr=` or `/issues.html?issue=`, then
+	// `forge/owner/name/number`. A relative address.
+	PageUrl string `json:"pageUrl"`
+
+	// Relation What the referring item does to the referred-to one. `closes`
+	// closes it when merged (a closing keyword). `refs` references it
+	// without closing it (`Refs`, `Related to`, `See`). `mentions` only
+	// names it. The forge's timeline does not tell the last two apart,
+	// so a read from it says `mentions` for both.
+	Relation ItemReferenceRelation `json:"relation"`
+
+	// Repo The related item's repository as `owner/name`, which is not always the asked-for item's own.
+	Repo string `json:"repo"`
+
+	// State Where the related item stands. Only a pull request is `merged`; `closed` means closed without merging.
+	State ItemReferenceState `json:"state"`
+
+	// Title The related item's title, as the forge has it now.
+	Title string `json:"title"`
+
+	// Url The related item's address on the forge.
+	Url string `json:"url"`
+}
+
+// ItemReferenceDirection `incoming` when the related item refers to the asked-for one,
+// `outgoing` when the asked-for one refers to it. The `relation` is
+// always the referring item's: what the related item does to the
+// asked-for one when `incoming`, what the asked-for one does to the
+// related item when `outgoing`.
+type ItemReferenceDirection string
+
+// ItemReferenceKind What the related number is. A forge shares one number space between the two.
+type ItemReferenceKind string
+
+// ItemReferenceRelation What the referring item does to the referred-to one. `closes`
+// closes it when merged (a closing keyword). `refs` references it
+// without closing it (`Refs`, `Related to`, `See`). `mentions` only
+// names it. The forge's timeline does not tell the last two apart,
+// so a read from it says `mentions` for both.
+type ItemReferenceRelation string
+
+// ItemReferenceState Where the related item stands. Only a pull request is `merged`; `closed` means closed without merging.
+type ItemReferenceState string
 
 // Label defines model for Label.
 type Label struct {
@@ -5412,6 +5570,10 @@ type ClientInterface interface {
 	// one for each comment's reactions (up to 50), so the reaction calls run
 	// at most eight at a time and stop at the first rate limit.
 	//
+	// `references` lists the items that refer to the issue. GitHub adds
+	// them to the same query; Forgejo reads the issue's timeline once more, one
+	// request per page of 50 events and an empty one to end on.
+	//
 	// Every text is Markdown exactly as the forge stores it (`format` is
 	// always `markdown`). The server neither converts nor sanitises it, so a
 	// client must render it with raw HTML disabled. Each text is cut at
@@ -7949,6 +8111,10 @@ func (c *Client) CommentOnIssue(ctx context.Context, body CommentOnIssueJSONRequ
 // issue, one for its comments, one for the description's reactions and
 // one for each comment's reactions (up to 50), so the reaction calls run
 // at most eight at a time and stop at the first rate limit.
+//
+// `references` lists the items that refer to the issue. GitHub adds
+// them to the same query; Forgejo reads the issue's timeline once more, one
+// request per page of 50 events and an empty one to end on.
 //
 // Every text is Markdown exactly as the forge stores it (`format` is
 // always `markdown`). The server neither converts nor sanitises it, so a
@@ -14195,6 +14361,10 @@ type ClientWithResponsesInterface interface {
 	// issue, one for its comments, one for the description's reactions and
 	// one for each comment's reactions (up to 50), so the reaction calls run
 	// at most eight at a time and stop at the first rate limit.
+	//
+	// `references` lists the items that refer to the issue. GitHub adds
+	// them to the same query; Forgejo reads the issue's timeline once more, one
+	// request per page of 50 events and an empty one to end on.
 	//
 	// Every text is Markdown exactly as the forge stores it (`format` is
 	// always `markdown`). The server neither converts nor sanitises it, so a
@@ -21180,6 +21350,10 @@ func (c *ClientWithResponses) CommentOnIssueWithResponse(ctx context.Context, bo
 // issue, one for its comments, one for the description's reactions and
 // one for each comment's reactions (up to 50), so the reaction calls run
 // at most eight at a time and stop at the first rate limit.
+//
+// `references` lists the items that refer to the issue. GitHub adds
+// them to the same query; Forgejo reads the issue's timeline once more, one
+// request per page of 50 events and an empty one to end on.
 //
 // Every text is Markdown exactly as the forge stores it (`format` is
 // always `markdown`). The server neither converts nor sanitises it, so a
