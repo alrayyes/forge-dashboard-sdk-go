@@ -2203,11 +2203,17 @@ type ForgeCapabilities struct {
 	// AutoMergeHeldByApp True when this app holds an armed auto-merge and merges the pull request itself once its checks pass. False when the forge holds it and merges on its own.
 	AutoMergeHeldByApp bool `json:"autoMergeHeldByApp"`
 
+	// AvatarHosts Further fixed hosts that only avatars and repository logos load from. Empty when they live on the forge's own instance.
+	AvatarHosts []string `json:"avatarHosts"`
+
 	// ChecksViaWebhook True when the forge reports check results by webhook, so a pending run is polled only when no event arrived. False when results are found by polling.
 	ChecksViaWebhook bool `json:"checksViaWebhook"`
 
 	// DependabotCommands True when a `@dependabot` comment does anything on this forge.
 	DependabotCommands bool `json:"dependabotCommands"`
+
+	// ImageHosts The fixed public hosts an image embedded in the forge's text may come from, each matched by its exact name, over https on the default port. Empty means the forge's own saved instance. See `GET /api/v1/images`.
+	ImageHosts []string `json:"imageHosts"`
 
 	// IssueRefSyntax The forms the forge's text uses to reference an issue. Open-ended; today `hash_or_gh_prefix` (a hash sign or a `GH-` prefix before the number) and `hash` (the hash sign only).
 	IssueRefSyntax string `json:"issueRefSyntax"`
@@ -2229,6 +2235,9 @@ type ForgeCapabilities struct {
 
 	// ServesRunningLog True when a job's log can be read while the job runs.
 	ServesRunningLog bool `json:"servesRunningLog"`
+
+	// SignedAttachmentPrefix The address prefix of an attachment the forge serves only at a signed link found in the item's rendered body, such as `https://github.com/user-attachments/`. Empty when the forge has no such links. Passing `fullName` with the item then lets the server find the signed link.
+	SignedAttachmentPrefix string `json:"signedAttachmentPrefix"`
 
 	// StatusPageUrl The forge's public status page, or an empty string when it has none.
 	StatusPageUrl string `json:"statusPageUrl"`
