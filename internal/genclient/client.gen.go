@@ -3229,6 +3229,17 @@ type PullRequest struct {
 	// there they are all zero.
 	Checks CheckCounts `json:"checks"`
 
+	// ChecksIncomplete True while the forge has not yet listed every check of the head
+	// commit, so `checks` counts some of them and the rest will arrive:
+	// a client shouldn't present the counts as final. A fact only; the
+	// client decides how to say it. Always present, and false when the
+	// list is complete or the forge can't tell. On Forgejo it is true
+	// when a run that is still running has jobs the counts leave out,
+	// or has no job yet. On GitHub it is always false: the rollup
+	// reports its checks by state and says nothing about checks still
+	// to be created.
+	ChecksIncomplete bool `json:"checksIncomplete"`
+
 	// Ci The combined result across every check reported against the pull
 	// request's head commit. "none" means neither forge reported any
 	// check at all, not that one failed.
