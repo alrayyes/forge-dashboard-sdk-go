@@ -5572,7 +5572,10 @@ type ClientInterface interface {
 	//
 	// `references` lists the items that refer to the issue. GitHub adds
 	// them to the same query; Forgejo reads the issue's timeline once more, one
-	// request per page of 50 events and an empty one to end on.
+	// request per page of 50 events and an empty one to end on, and only the
+	// first 500 events (the oldest), so the newest references of a longer
+	// thread are left out. A timeline that fails leaves the references read
+	// before the failure, or none, without failing the read.
 	//
 	// Every text is Markdown exactly as the forge stores it (`format` is
 	// always `markdown`). The server neither converts nor sanitises it, so a
@@ -8114,7 +8117,10 @@ func (c *Client) CommentOnIssue(ctx context.Context, body CommentOnIssueJSONRequ
 //
 // `references` lists the items that refer to the issue. GitHub adds
 // them to the same query; Forgejo reads the issue's timeline once more, one
-// request per page of 50 events and an empty one to end on.
+// request per page of 50 events and an empty one to end on, and only the
+// first 500 events (the oldest), so the newest references of a longer
+// thread are left out. A timeline that fails leaves the references read
+// before the failure, or none, without failing the read.
 //
 // Every text is Markdown exactly as the forge stores it (`format` is
 // always `markdown`). The server neither converts nor sanitises it, so a
@@ -14364,7 +14370,10 @@ type ClientWithResponsesInterface interface {
 	//
 	// `references` lists the items that refer to the issue. GitHub adds
 	// them to the same query; Forgejo reads the issue's timeline once more, one
-	// request per page of 50 events and an empty one to end on.
+	// request per page of 50 events and an empty one to end on, and only the
+	// first 500 events (the oldest), so the newest references of a longer
+	// thread are left out. A timeline that fails leaves the references read
+	// before the failure, or none, without failing the read.
 	//
 	// Every text is Markdown exactly as the forge stores it (`format` is
 	// always `markdown`). The server neither converts nor sanitises it, so a
@@ -21353,7 +21362,10 @@ func (c *ClientWithResponses) CommentOnIssueWithResponse(ctx context.Context, bo
 //
 // `references` lists the items that refer to the issue. GitHub adds
 // them to the same query; Forgejo reads the issue's timeline once more, one
-// request per page of 50 events and an empty one to end on.
+// request per page of 50 events and an empty one to end on, and only the
+// first 500 events (the oldest), so the newest references of a longer
+// thread are left out. A timeline that fails leaves the references read
+// before the failure, or none, without failing the read.
 //
 // Every text is Markdown exactly as the forge stores it (`format` is
 // always `markdown`). The server neither converts nor sanitises it, so a
