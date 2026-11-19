@@ -2215,6 +2215,9 @@ type ForgeCapabilities struct {
 	// Label The forge's name as a person reads it, such as `GitHub`.
 	Label string `json:"label"`
 
+	// RateLimitDocsUrl The forge's published rules for its request budget, or an empty string when it has none. A client links to it from the rate limit explanation and shows no link when it is empty.
+	RateLimitDocsUrl string `json:"rateLimitDocsUrl"`
+
 	// RateLimitModel How the forge budgets requests. Open-ended; today `graphql_and_rest` (two separate allowances) and `rest`.
 	RateLimitModel string `json:"rateLimitModel"`
 
