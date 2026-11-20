@@ -7119,10 +7119,12 @@ type ClientInterface interface {
 	// GetVersion The running server's own version
 	//
 	// The tag goreleaser stamped the running binary with ("dev" for a
-	// build outside the release pipeline). Public and unauthenticated —
-	// every page, including the pre-login screen, links to the matching
-	// GitHub release from its footer so a person can tell what's
-	// actually deployed without shelling into the box.
+	// build outside the release pipeline). Needs a session or an API
+	// token: a signed-out visitor learns nothing about the release,
+	// since a version tells an attacker which known weaknesses to try.
+	// The footer of every signed-in page reads it. It stays at this
+	// address, outside `/api/v1`, because it says which major versions
+	// the server speaks.
 	//
 	// Corresponds with GET /api/version (the `GetVersion` operationId).
 	GetVersion(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -10405,10 +10407,12 @@ func (c *Client) EnsureWebhook(ctx context.Context, body EnsureWebhookJSONReques
 // GetVersion The running server's own version
 //
 // The tag goreleaser stamped the running binary with ("dev" for a
-// build outside the release pipeline). Public and unauthenticated —
-// every page, including the pre-login screen, links to the matching
-// GitHub release from its footer so a person can tell what's
-// actually deployed without shelling into the box.
+// build outside the release pipeline). Needs a session or an API
+// token: a signed-out visitor learns nothing about the release,
+// since a version tells an attacker which known weaknesses to try.
+// The footer of every signed-in page reads it. It stays at this
+// address, outside `/api/v1`, because it says which major versions
+// the server speaks.
 //
 // Corresponds with GET /api/version (the `GetVersion` operationId).
 func (c *Client) GetVersion(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -15951,10 +15955,12 @@ type ClientWithResponsesInterface interface {
 	// GetVersionWithResponse The running server's own version
 	//
 	// The tag goreleaser stamped the running binary with ("dev" for a
-	// build outside the release pipeline). Public and unauthenticated —
-	// every page, including the pre-login screen, links to the matching
-	// GitHub release from its footer so a person can tell what's
-	// actually deployed without shelling into the box.
+	// build outside the release pipeline). Needs a session or an API
+	// token: a signed-out visitor learns nothing about the release,
+	// since a version tells an attacker which known weaknesses to try.
+	// The footer of every signed-in page reads it. It stays at this
+	// address, outside `/api/v1`, because it says which major versions
+	// the server speaks.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -20355,11 +20361,18 @@ type GetVersionResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *Version
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r GetVersionResponse) GetJSON200() *Version {
 	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetVersionResponse) GetJSON401() *Error {
+	return r.JSON401
 }
 
 // GetBody returns the raw response body bytes
@@ -23388,10 +23401,12 @@ func (c *ClientWithResponses) EnsureWebhookWithResponse(ctx context.Context, bod
 // GetVersionWithResponse The running server's own version
 //
 // The tag goreleaser stamped the running binary with ("dev" for a
-// build outside the release pipeline). Public and unauthenticated —
-// every page, including the pre-login screen, links to the matching
-// GitHub release from its footer so a person can tell what's
-// actually deployed without shelling into the box.
+// build outside the release pipeline). Needs a session or an API
+// token: a signed-out visitor learns nothing about the release,
+// since a version tells an attacker which known weaknesses to try.
+// The footer of every signed-in page reads it. It stays at this
+// address, outside `/api/v1`, because it says which major versions
+// the server speaks.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -26938,6 +26953,13 @@ func ParseGetVersionResponse(rsp *http.Response) (*GetVersionResponse, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	}
 
