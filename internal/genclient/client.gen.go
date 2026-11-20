@@ -2617,8 +2617,12 @@ type ItemReference struct {
 	// Relation What the referring item does to the referred-to one. `closes`
 	// closes it when merged (a closing keyword). `refs` references it
 	// without closing it (`Refs`, `Related to`, `See`). `mentions` only
-	// names it. The forge's timeline does not tell the last two apart,
-	// so a read from it says `mentions` for both.
+	// names it. An item holds one relation to the asked-for one, the
+	// strongest it has: `closes`, then `refs`, then `mentions`. The
+	// forge's timeline does not tell `refs` from `mentions`, so for an
+	// `incoming` entry the referring item's own description is read for
+	// a `Refs`, `Related to` or `See` on the asked-for item; a `closes`
+	// the forge reports is kept.
 	Relation ItemReferenceRelation `json:"relation"`
 
 	// Repo The related item's repository as `owner/name`, which is not always the asked-for item's own.
@@ -2647,8 +2651,12 @@ type ItemReferenceKind string
 // ItemReferenceRelation What the referring item does to the referred-to one. `closes`
 // closes it when merged (a closing keyword). `refs` references it
 // without closing it (`Refs`, `Related to`, `See`). `mentions` only
-// names it. The forge's timeline does not tell the last two apart,
-// so a read from it says `mentions` for both.
+// names it. An item holds one relation to the asked-for one, the
+// strongest it has: `closes`, then `refs`, then `mentions`. The
+// forge's timeline does not tell `refs` from `mentions`, so for an
+// `incoming` entry the referring item's own description is read for
+// a `Refs`, `Related to` or `See` on the asked-for item; a `closes`
+// the forge reports is kept.
 type ItemReferenceRelation string
 
 // ItemReferenceState Where the related item stands. Only a pull request is `merged`; `closed` means closed without merging.
