@@ -2010,6 +2010,12 @@ type ClosingIssue struct {
 	// Repo The issue's repository as `owner/name`, which is not always the pull request's own.
 	Repo string `json:"repo"`
 
+	// Title The issue's title as the board holds it, so a client can show it
+	// on hover. Left out when the dashboard does not hold the issue
+	// (closed, in a repo it does not track), and a client then words
+	// the pill without it. Text, never markup.
+	Title *string `json:"title,omitempty"`
+
 	// Url The issue's page on its forge.
 	Url string `json:"url"`
 }
@@ -2781,6 +2787,10 @@ type LinkedPullRequest struct {
 
 	// Repo The pull request's repository as `owner/name`, which is not always the issue's own.
 	Repo string `json:"repo"`
+
+	// Title The pull request's title, so a client can show it on hover. Text,
+	// never markup. Left out when empty.
+	Title *string `json:"title,omitempty"`
 }
 
 // MainBranch One tracked repository and the CI status of its default branch.
@@ -3063,6 +3073,12 @@ type MentionedIssue struct {
 
 	// Repo The repository as `owner/name`, which is not always the pull request's own.
 	Repo string `json:"repo"`
+
+	// Title The title of the issue or pull request as the board holds it, so
+	// a client can show it on hover. Left out when the dashboard does
+	// not hold it, and a client then words the pill without it. Text,
+	// never markup.
+	Title *string `json:"title,omitempty"`
 
 	// Tracked True when the dashboard holds it as an open issue it shows, so
 	// `pageUrl` opens its pop-up. False for a pull request, a closed
