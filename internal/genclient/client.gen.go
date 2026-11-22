@@ -3126,7 +3126,8 @@ type NavCounts struct {
 	// `cancelled` count the pull requests whose CI is pending, failing,
 	// succeeded and cancelled, and `noChecks` those with no checks at all.
 	// One held for workflow approval is in `total` only, so the numbers
-	// need not add up. All six are always present.
+	// need not add up. `behind` is not a part of `total` at all: it is a note
+	// on `passed`. All seven are always present.
 	Bots   NavPullRequestCount `json:"bots"`
 	Issues NavIssueCount       `json:"issues"`
 
@@ -3134,14 +3135,16 @@ type NavCounts struct {
 	// `cancelled` count the pull requests whose CI is pending, failing,
 	// succeeded and cancelled, and `noChecks` those with no checks at all.
 	// One held for workflow approval is in `total` only, so the numbers
-	// need not add up. All six are always present.
+	// need not add up. `behind` is not a part of `total` at all: it is a note
+	// on `passed`. All seven are always present.
 	PullRequests NavPullRequestCount `json:"pullRequests"`
 
 	// Releases A pull request page's numbers. `running`, `failed`, `passed` and
 	// `cancelled` count the pull requests whose CI is pending, failing,
 	// succeeded and cancelled, and `noChecks` those with no checks at all.
 	// One held for workflow approval is in `total` only, so the numbers
-	// need not add up. All six are always present.
+	// need not add up. `behind` is not a part of `total` at all: it is a note
+	// on `passed`. All seven are always present.
 	Releases NavPullRequestCount `json:"releases"`
 }
 
@@ -3157,8 +3160,14 @@ type NavIssueCount struct {
 // `cancelled` count the pull requests whose CI is pending, failing,
 // succeeded and cancelled, and `noChecks` those with no checks at all.
 // One held for workflow approval is in `total` only, so the numbers
-// need not add up. All six are always present.
+// need not add up. `behind` is not a part of `total` at all: it is a note
+// on `passed`. All seven are always present.
 type NavPullRequestCount struct {
+	// Behind How many of the `passed` ones are behind their base branch, with
+	// something left to merge. Counted on the Bots page only, so
+	// `0` on the others. Beside `passed`, not part of the sum.
+	Behind int `json:"behind"`
+
 	// Cancelled How many of them have CI whose only non-passing runs were
 	// cancelled. Not counted as `failed`: nothing broke.
 	Cancelled int `json:"cancelled"`
