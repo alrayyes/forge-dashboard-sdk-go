@@ -4346,6 +4346,15 @@ type SettingsResponse struct {
 	// githubAppConfigured).
 	GithubAppInstallationId int64 `json:"githubAppInstallationId"`
 
+	// GithubOAuthConfigured Whether this server has the GitHub App's OAuth client
+	// (`GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET`), so
+	// `POST /api/v1/connections/github` can work at all.
+	GithubOAuthConfigured bool `json:"githubOAuthConfigured"`
+
+	// GithubOAuthConnected Whether a GitHub account is linked through the GitHub App's user
+	// sign-in. The access and refresh tokens are never returned.
+	GithubOAuthConnected bool `json:"githubOAuthConnected"`
+
 	// GithubTokenSet Whether a GitHub token is currently saved.
 	GithubTokenSet bool `json:"githubTokenSet"`
 
@@ -4451,6 +4460,8 @@ type SettingsSummary struct {
 	ForgejoUsername           string               `json:"forgejoUsername"`
 	GithubAppConfigured       bool                 `json:"githubAppConfigured"`
 	GithubAppInstallationId   int64                `json:"githubAppInstallationId"`
+	GithubOAuthConfigured     bool                 `json:"githubOAuthConfigured"`
+	GithubOAuthConnected      bool                 `json:"githubOAuthConnected"`
 	GithubTokenSet            bool                 `json:"githubTokenSet"`
 	GithubUsername            string               `json:"githubUsername"`
 	HideDependencyDashboard   bool                 `json:"hideDependencyDashboard"`
@@ -4649,6 +4660,13 @@ type GetCheckLogParams struct {
 
 // FinishForgejoConnectionParams defines parameters for FinishForgejoConnection.
 type FinishForgejoConnectionParams struct {
+	Code  *string `form:"code,omitempty" json:"code,omitempty"`
+	State *string `form:"state,omitempty" json:"state,omitempty"`
+	Error *string `form:"error,omitempty" json:"error,omitempty"`
+}
+
+// FinishGitHubConnectionParams defines parameters for FinishGitHubConnection.
+type FinishGitHubConnectionParams struct {
 	Code  *string `form:"code,omitempty" json:"code,omitempty"`
 	State *string `form:"state,omitempty" json:"state,omitempty"`
 	Error *string `form:"error,omitempty" json:"error,omitempty"`
@@ -5331,6 +5349,41 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/v1/connections/forgejo/callback (the `FinishForgejoConnection` operationId).
 	FinishForgejoConnection(ctx context.Context, params *FinishForgejoConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DisconnectGitHub Unlink the GitHub account
+	//
+	// Deletes the stored token pair. Nothing else changes: a saved personal
+	// access token, the GitHub App installation and the other settings stay.
+	// Passkey sign-in is unaffected.
+	//
+	// Corresponds with DELETE /api/v1/connections/github (the `DisconnectGitHub` operationId).
+	DisconnectGitHub(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartGitHubConnection Start linking a GitHub account through the GitHub App
+	//
+	// Begins the GitHub App's user authorization flow with PKCE (S256) and
+	// returns GitHub's consent page URL. The browser goes there; GitHub sends
+	// it back to `GET /api/v1/connections/github/callback`. The token is a
+	// user-to-server token: it expires and its refresh token rotates, and its
+	// reach is whatever the App and the account's installations allow. Fails
+	// with 409 when an account is already connected. Needs
+	// `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET` on the server; see
+	// `SettingsResponse.githubOAuthConfigured`.
+	//
+	// Corresponds with POST /api/v1/connections/github (the `StartGitHubConnection` operationId).
+	StartGitHubConnection(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// FinishGitHubConnection GitHub's redirect back after consent
+	//
+	// Checks `state` (single use, ten minutes), exchanges `code` with the
+	// PKCE verifier, reads the account's login, stores the token pair
+	// encrypted, and redirects the browser to `/settings`. A missing, wrong,
+	// used or expired `state` answers 400 and stores nothing. So does a
+	// refused code, a bad PKCE verifier, or an error GitHub sent back in the
+	// query. Nothing is stored when the account can't be read either (502).
+	//
+	// Corresponds with GET /api/v1/connections/github/callback (the `FinishGitHubConnection` operationId).
+	FinishGitHubConnection(ctx context.Context, params *FinishGitHubConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetDashboard The aggregated view
 	//
@@ -7770,6 +7823,71 @@ func (c *Client) StartForgejoConnection(ctx context.Context, body StartForgejoCo
 // Corresponds with GET /api/v1/connections/forgejo/callback (the `FinishForgejoConnection` operationId).
 func (c *Client) FinishForgejoConnection(ctx context.Context, params *FinishForgejoConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewFinishForgejoConnectionRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DisconnectGitHub Unlink the GitHub account
+//
+// Deletes the stored token pair. Nothing else changes: a saved personal
+// access token, the GitHub App installation and the other settings stay.
+// Passkey sign-in is unaffected.
+//
+// Corresponds with DELETE /api/v1/connections/github (the `DisconnectGitHub` operationId).
+func (c *Client) DisconnectGitHub(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDisconnectGitHubRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StartGitHubConnection Start linking a GitHub account through the GitHub App
+//
+// Begins the GitHub App's user authorization flow with PKCE (S256) and
+// returns GitHub's consent page URL. The browser goes there; GitHub sends
+// it back to `GET /api/v1/connections/github/callback`. The token is a
+// user-to-server token: it expires and its refresh token rotates, and its
+// reach is whatever the App and the account's installations allow. Fails
+// with 409 when an account is already connected. Needs
+// `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET` on the server; see
+// `SettingsResponse.githubOAuthConfigured`.
+//
+// Corresponds with POST /api/v1/connections/github (the `StartGitHubConnection` operationId).
+func (c *Client) StartGitHubConnection(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartGitHubConnectionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// FinishGitHubConnection GitHub's redirect back after consent
+//
+// Checks `state` (single use, ten minutes), exchanges `code` with the
+// PKCE verifier, reads the account's login, stores the token pair
+// encrypted, and redirects the browser to `/settings`. A missing, wrong,
+// used or expired `state` answers 400 and stores nothing. So does a
+// refused code, a bad PKCE verifier, or an error GitHub sent back in the
+// query. Nothing is stored when the account can't be read either (502).
+//
+// Corresponds with GET /api/v1/connections/github/callback (the `FinishGitHubConnection` operationId).
+func (c *Client) FinishGitHubConnection(ctx context.Context, params *FinishGitHubConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFinishGitHubConnectionRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -11302,6 +11420,138 @@ func NewFinishForgejoConnectionRequest(server string, params *FinishForgejoConne
 	return req, nil
 }
 
+// NewDisconnectGitHubRequest constructs an http.Request for the DisconnectGitHub method
+func NewDisconnectGitHubRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/connections/github")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewStartGitHubConnectionRequest constructs an http.Request for the StartGitHubConnection method
+func NewStartGitHubConnectionRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/connections/github")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewFinishGitHubConnectionRequest constructs an http.Request for the FinishGitHubConnection method
+func NewFinishGitHubConnectionRequest(server string, params *FinishGitHubConnectionParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/connections/github/callback")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Code != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "code", *params.Code, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.State != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Error != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "error", *params.Error, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetDashboardRequest constructs an http.Request for the GetDashboard method
 func NewGetDashboardRequest(server string, params *GetDashboardParams) (*http.Request, error) {
 	var err error
@@ -14127,6 +14377,47 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/v1/connections/forgejo/callback (the `FinishForgejoConnection` operationId).
 	FinishForgejoConnectionWithResponse(ctx context.Context, params *FinishForgejoConnectionParams, reqEditors ...RequestEditorFn) (*FinishForgejoConnectionResponse, error)
+
+	// DisconnectGitHubWithResponse Unlink the GitHub account
+	//
+	// Deletes the stored token pair. Nothing else changes: a saved personal
+	// access token, the GitHub App installation and the other settings stay.
+	// Passkey sign-in is unaffected.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/connections/github (the `DisconnectGitHub` operationId).
+	DisconnectGitHubWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DisconnectGitHubResponse, error)
+
+	// StartGitHubConnectionWithResponse Start linking a GitHub account through the GitHub App
+	//
+	// Begins the GitHub App's user authorization flow with PKCE (S256) and
+	// returns GitHub's consent page URL. The browser goes there; GitHub sends
+	// it back to `GET /api/v1/connections/github/callback`. The token is a
+	// user-to-server token: it expires and its refresh token rotates, and its
+	// reach is whatever the App and the account's installations allow. Fails
+	// with 409 when an account is already connected. Needs
+	// `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET` on the server; see
+	// `SettingsResponse.githubOAuthConfigured`.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/connections/github (the `StartGitHubConnection` operationId).
+	StartGitHubConnectionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StartGitHubConnectionResponse, error)
+
+	// FinishGitHubConnectionWithResponse GitHub's redirect back after consent
+	//
+	// Checks `state` (single use, ten minutes), exchanges `code` with the
+	// PKCE verifier, reads the account's login, stores the token pair
+	// encrypted, and redirects the browser to `/settings`. A missing, wrong,
+	// used or expired `state` answers 400 and stores nothing. So does a
+	// refused code, a bad PKCE verifier, or an error GitHub sent back in the
+	// query. Nothing is stored when the account can't be read either (502).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/connections/github/callback (the `FinishGitHubConnection` operationId).
+	FinishGitHubConnectionWithResponse(ctx context.Context, params *FinishGitHubConnectionParams, reqEditors ...RequestEditorFn) (*FinishGitHubConnectionResponse, error)
 
 	// GetDashboardWithResponse The aggregated view
 	//
@@ -17051,6 +17342,164 @@ func (r FinishForgejoConnectionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r FinishForgejoConnectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DisconnectGitHubResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DisconnectGitHubResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r DisconnectGitHubResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DisconnectGitHubResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DisconnectGitHubResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DisconnectGitHubResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type StartGitHubConnectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ConnectionAuthorizeResponse
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r StartGitHubConnectionResponse) GetJSON200() *ConnectionAuthorizeResponse {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r StartGitHubConnectionResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r StartGitHubConnectionResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r StartGitHubConnectionResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r StartGitHubConnectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r StartGitHubConnectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StartGitHubConnectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r StartGitHubConnectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type FinishGitHubConnectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r FinishGitHubConnectionResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r FinishGitHubConnectionResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r FinishGitHubConnectionResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r FinishGitHubConnectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r FinishGitHubConnectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r FinishGitHubConnectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r FinishGitHubConnectionResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -21070,6 +21519,65 @@ func (c *ClientWithResponses) FinishForgejoConnectionWithResponse(ctx context.Co
 	return ParseFinishForgejoConnectionResponse(rsp)
 }
 
+// DisconnectGitHubWithResponse Unlink the GitHub account
+//
+// Deletes the stored token pair. Nothing else changes: a saved personal
+// access token, the GitHub App installation and the other settings stay.
+// Passkey sign-in is unaffected.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/connections/github (the `DisconnectGitHub` operationId).
+func (c *ClientWithResponses) DisconnectGitHubWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DisconnectGitHubResponse, error) {
+	rsp, err := c.DisconnectGitHub(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDisconnectGitHubResponse(rsp)
+}
+
+// StartGitHubConnectionWithResponse Start linking a GitHub account through the GitHub App
+//
+// Begins the GitHub App's user authorization flow with PKCE (S256) and
+// returns GitHub's consent page URL. The browser goes there; GitHub sends
+// it back to `GET /api/v1/connections/github/callback`. The token is a
+// user-to-server token: it expires and its refresh token rotates, and its
+// reach is whatever the App and the account's installations allow. Fails
+// with 409 when an account is already connected. Needs
+// `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET` on the server; see
+// `SettingsResponse.githubOAuthConfigured`.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/connections/github (the `StartGitHubConnection` operationId).
+func (c *ClientWithResponses) StartGitHubConnectionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StartGitHubConnectionResponse, error) {
+	rsp, err := c.StartGitHubConnection(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartGitHubConnectionResponse(rsp)
+}
+
+// FinishGitHubConnectionWithResponse GitHub's redirect back after consent
+//
+// Checks `state` (single use, ten minutes), exchanges `code` with the
+// PKCE verifier, reads the account's login, stores the token pair
+// encrypted, and redirects the browser to `/settings`. A missing, wrong,
+// used or expired `state` answers 400 and stores nothing. So does a
+// refused code, a bad PKCE verifier, or an error GitHub sent back in the
+// query. Nothing is stored when the account can't be read either (502).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/connections/github/callback (the `FinishGitHubConnection` operationId).
+func (c *ClientWithResponses) FinishGitHubConnectionWithResponse(ctx context.Context, params *FinishGitHubConnectionParams, reqEditors ...RequestEditorFn) (*FinishGitHubConnectionResponse, error) {
+	rsp, err := c.FinishGitHubConnection(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFinishGitHubConnectionResponse(rsp)
+}
+
 // GetDashboardWithResponse The aggregated view
 //
 // Returns the most recently fetched snapshot. The backend refreshes
@@ -24288,6 +24796,125 @@ func ParseFinishForgejoConnectionResponse(rsp *http.Response) (*FinishForgejoCon
 	}
 
 	response := &FinishForgejoConnectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 303:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDisconnectGitHubResponse parses an HTTP response from a DisconnectGitHubWithResponse call
+func ParseDisconnectGitHubResponse(rsp *http.Response) (*DisconnectGitHubResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DisconnectGitHubResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStartGitHubConnectionResponse parses an HTTP response from a StartGitHubConnectionWithResponse call
+func ParseStartGitHubConnectionResponse(rsp *http.Response) (*StartGitHubConnectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StartGitHubConnectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ConnectionAuthorizeResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseFinishGitHubConnectionResponse parses an HTTP response from a FinishGitHubConnectionWithResponse call
+func ParseFinishGitHubConnectionResponse(rsp *http.Response) (*FinishGitHubConnectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FinishGitHubConnectionResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
