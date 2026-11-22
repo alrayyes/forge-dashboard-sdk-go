@@ -4672,6 +4672,12 @@ type FinishGitHubConnectionParams struct {
 	Error *string `form:"error,omitempty" json:"error,omitempty"`
 }
 
+// FinishGitHubInstallationParams defines parameters for FinishGitHubInstallation.
+type FinishGitHubInstallationParams struct {
+	InstallationId int64   `form:"installation_id" json:"installation_id"`
+	SetupAction    *string `form:"setup_action,omitempty" json:"setup_action,omitempty"`
+}
+
 // GetDashboardParams defines parameters for GetDashboard.
 type GetDashboardParams struct {
 	// IncludeDrafts Whether draft pull requests are in `pullRequests`. Defaults to
@@ -5384,6 +5390,19 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/v1/connections/github/callback (the `FinishGitHubConnection` operationId).
 	FinishGitHubConnection(ctx context.Context, params *FinishGitHubConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// FinishGitHubInstallation GitHub's redirect back after the App is installed or changed
+	//
+	// The GitHub App's Setup URL. After an install, or a change of repository
+	// access with "Redirect on update" on, GitHub sends the browser here with
+	// `installation_id` and `setup_action`. The redirect is not trusted: the
+	// ID is stored as an installation only when it is in the connected
+	// user's own `GET /user/installations`, read with the linked account's
+	// token. Otherwise nothing is stored (403). Without a linked account
+	// nothing is stored either (409).
+	//
+	// Corresponds with GET /api/v1/connections/github/installed (the `FinishGitHubInstallation` operationId).
+	FinishGitHubInstallation(ctx context.Context, params *FinishGitHubInstallationParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetDashboard The aggregated view
 	//
@@ -7888,6 +7907,29 @@ func (c *Client) StartGitHubConnection(ctx context.Context, reqEditors ...Reques
 // Corresponds with GET /api/v1/connections/github/callback (the `FinishGitHubConnection` operationId).
 func (c *Client) FinishGitHubConnection(ctx context.Context, params *FinishGitHubConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewFinishGitHubConnectionRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// FinishGitHubInstallation GitHub's redirect back after the App is installed or changed
+//
+// The GitHub App's Setup URL. After an install, or a change of repository
+// access with "Redirect on update" on, GitHub sends the browser here with
+// `installation_id` and `setup_action`. The redirect is not trusted: the
+// ID is stored as an installation only when it is in the connected
+// user's own `GET /user/installations`, read with the linked account's
+// token. Otherwise nothing is stored (403). Without a linked account
+// nothing is stored either (409).
+//
+// Corresponds with GET /api/v1/connections/github/installed (the `FinishGitHubInstallation` operationId).
+func (c *Client) FinishGitHubInstallation(ctx context.Context, params *FinishGitHubInstallationParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFinishGitHubInstallationRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -11552,6 +11594,68 @@ func NewFinishGitHubConnectionRequest(server string, params *FinishGitHubConnect
 	return req, nil
 }
 
+// NewFinishGitHubInstallationRequest constructs an http.Request for the FinishGitHubInstallation method
+func NewFinishGitHubInstallationRequest(server string, params *FinishGitHubInstallationParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/connections/github/installed")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "installation_id", params.InstallationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if params.SetupAction != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "setup_action", *params.SetupAction, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetDashboardRequest constructs an http.Request for the GetDashboard method
 func NewGetDashboardRequest(server string, params *GetDashboardParams) (*http.Request, error) {
 	var err error
@@ -14418,6 +14522,21 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/v1/connections/github/callback (the `FinishGitHubConnection` operationId).
 	FinishGitHubConnectionWithResponse(ctx context.Context, params *FinishGitHubConnectionParams, reqEditors ...RequestEditorFn) (*FinishGitHubConnectionResponse, error)
+
+	// FinishGitHubInstallationWithResponse GitHub's redirect back after the App is installed or changed
+	//
+	// The GitHub App's Setup URL. After an install, or a change of repository
+	// access with "Redirect on update" on, GitHub sends the browser here with
+	// `installation_id` and `setup_action`. The redirect is not trusted: the
+	// ID is stored as an installation only when it is in the connected
+	// user's own `GET /user/installations`, read with the linked account's
+	// token. Otherwise nothing is stored (403). Without a linked account
+	// nothing is stored either (409).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/connections/github/installed (the `FinishGitHubInstallation` operationId).
+	FinishGitHubInstallationWithResponse(ctx context.Context, params *FinishGitHubInstallationParams, reqEditors ...RequestEditorFn) (*FinishGitHubInstallationResponse, error)
 
 	// GetDashboardWithResponse The aggregated view
 	//
@@ -17500,6 +17619,75 @@ func (r FinishGitHubConnectionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r FinishGitHubConnectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type FinishGitHubInstallationResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r FinishGitHubInstallationResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r FinishGitHubInstallationResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r FinishGitHubInstallationResponse) GetJSON403() *Error {
+	return r.JSON403
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r FinishGitHubInstallationResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r FinishGitHubInstallationResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r FinishGitHubInstallationResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r FinishGitHubInstallationResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r FinishGitHubInstallationResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r FinishGitHubInstallationResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -21578,6 +21766,27 @@ func (c *ClientWithResponses) FinishGitHubConnectionWithResponse(ctx context.Con
 	return ParseFinishGitHubConnectionResponse(rsp)
 }
 
+// FinishGitHubInstallationWithResponse GitHub's redirect back after the App is installed or changed
+//
+// The GitHub App's Setup URL. After an install, or a change of repository
+// access with "Redirect on update" on, GitHub sends the browser here with
+// `installation_id` and `setup_action`. The redirect is not trusted: the
+// ID is stored as an installation only when it is in the connected
+// user's own `GET /user/installations`, read with the linked account's
+// token. Otherwise nothing is stored (403). Without a linked account
+// nothing is stored either (409).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/connections/github/installed (the `FinishGitHubInstallation` operationId).
+func (c *ClientWithResponses) FinishGitHubInstallationWithResponse(ctx context.Context, params *FinishGitHubInstallationParams, reqEditors ...RequestEditorFn) (*FinishGitHubInstallationResponse, error) {
+	rsp, err := c.FinishGitHubInstallation(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFinishGitHubInstallationResponse(rsp)
+}
+
 // GetDashboardWithResponse The aggregated view
 //
 // Returns the most recently fetched snapshot. The backend refreshes
@@ -24936,6 +25145,63 @@ func ParseFinishGitHubConnectionResponse(rsp *http.Response) (*FinishGitHubConne
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseFinishGitHubInstallationResponse parses an HTTP response from a FinishGitHubInstallationWithResponse call
+func ParseFinishGitHubInstallationResponse(rsp *http.Response) (*FinishGitHubInstallationResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FinishGitHubInstallationResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 303:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
 		var dest Error
