@@ -2753,6 +2753,13 @@ type LinkedPullRequest struct {
 	// there they are all zero.
 	Checks CheckCounts `json:"checks"`
 
+	// ChecksIncomplete The same flag as on the pull request itself: true while the forge
+	// has not yet listed every check of the head commit, so `checks`
+	// counts some of them. A fact only; the client decides how to say it.
+	// Always present, and false when the list is complete or the forge
+	// can't tell.
+	ChecksIncomplete bool `json:"checksIncomplete"`
+
 	// Ci The combined result across every check reported against the pull
 	// request's head commit. "none" means neither forge reported any
 	// check at all, not that one failed.
