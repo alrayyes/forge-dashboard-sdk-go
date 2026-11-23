@@ -2314,6 +2314,9 @@ type ForgeCapabilities struct {
 	// Label The forge's name as a person reads it, such as `GitHub`.
 	Label string `json:"label"`
 
+	// PullRequestPathSegment The path segment the forge's web address puts between a repository and a pull request's number, such as `pull` on GitHub and `pulls` on Forgejo. A client swaps it for an issue's `issues` segment to reach the pull request behind a reference.
+	PullRequestPathSegment string `json:"pullRequestPathSegment"`
+
 	// RateLimitDocsUrl The forge's published rules for its request budget, or an empty string when it has none. A client links to it from the rate limit explanation and shows no link when it is empty.
 	RateLimitDocsUrl string `json:"rateLimitDocsUrl"`
 
