@@ -2209,6 +2209,26 @@ type Error struct {
 	Field *string `json:"field,omitempty"`
 }
 
+// FailedInstallation One GitHub App installation that did not answer a refresh.
+type FailedInstallation struct {
+	// Account The account or org the App is installed on. Omitted when it was never recorded.
+	Account *string `json:"account,omitempty"`
+
+	// ErrorKind Why a forge is unreachable, or why a write to it was rejected, as
+	// coarse as every forge this service talks to can agree on.
+	// "unreachable" is a request that got no response; "upstream_error" is
+	// the forge answering with a 5xx (a gateway timeout, say), and the
+	// status is in ForgeHealth.upstreamStatus. "unauthorized" covers both a
+	// bad token and a forbidden request; "not_found" usually means a wrong
+	// instance URL. "conflict" is only ever returned from a pull-request
+	// write — the forge reports the PR itself isn't currently mergeable. "unknown" covers a signal this
+	// service doesn't recognize, rather than a guessed-at specific cause.
+	ErrorKind ForgeErrorKind `json:"errorKind"`
+
+	// InstallationId GitHub's ID for the installation.
+	InstallationId int64 `json:"installationId"`
+}
+
 // FilterState The dashboard/Insights filter bar's own saved shape (and the
 // Branches page's status, forge, advisories and search, in a `branches` group) —
 // whatever the frontend's `$lib/filters` `loadState`/`saveState` already produce
@@ -2371,7 +2391,10 @@ type ForgeHealth struct {
 	// write — the forge reports the PR itself isn't currently mergeable. "unknown" covers a signal this
 	// service doesn't recognize, rather than a guessed-at specific cause.
 	ErrorKind *ForgeErrorKind `json:"errorKind,omitempty"`
-	Forge     Forge           `json:"forge"`
+
+	// FailedInstallations The GitHub App installations that did not answer this refresh while the forge itself did (reachable is true). Each one's pull requests and issues keep the last rows read, and the other installations load as usual. Set only for GitHub, and only when more than one installation is read. Omitted when every installation answered.
+	FailedInstallations *[]FailedInstallation `json:"failedInstallations,omitempty"`
+	Forge               Forge                 `json:"forge"`
 
 	// ProviderStatus What the forge's own status page reports, set only for GitHub, only while it is unreachable (reachable is false, errorKind unreachable, upstream_error or unknown), and only when the page names an incident or a degraded component the dashboard uses (API Requests, Pull Requests, Actions or Webhooks). The page is read only after a failed call, at most once a minute, with a request that carries nothing about the user. Omitted when the page reports nothing there, when it can't be read, and for Forgejo, which has no such page. A client says "GitHub reports an incident" and leaves the cause of a failure with no incident to the forge's own error.
 	ProviderStatus *ProviderStatus `json:"providerStatus,omitempty"`
