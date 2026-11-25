@@ -4120,8 +4120,8 @@ type RepoStatus struct {
 	// is its own admin permission flag. Always false for a repo
 	// reached through an unauthenticated, username-only listing.
 	// A point-in-time snapshot: a permission change since the last
-	// refresh can still make a following ensure-webhook call fail
-	// despite this having said true. For a GitHub App connection
+	// refresh can still make a later hook write fail despite this having
+	// said true. For a GitHub App connection
 	// there is no user role to read, so this is true when listing
 	// the repo's webhooks worked on the last refresh.
 	CanManageWebhooks bool `json:"canManageWebhooks"`
@@ -4710,7 +4710,7 @@ type Version struct {
 // contract intentionally doesn't re-model WebAuthn's own schema.
 type WebAuthnCeremonyOptions map[string]interface{}
 
-// WebhookEnsureRequest Which repo to create or fix up a webhook on.
+// WebhookEnsureRequest Which repo a repo-level action targets.
 type WebhookEnsureRequest struct {
 	Forge Forge `json:"forge"`
 
@@ -5087,9 +5087,6 @@ type SetTimezoneJSONRequestBody = TimezoneRequest
 
 // CreateAPITokenJSONRequestBody defines body for CreateAPIToken for application/json ContentType.
 type CreateAPITokenJSONRequestBody = APITokenCreateRequest
-
-// EnsureWebhookJSONRequestBody defines body for EnsureWebhook for application/json ContentType.
-type EnsureWebhookJSONRequestBody = WebhookEnsureRequest
 
 // ReceiveForgejoWebhookJSONRequestBody defines body for ReceiveForgejoWebhook for application/json ContentType.
 type ReceiveForgejoWebhookJSONRequestBody = ReceiveForgejoWebhookJSONBody
@@ -7267,62 +7264,6 @@ type ClientInterface interface {
 	//
 	// Corresponds with DELETE /api/v1/tokens/{id} (the `DeleteAPIToken` operationId).
 	DeleteAPIToken(ctx context.Context, id PathTokenID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// EnsureWebhookWithBody Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-	//
-	// Creates a webhook on the named repo, pointed at the signed-in
-	// user's own webhook URL and secret, subscribed to the events
-	// docs/webhooks.md's manual steps recommend. If one already exists
-	// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
-	// does — matching by URL path, not object identity) it's brought
-	// back to active with the right events instead of creating a
-	// duplicate.
-	//
-	// One of a small number of endpoints in this API that write to a
-	// forge rather than just reading from it — see also the
-	// pull-requests tag.
-	//
-	// A refusal from the forge (403, 404, 429 and 502) answers with the
-	// same `ActionError` a refused pull request action does, so a client
-	// reads one shape: `code` is `permission` or `rate_limited` where
-	// the forge said so (with `resetsAt` for a rate limit), and
-	// `unknown` otherwise, with a plain `message` either way. No new
-	// code is needed: a repo the forge can't find is `unknown` with its
-	// own message. 400 and 401 stay a plain `Error`, since they are
-	// about the request, not a refusal by the forge.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
-	EnsureWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// EnsureWebhook Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-	//
-	// Creates a webhook on the named repo, pointed at the signed-in
-	// user's own webhook URL and secret, subscribed to the events
-	// docs/webhooks.md's manual steps recommend. If one already exists
-	// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
-	// does — matching by URL path, not object identity) it's brought
-	// back to active with the right events instead of creating a
-	// duplicate.
-	//
-	// One of a small number of endpoints in this API that write to a
-	// forge rather than just reading from it — see also the
-	// pull-requests tag.
-	//
-	// A refusal from the forge (403, 404, 429 and 502) answers with the
-	// same `ActionError` a refused pull request action does, so a client
-	// reads one shape: `code` is `permission` or `rate_limited` where
-	// the forge said so (with `resetsAt` for a rate limit), and
-	// `unknown` otherwise, with a plain `message` either way. No new
-	// code is needed: a repo the forge can't find is `unknown` with its
-	// own message. 400 and 401 stay a plain `Error`, since they are
-	// about the request, not a refusal by the forge.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
-	EnsureWebhook(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetVersion The running server's own version
 	//
@@ -10614,82 +10555,6 @@ func (c *Client) CreateAPIToken(ctx context.Context, body CreateAPITokenJSONRequ
 // Corresponds with DELETE /api/v1/tokens/{id} (the `DeleteAPIToken` operationId).
 func (c *Client) DeleteAPIToken(ctx context.Context, id PathTokenID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteAPITokenRequest(c.Server, id)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// EnsureWebhookWithBody Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-//
-// Creates a webhook on the named repo, pointed at the signed-in
-// user's own webhook URL and secret, subscribed to the events
-// docs/webhooks.md's manual steps recommend. If one already exists
-// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
-// does — matching by URL path, not object identity) it's brought
-// back to active with the right events instead of creating a
-// duplicate.
-//
-// One of a small number of endpoints in this API that write to a
-// forge rather than just reading from it — see also the
-// pull-requests tag.
-//
-// A refusal from the forge (403, 404, 429 and 502) answers with the
-// same `ActionError` a refused pull request action does, so a client
-// reads one shape: `code` is `permission` or `rate_limited` where
-// the forge said so (with `resetsAt` for a rate limit), and
-// `unknown` otherwise, with a plain `message` either way. No new
-// code is needed: a repo the forge can't find is `unknown` with its
-// own message. 400 and 401 stay a plain `Error`, since they are
-// about the request, not a refusal by the forge.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
-func (c *Client) EnsureWebhookWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEnsureWebhookRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// EnsureWebhook Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-//
-// Creates a webhook on the named repo, pointed at the signed-in
-// user's own webhook URL and secret, subscribed to the events
-// docs/webhooks.md's manual steps recommend. If one already exists
-// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
-// does — matching by URL path, not object identity) it's brought
-// back to active with the right events instead of creating a
-// duplicate.
-//
-// One of a small number of endpoints in this API that write to a
-// forge rather than just reading from it — see also the
-// pull-requests tag.
-//
-// A refusal from the forge (403, 404, 429 and 502) answers with the
-// same `ActionError` a refused pull request action does, so a client
-// reads one shape: `code` is `permission` or `rate_limited` where
-// the forge said so (with `resetsAt` for a rate limit), and
-// `unknown` otherwise, with a plain `message` either way. No new
-// code is needed: a repo the forge can't find is `unknown` with its
-// own message. 400 and 401 stay a plain `Error`, since they are
-// about the request, not a refusal by the forge.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
-func (c *Client) EnsureWebhook(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEnsureWebhookRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14016,46 +13881,6 @@ func NewDeleteAPITokenRequest(server string, id PathTokenID) (*http.Request, err
 	return req, nil
 }
 
-// NewEnsureWebhookRequest calls the generic EnsureWebhook builder with application/json body
-func NewEnsureWebhookRequest(server string, body EnsureWebhookJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewEnsureWebhookRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewEnsureWebhookRequestWithBody constructs an http.Request for the EnsureWebhook method, with any body, and a specified content type
-func NewEnsureWebhookRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/webhooks/ensure")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewGetVersionRequest constructs an http.Request for the GetVersion method
 func NewGetVersionRequest(server string) (*http.Request, error) {
 	var err error
@@ -16441,62 +16266,6 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with DELETE /api/v1/tokens/{id} (the `DeleteAPIToken` operationId).
 	DeleteAPITokenWithResponse(ctx context.Context, id PathTokenID, reqEditors ...RequestEditorFn) (*DeleteAPITokenResponse, error)
-
-	// EnsureWebhookWithBodyWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-	//
-	// Creates a webhook on the named repo, pointed at the signed-in
-	// user's own webhook URL and secret, subscribed to the events
-	// docs/webhooks.md's manual steps recommend. If one already exists
-	// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
-	// does — matching by URL path, not object identity) it's brought
-	// back to active with the right events instead of creating a
-	// duplicate.
-	//
-	// One of a small number of endpoints in this API that write to a
-	// forge rather than just reading from it — see also the
-	// pull-requests tag.
-	//
-	// A refusal from the forge (403, 404, 429 and 502) answers with the
-	// same `ActionError` a refused pull request action does, so a client
-	// reads one shape: `code` is `permission` or `rate_limited` where
-	// the forge said so (with `resetsAt` for a rate limit), and
-	// `unknown` otherwise, with a plain `message` either way. No new
-	// code is needed: a repo the forge can't find is `unknown` with its
-	// own message. 400 and 401 stay a plain `Error`, since they are
-	// about the request, not a refusal by the forge.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
-	EnsureWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error)
-
-	// EnsureWebhookWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-	//
-	// Creates a webhook on the named repo, pointed at the signed-in
-	// user's own webhook URL and secret, subscribed to the events
-	// docs/webhooks.md's manual steps recommend. If one already exists
-	// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
-	// does — matching by URL path, not object identity) it's brought
-	// back to active with the right events instead of creating a
-	// duplicate.
-	//
-	// One of a small number of endpoints in this API that write to a
-	// forge rather than just reading from it — see also the
-	// pull-requests tag.
-	//
-	// A refusal from the forge (403, 404, 429 and 502) answers with the
-	// same `ActionError` a refused pull request action does, so a client
-	// reads one shape: `code` is `permission` or `rate_limited` where
-	// the forge said so (with `resetsAt` for a rate limit), and
-	// `unknown` otherwise, with a plain `message` either way. No new
-	// code is needed: a repo the forge can't find is `unknown` with its
-	// own message. 400 and 401 stay a plain `Error`, since they are
-	// about the request, not a refusal by the forge.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
-	EnsureWebhookWithResponse(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error)
 
 	// GetVersionWithResponse The running server's own version
 	//
@@ -21053,82 +20822,6 @@ func (r DeleteAPITokenResponse) ContentType() string {
 	return ""
 }
 
-type EnsureWebhookResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *Error
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *ActionError
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *ActionError
-	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *ActionError
-	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *ActionError
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r EnsureWebhookResponse) GetJSON400() *Error {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r EnsureWebhookResponse) GetJSON401() *Error {
-	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r EnsureWebhookResponse) GetJSON403() *ActionError {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r EnsureWebhookResponse) GetJSON404() *ActionError {
-	return r.JSON404
-}
-
-// GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r EnsureWebhookResponse) GetJSON429() *ActionError {
-	return r.JSON429
-}
-
-// GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r EnsureWebhookResponse) GetJSON502() *ActionError {
-	return r.JSON502
-}
-
-// GetBody returns the raw response body bytes
-func (r EnsureWebhookResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r EnsureWebhookResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r EnsureWebhookResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r EnsureWebhookResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type GetVersionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -24181,74 +23874,6 @@ func (c *ClientWithResponses) DeleteAPITokenWithResponse(ctx context.Context, id
 		return nil, err
 	}
 	return ParseDeleteAPITokenResponse(rsp)
-}
-
-// EnsureWebhookWithBodyWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-//
-// Creates a webhook on the named repo, pointed at the signed-in
-// user's own webhook URL and secret, subscribed to the events
-// docs/webhooks.md's manual steps recommend. If one already exists
-// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
-// does — matching by URL path, not object identity) it's brought
-// back to active with the right events instead of creating a
-// duplicate.
-//
-// One of a small number of endpoints in this API that write to a
-// forge rather than just reading from it — see also the
-// pull-requests tag.
-//
-// A refusal from the forge (403, 404, 429 and 502) answers with the
-// same `ActionError` a refused pull request action does, so a client
-// reads one shape: `code` is `permission` or `rate_limited` where
-// the forge said so (with `resetsAt` for a rate limit), and
-// `unknown` otherwise, with a plain `message` either way. No new
-// code is needed: a repo the forge can't find is `unknown` with its
-// own message. 400 and 401 stay a plain `Error`, since they are
-// about the request, not a refusal by the forge.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
-func (c *ClientWithResponses) EnsureWebhookWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error) {
-	rsp, err := c.EnsureWebhookWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseEnsureWebhookResponse(rsp)
-}
-
-// EnsureWebhookWithResponse Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-//
-// Creates a webhook on the named repo, pointed at the signed-in
-// user's own webhook URL and secret, subscribed to the events
-// docs/webhooks.md's manual steps recommend. If one already exists
-// there (found the same way GET /api/v1/dashboard's own `hasWebhook`
-// does — matching by URL path, not object identity) it's brought
-// back to active with the right events instead of creating a
-// duplicate.
-//
-// One of a small number of endpoints in this API that write to a
-// forge rather than just reading from it — see also the
-// pull-requests tag.
-//
-// A refusal from the forge (403, 404, 429 and 502) answers with the
-// same `ActionError` a refused pull request action does, so a client
-// reads one shape: `code` is `permission` or `rate_limited` where
-// the forge said so (with `resetsAt` for a rate limit), and
-// `unknown` otherwise, with a plain `message` either way. No new
-// code is needed: a repo the forge can't find is `unknown` with its
-// own message. 400 and 401 stay a plain `Error`, since they are
-// about the request, not a refusal by the forge.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /api/v1/webhooks/ensure (the `EnsureWebhook` operationId).
-func (c *ClientWithResponses) EnsureWebhookWithResponse(ctx context.Context, body EnsureWebhookJSONRequestBody, reqEditors ...RequestEditorFn) (*EnsureWebhookResponse, error) {
-	rsp, err := c.EnsureWebhook(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseEnsureWebhookResponse(rsp)
 }
 
 // GetVersionWithResponse The running server's own version
@@ -27892,70 +27517,6 @@ func ParseDeleteAPITokenResponse(rsp *http.Response) (*DeleteAPITokenResponse, e
 			return nil, err
 		}
 		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseEnsureWebhookResponse parses an HTTP response from a EnsureWebhookWithResponse call
-func ParseEnsureWebhookResponse(rsp *http.Response) (*EnsureWebhookResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &EnsureWebhookResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ActionError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ActionError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest ActionError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON429 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest ActionError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON502 = &dest
 
 	}
 
