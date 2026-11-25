@@ -37,6 +37,7 @@ const (
 	ActionErrorCodePermission          ActionErrorCode = "permission"
 	ActionErrorCodeRateLimited         ActionErrorCode = "rate_limited"
 	ActionErrorCodeReadyToMerge        ActionErrorCode = "ready_to_merge"
+	ActionErrorCodeStatusUnknown       ActionErrorCode = "status_unknown"
 	ActionErrorCodeUnknown             ActionErrorCode = "unknown"
 )
 
@@ -78,6 +79,8 @@ func (e ActionErrorCode) Valid() bool {
 	case ActionErrorCodeRateLimited:
 		return true
 	case ActionErrorCodeReadyToMerge:
+		return true
+	case ActionErrorCodeStatusUnknown:
 		return true
 	case ActionErrorCodeUnknown:
 		return true
