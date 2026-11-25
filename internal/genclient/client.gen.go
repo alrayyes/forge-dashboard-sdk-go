@@ -17,78 +17,6 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
-// Defines values for ActionErrorCode.
-const (
-	ActionErrorCodeAlreadyClosed       ActionErrorCode = "already_closed"
-	ActionErrorCodeAlreadyMerged       ActionErrorCode = "already_merged"
-	ActionErrorCodeAlreadyUpToDate     ActionErrorCode = "already_up_to_date"
-	ActionErrorCodeAutoMergeNotAllowed ActionErrorCode = "auto_merge_not_allowed"
-	ActionErrorCodeBehind              ActionErrorCode = "behind"
-	ActionErrorCodeBlockedByProtection ActionErrorCode = "blocked_by_protection"
-	ActionErrorCodeChecksFailing       ActionErrorCode = "checks_failing"
-	ActionErrorCodeChecksPending       ActionErrorCode = "checks_pending"
-	ActionErrorCodeConflict            ActionErrorCode = "conflict"
-	ActionErrorCodeForgeError          ActionErrorCode = "forge_error"
-	ActionErrorCodeForgeUnreachable    ActionErrorCode = "forge_unreachable"
-	ActionErrorCodeNotMergeable        ActionErrorCode = "not_mergeable"
-	ActionErrorCodeNotOpen             ActionErrorCode = "not_open"
-	ActionErrorCodeNotRateLimited      ActionErrorCode = "not_rate_limited"
-	ActionErrorCodeNotReopenable       ActionErrorCode = "not_reopenable"
-	ActionErrorCodePermission          ActionErrorCode = "permission"
-	ActionErrorCodeRateLimited         ActionErrorCode = "rate_limited"
-	ActionErrorCodeReadyToMerge        ActionErrorCode = "ready_to_merge"
-	ActionErrorCodeStatusUnknown       ActionErrorCode = "status_unknown"
-	ActionErrorCodeUnknown             ActionErrorCode = "unknown"
-)
-
-// Valid indicates whether the value is a known member of the ActionErrorCode enum.
-func (e ActionErrorCode) Valid() bool {
-	switch e {
-	case ActionErrorCodeAlreadyClosed:
-		return true
-	case ActionErrorCodeAlreadyMerged:
-		return true
-	case ActionErrorCodeAlreadyUpToDate:
-		return true
-	case ActionErrorCodeAutoMergeNotAllowed:
-		return true
-	case ActionErrorCodeBehind:
-		return true
-	case ActionErrorCodeBlockedByProtection:
-		return true
-	case ActionErrorCodeChecksFailing:
-		return true
-	case ActionErrorCodeChecksPending:
-		return true
-	case ActionErrorCodeConflict:
-		return true
-	case ActionErrorCodeForgeError:
-		return true
-	case ActionErrorCodeForgeUnreachable:
-		return true
-	case ActionErrorCodeNotMergeable:
-		return true
-	case ActionErrorCodeNotOpen:
-		return true
-	case ActionErrorCodeNotRateLimited:
-		return true
-	case ActionErrorCodeNotReopenable:
-		return true
-	case ActionErrorCodePermission:
-		return true
-	case ActionErrorCodeRateLimited:
-		return true
-	case ActionErrorCodeReadyToMerge:
-		return true
-	case ActionErrorCodeStatusUnknown:
-		return true
-	case ActionErrorCodeUnknown:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AdvisoryListRefreshFailed.
 const (
 	AdvisoryListRefreshFailedFailed    AdvisoryListRefreshFailed = "failed"
@@ -1135,7 +1063,12 @@ type APITokenCreateResponse struct {
 
 // ActionError The structured result of a refused pull request action (Merge, Close, Update branch, Enable auto-merge, Dependabot and Renovate rebase). `code` and `message` are what a client should act on and show.
 type ActionError struct {
-	// Code Why the action was refused, from a re-read of the pull
+	// Code One of the values above today, and the server may learn more.
+	// A client should treat a code it doesn't know like `unknown`
+	// and show `message`, not fail to decode. Declared with
+	// `x-extensible-enum` so adding a value is a minor SDK release.
+	//
+	// Why the action was refused, from a re-read of the pull
 	// request's real state. `already_merged` and `already_closed`
 	// mean the dashboard's row was stale: the pull request has
 	// nothing left to merge.
@@ -1161,7 +1094,7 @@ type ActionError struct {
 	// `auto_merge_not_allowed` (Enable auto-merge: the repo or pull
 	// request doesn't allow it) and `ready_to_merge` (Enable
 	// auto-merge: already clean, use Merge).
-	Code ActionErrorCode `json:"code"`
+	Code string `json:"code"`
 
 	// Error The same string every Error carries. With `code: unknown` it
 	// is the same plain words as `message`, since the raw text
@@ -1187,34 +1120,6 @@ type ActionError struct {
 	// UpstreamStatus Only with `forge_error`. The HTTP status the forge answered with.
 	UpstreamStatus *int `json:"upstreamStatus,omitempty"`
 }
-
-// ActionErrorCode Why the action was refused, from a re-read of the pull
-// request's real state. `already_merged` and `already_closed`
-// mean the dashboard's row was stale: the pull request has
-// nothing left to merge.
-//
-// `not_reopenable` belongs to Reopen: the pull request is still
-// closed and the forge won't reopen it, usually because its
-// branch was deleted or rewritten after the close.
-//
-// `forge_error` means the forge failed on its own side (a 5xx):
-// nothing is wrong with the request, so asking again may work.
-// `upstreamStatus` and `requestId` then say what the forge
-// answered with, for tracing a report. Update branch is tried a
-// second time by the server before this is answered.
-//
-// `not_rate_limited` belongs to queueing an action: the forge
-// isn't rate limited, so act directly. `not_open` is only an
-// outcome of a queued action: the pull request was gone from the
-// board when the reset came, merged or closed.
-//
-// Three codes belong to a few actions each: `already_up_to_date`
-// (Update branch: nothing to bring in; Merge or Enable auto-merge
-// on an empty pull request: nothing to merge),
-// `auto_merge_not_allowed` (Enable auto-merge: the repo or pull
-// request doesn't allow it) and `ready_to_merge` (Enable
-// auto-merge: already clean, use Merge).
-type ActionErrorCode string
 
 // Advisories The open dependency advisories on a repository's default branch, read
 // from GitHub's Dependabot alerts, or for a Forgejo repository from the
