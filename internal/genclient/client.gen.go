@@ -4391,6 +4391,10 @@ type SettingsResponse struct {
 	// githubAppConfigured).
 	GithubAppInstallationId int64 `json:"githubAppInstallationId"`
 
+	// GithubLogin The login of the linked GitHub account, or an empty string when none
+	// is linked or GitHub can't be asked right now. Never a token.
+	GithubLogin string `json:"githubLogin"`
+
 	// GithubOAuthConfigured Whether this server has the GitHub App's OAuth client
 	// (`GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET`), so
 	// `POST /api/v1/connections/github` can work at all.
@@ -4493,6 +4497,7 @@ type SettingsSummary struct {
 	ForgejoUsername           string               `json:"forgejoUsername"`
 	GithubAppConfigured       bool                 `json:"githubAppConfigured"`
 	GithubAppInstallationId   int64                `json:"githubAppInstallationId"`
+	GithubLogin               string               `json:"githubLogin"`
 	GithubOAuthConfigured     bool                 `json:"githubOAuthConfigured"`
 	GithubOAuthConnected      bool                 `json:"githubOAuthConnected"`
 	GithubTokenSet            bool                 `json:"githubTokenSet"`
