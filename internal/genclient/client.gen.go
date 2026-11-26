@@ -2351,6 +2351,11 @@ type ForgeHealth struct {
 	UpstreamStatus *int `json:"upstreamStatus,omitempty"`
 }
 
+// ForgejoInstanceCheck defines model for ForgejoInstanceCheck.
+type ForgejoInstanceCheck struct {
+	InstanceUrl string `json:"instanceUrl"`
+}
+
 // Health defines model for Health.
 type Health struct {
 	Status HealthStatus `json:"status"`
@@ -4507,6 +4512,63 @@ type SettingsSummary struct {
 // SettingsSummaryTheme defines model for SettingsSummary.Theme.
 type SettingsSummaryTheme string
 
+// SetupForgejo defines model for SetupForgejo.
+type SetupForgejo struct {
+	Account string `json:"account"`
+
+	// InstanceUrl The linked instance, or empty.
+	InstanceUrl string `json:"instanceUrl"`
+	Linked      bool   `json:"linked"`
+
+	// Reachable Whether the last refresh reached the instance. True while there has been none.
+	Reachable bool `json:"reachable"`
+
+	// RedirectUri What the owner enters as the Redirect URI of the app they create on their Forgejo.
+	RedirectUri string `json:"redirectUri"`
+
+	// RepositoryCount Repositories the board sees on Forgejo as of its last refresh.
+	RepositoryCount int `json:"repositoryCount"`
+
+	// Scopes The permissions the dashboard asks for, as Forgejo names them.
+	Scopes []string `json:"scopes"`
+}
+
+// SetupGitHub defines model for SetupGitHub.
+type SetupGitHub struct {
+	// Account The authorized account's login, or empty.
+	Account    string `json:"account"`
+	Authorized bool   `json:"authorized"`
+
+	// Configured Whether this server has the GitHub App's OAuth client. Without it nothing here can start.
+	Configured bool `json:"configured"`
+
+	// InstallUrl Where the App is installed (`github.com/apps/<slug>/installations/new`). Empty when the server doesn't know the App's slug (`GITHUB_APP_SLUG`).
+	InstallUrl               string              `json:"installUrl"`
+	Installations            []SetupInstallation `json:"installations"`
+	InstallationsUnavailable bool                `json:"installationsUnavailable"`
+
+	// RepositoryCount Repositories the board sees on GitHub as of its last refresh.
+	RepositoryCount int `json:"repositoryCount"`
+}
+
+// SetupInstallation defines model for SetupInstallation.
+type SetupInstallation struct {
+	AccountLogin string `json:"accountLogin"`
+	Id           int64  `json:"id"`
+
+	// Saved Whether this installation is the one the board reads.
+	Saved bool `json:"saved"`
+}
+
+// SetupResponse defines model for SetupResponse.
+type SetupResponse struct {
+	Forgejo SetupForgejo `json:"forgejo"`
+	Github  SetupGitHub  `json:"github"`
+
+	// Refreshed Whether the board has finished a refresh since the process started.
+	Refreshed bool `json:"refreshed"`
+}
+
 // StackPosition defines model for StackPosition.
 type StackPosition struct {
 	// Position 1 for the pull request at the bottom of the stack (the one
@@ -4526,7 +4588,12 @@ type StackRef struct {
 
 // StartForgejoConnectionRequest defines model for StartForgejoConnectionRequest.
 type StartForgejoConnectionRequest struct {
-	InstanceUrl string `json:"instanceUrl"`
+	// ClientId The Client ID of a public OAuth client (Confidential client unticked,
+	// PKCE, no secret) the owner created on their own Forgejo. Required
+	// when the server has no Forgejo OAuth client configured. The id is
+	// public, and is kept so refreshes can name it.
+	ClientId    *string `json:"clientId,omitempty"`
+	InstanceUrl string  `json:"instanceUrl"`
 }
 
 // StreamWatchRequest defines model for StreamWatchRequest.
@@ -4589,6 +4656,11 @@ type UpdateRequest struct {
 // until the pull request is gone, a new request replaces it, or an
 // hour passes.
 type UpdateRequestPhase string
+
+// VerifyForgejoInstanceRequest defines model for VerifyForgejoInstanceRequest.
+type VerifyForgejoInstanceRequest struct {
+	InstanceUrl string `json:"instanceUrl"`
+}
 
 // Version defines model for Version.
 type Version struct {
@@ -4699,7 +4771,7 @@ type FinishGitHubConnectionParams struct {
 
 // FinishGitHubInstallationParams defines parameters for FinishGitHubInstallation.
 type FinishGitHubInstallationParams struct {
-	InstallationId int64   `form:"installation_id" json:"installation_id"`
+	InstallationId *int64  `form:"installation_id,omitempty" json:"installation_id,omitempty"`
 	SetupAction    *string `form:"setup_action,omitempty" json:"setup_action,omitempty"`
 }
 
@@ -4989,6 +5061,9 @@ type SetThemeJSONRequestBody = ThemeRequest
 
 // SetTimezoneJSONRequestBody defines body for SetTimezone for application/json ContentType.
 type SetTimezoneJSONRequestBody = TimezoneRequest
+
+// VerifyForgejoInstanceJSONRequestBody defines body for VerifyForgejoInstance for application/json ContentType.
+type VerifyForgejoInstanceJSONRequestBody = VerifyForgejoInstanceRequest
 
 // CreateAPITokenJSONRequestBody defines body for CreateAPIToken for application/json ContentType.
 type CreateAPITokenJSONRequestBody = APITokenCreateRequest
@@ -5339,8 +5414,11 @@ type ClientInterface interface {
 	// instance is already connected: the instance is locked until
 	// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
 	// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
-	// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
-	// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+	// token. The owner creates a public OAuth client on their own instance
+	// and names its Client ID in `clientId`: no secret, PKCE only, scopes
+	// asked for explicitly (`SetupForgejo.scopes`). A server that has
+	// `FORGEJO_OAUTH_CLIENT_ID` and `FORGEJO_OAUTH_CLIENT_SECRET` set uses
+	// that client when `clientId` is omitted; see
 	// `SettingsResponse.forgejoOAuthConfigured`.
 	//
 	// Takes any type of body and a specified content type.
@@ -5357,8 +5435,11 @@ type ClientInterface interface {
 	// instance is already connected: the instance is locked until
 	// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
 	// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
-	// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
-	// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+	// token. The owner creates a public OAuth client on their own instance
+	// and names its Client ID in `clientId`: no secret, PKCE only, scopes
+	// asked for explicitly (`SetupForgejo.scopes`). A server that has
+	// `FORGEJO_OAUTH_CLIENT_ID` and `FORGEJO_OAUTH_CLIENT_SECRET` set uses
+	// that client when `clientId` is omitted; see
 	// `SettingsResponse.forgejoOAuthConfigured`.
 	//
 	// Takes a body of the `application/json` content type.
@@ -5370,10 +5451,10 @@ type ClientInterface interface {
 	//
 	// Checks `state` (single use, ten minutes), exchanges `code` with the
 	// PKCE verifier, stores the token pair encrypted, and redirects the
-	// browser to `/settings`. A missing, wrong, used or expired `state`
-	// answers 400 and stores nothing. So does a refused code, a bad PKCE
-	// verifier, or an error the forge sent back in the query. Nothing is
-	// stored when the account name can't be read either (502).
+	// browser to `/setup`. Anything that goes wrong stores nothing and
+	// redirects to `/setup?error=<code>` (`SetupErrorCode`): the person is
+	// in a browser tab, and a JSON body would be a dead end. The forge's own
+	// error text is never echoed.
 	//
 	// Corresponds with GET /api/v1/connections/forgejo/callback (the `FinishForgejoConnection` operationId).
 	FinishForgejoConnection(ctx context.Context, params *FinishForgejoConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5405,10 +5486,9 @@ type ClientInterface interface {
 	//
 	// Checks `state` (single use, ten minutes), exchanges `code` with the
 	// PKCE verifier, reads the account's login, stores the token pair
-	// encrypted, and redirects the browser to `/settings`. A missing, wrong,
-	// used or expired `state` answers 400 and stores nothing. So does a
-	// refused code, a bad PKCE verifier, or an error GitHub sent back in the
-	// query. Nothing is stored when the account can't be read either (502).
+	// encrypted, and redirects the browser to `/setup`. Anything that goes
+	// wrong stores nothing and redirects to `/setup?error=<code>`
+	// (`SetupErrorCode`).
 	//
 	// Corresponds with GET /api/v1/connections/github/callback (the `FinishGitHubConnection` operationId).
 	FinishGitHubConnection(ctx context.Context, params *FinishGitHubConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5420,8 +5500,11 @@ type ClientInterface interface {
 	// `installation_id` and `setup_action`. The redirect is not trusted: the
 	// ID is stored as an installation only when it is in the connected
 	// user's own `GET /user/installations`, read with the linked account's
-	// token. Otherwise nothing is stored (403). Without a linked account
-	// nothing is stored either (409).
+	// token. Otherwise nothing is stored. Redirects to `/setup`, with
+	// `?error=<code>` when nothing was stored. An owner who may not install
+	// the App sends a request to the organisation's owners instead, and
+	// GitHub then sends the browser here with `setup_action=request` and no
+	// `installation_id`: that redirects to `/setup?install=requested`.
 	//
 	// Corresponds with GET /api/v1/connections/github/installed (the `FinishGitHubInstallation` operationId).
 	FinishGitHubInstallation(ctx context.Context, params *FinishGitHubInstallationParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7101,6 +7184,47 @@ type ClientInterface interface {
 	// Corresponds with PUT /api/v1/settings/timezone (the `SetTimezone` operationId).
 	SetTimezone(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetSetup What the first-login setup page needs to draw itself
+	//
+	// Facts only, never a verdict. The page decides which step is current,
+	// which state a forge is in and whether Continue is enabled. Reads no
+	// secret: a Forgejo Client ID is public, tokens are never returned.
+	// `github.installations` is the signed-in GitHub account's own
+	// installations of the App, read live with its token; when GitHub can't
+	// be asked it is empty and `installationsUnavailable` is true.
+	// Repository counts come from the last refresh of the board, and
+	// `refreshed` says whether one has finished since this process started,
+	// so zero before that means "not known yet", not "none".
+	//
+	// Corresponds with GET /api/v1/setup (the `GetSetup` operationId).
+	GetSetup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// VerifyForgejoInstanceWithBody Check that an address is a reachable Forgejo
+	//
+	// Asks `<instanceUrl>/api/v1/version`, which a Forgejo answers without a
+	// sign-in, with a short timeout. The same address rules as
+	// `POST /api/v1/connections/forgejo` apply. Stores nothing. Private and
+	// loopback addresses are allowed on purpose: a Forgejo on a home or office
+	// network is the normal case, so the address is not filtered.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/setup/forgejo-instance (the `VerifyForgejoInstance` operationId).
+	VerifyForgejoInstanceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// VerifyForgejoInstance Check that an address is a reachable Forgejo
+	//
+	// Asks `<instanceUrl>/api/v1/version`, which a Forgejo answers without a
+	// sign-in, with a short timeout. The same address rules as
+	// `POST /api/v1/connections/forgejo` apply. Stores nothing. Private and
+	// loopback addresses are allowed on purpose: a Forgejo on a home or office
+	// network is the normal case, so the address is not filtered.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/setup/forgejo-instance (the `VerifyForgejoInstance` operationId).
+	VerifyForgejoInstance(ctx context.Context, body VerifyForgejoInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetForgeApiStats How many forge API calls the dashboard has spent, and on what
 	//
 	// Counts the forge requests made since the server started, so a change
@@ -7749,8 +7873,11 @@ func (c *Client) DisconnectForgejo(ctx context.Context, reqEditors ...RequestEdi
 // instance is already connected: the instance is locked until
 // `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
 // refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
-// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
-// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+// token. The owner creates a public OAuth client on their own instance
+// and names its Client ID in `clientId`: no secret, PKCE only, scopes
+// asked for explicitly (`SetupForgejo.scopes`). A server that has
+// `FORGEJO_OAUTH_CLIENT_ID` and `FORGEJO_OAUTH_CLIENT_SECRET` set uses
+// that client when `clientId` is omitted; see
 // `SettingsResponse.forgejoOAuthConfigured`.
 //
 // Takes any type of body and a specified content type.
@@ -7777,8 +7904,11 @@ func (c *Client) StartForgejoConnectionWithBody(ctx context.Context, contentType
 // instance is already connected: the instance is locked until
 // `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
 // refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
-// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
-// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+// token. The owner creates a public OAuth client on their own instance
+// and names its Client ID in `clientId`: no secret, PKCE only, scopes
+// asked for explicitly (`SetupForgejo.scopes`). A server that has
+// `FORGEJO_OAUTH_CLIENT_ID` and `FORGEJO_OAUTH_CLIENT_SECRET` set uses
+// that client when `clientId` is omitted; see
 // `SettingsResponse.forgejoOAuthConfigured`.
 //
 // Takes a body of the `application/json` content type.
@@ -7800,10 +7930,10 @@ func (c *Client) StartForgejoConnection(ctx context.Context, body StartForgejoCo
 //
 // Checks `state` (single use, ten minutes), exchanges `code` with the
 // PKCE verifier, stores the token pair encrypted, and redirects the
-// browser to `/settings`. A missing, wrong, used or expired `state`
-// answers 400 and stores nothing. So does a refused code, a bad PKCE
-// verifier, or an error the forge sent back in the query. Nothing is
-// stored when the account name can't be read either (502).
+// browser to `/setup`. Anything that goes wrong stores nothing and
+// redirects to `/setup?error=<code>` (`SetupErrorCode`): the person is
+// in a browser tab, and a JSON body would be a dead end. The forge's own
+// error text is never echoed.
 //
 // Corresponds with GET /api/v1/connections/forgejo/callback (the `FinishForgejoConnection` operationId).
 func (c *Client) FinishForgejoConnection(ctx context.Context, params *FinishForgejoConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -7865,10 +7995,9 @@ func (c *Client) StartGitHubConnection(ctx context.Context, reqEditors ...Reques
 //
 // Checks `state` (single use, ten minutes), exchanges `code` with the
 // PKCE verifier, reads the account's login, stores the token pair
-// encrypted, and redirects the browser to `/settings`. A missing, wrong,
-// used or expired `state` answers 400 and stores nothing. So does a
-// refused code, a bad PKCE verifier, or an error GitHub sent back in the
-// query. Nothing is stored when the account can't be read either (502).
+// encrypted, and redirects the browser to `/setup`. Anything that goes
+// wrong stores nothing and redirects to `/setup?error=<code>`
+// (`SetupErrorCode`).
 //
 // Corresponds with GET /api/v1/connections/github/callback (the `FinishGitHubConnection` operationId).
 func (c *Client) FinishGitHubConnection(ctx context.Context, params *FinishGitHubConnectionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -7890,8 +8019,11 @@ func (c *Client) FinishGitHubConnection(ctx context.Context, params *FinishGitHu
 // `installation_id` and `setup_action`. The redirect is not trusted: the
 // ID is stored as an installation only when it is in the connected
 // user's own `GET /user/installations`, read with the linked account's
-// token. Otherwise nothing is stored (403). Without a linked account
-// nothing is stored either (409).
+// token. Otherwise nothing is stored. Redirects to `/setup`, with
+// `?error=<code>` when nothing was stored. An owner who may not install
+// the App sends a request to the organisation's owners instead, and
+// GitHub then sends the browser here with `setup_action=request` and no
+// `installation_id`: that redirects to `/setup?install=requested`.
 //
 // Corresponds with GET /api/v1/connections/github/installed (the `FinishGitHubInstallation` operationId).
 func (c *Client) FinishGitHubInstallation(ctx context.Context, params *FinishGitHubInstallationParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -10351,6 +10483,77 @@ func (c *Client) SetTimezone(ctx context.Context, body SetTimezoneJSONRequestBod
 	return c.Client.Do(req)
 }
 
+// GetSetup What the first-login setup page needs to draw itself
+//
+// Facts only, never a verdict. The page decides which step is current,
+// which state a forge is in and whether Continue is enabled. Reads no
+// secret: a Forgejo Client ID is public, tokens are never returned.
+// `github.installations` is the signed-in GitHub account's own
+// installations of the App, read live with its token; when GitHub can't
+// be asked it is empty and `installationsUnavailable` is true.
+// Repository counts come from the last refresh of the board, and
+// `refreshed` says whether one has finished since this process started,
+// so zero before that means "not known yet", not "none".
+//
+// Corresponds with GET /api/v1/setup (the `GetSetup` operationId).
+func (c *Client) GetSetup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSetupRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// VerifyForgejoInstanceWithBody Check that an address is a reachable Forgejo
+//
+// Asks `<instanceUrl>/api/v1/version`, which a Forgejo answers without a
+// sign-in, with a short timeout. The same address rules as
+// `POST /api/v1/connections/forgejo` apply. Stores nothing. Private and
+// loopback addresses are allowed on purpose: a Forgejo on a home or office
+// network is the normal case, so the address is not filtered.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/setup/forgejo-instance (the `VerifyForgejoInstance` operationId).
+func (c *Client) VerifyForgejoInstanceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVerifyForgejoInstanceRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// VerifyForgejoInstance Check that an address is a reachable Forgejo
+//
+// Asks `<instanceUrl>/api/v1/version`, which a Forgejo answers without a
+// sign-in, with a short timeout. The same address rules as
+// `POST /api/v1/connections/forgejo` apply. Stores nothing. Private and
+// loopback addresses are allowed on purpose: a Forgejo on a home or office
+// network is the normal case, so the address is not filtered.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/setup/forgejo-instance (the `VerifyForgejoInstance` operationId).
+func (c *Client) VerifyForgejoInstance(ctx context.Context, body VerifyForgejoInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVerifyForgejoInstanceRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // GetForgeApiStats How many forge API calls the dashboard has spent, and on what
 //
 // Counts the forge requests made since the server started, so a change
@@ -11512,12 +11715,16 @@ func NewFinishGitHubInstallationRequest(server string, params *FinishGitHubInsta
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "installation_id", params.InstallationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
+		if params.InstallationId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "installation_id", *params.InstallationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
 			}
+
 		}
 
 		if params.SetupAction != nil {
@@ -13658,6 +13865,73 @@ func NewSetTimezoneRequestWithBody(server string, contentType string, body io.Re
 	return req, nil
 }
 
+// NewGetSetupRequest constructs an http.Request for the GetSetup method
+func NewGetSetupRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/setup")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewVerifyForgejoInstanceRequest calls the generic VerifyForgejoInstance builder with application/json body
+func NewVerifyForgejoInstanceRequest(server string, body VerifyForgejoInstanceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewVerifyForgejoInstanceRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewVerifyForgejoInstanceRequestWithBody constructs an http.Request for the VerifyForgejoInstance method, with any body, and a specified content type
+func NewVerifyForgejoInstanceRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/setup/forgejo-instance")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetForgeApiStatsRequest constructs an http.Request for the GetForgeApiStats method
 func NewGetForgeApiStatsRequest(server string) (*http.Request, error) {
 	var err error
@@ -14291,8 +14565,11 @@ type ClientWithResponsesInterface interface {
 	// instance is already connected: the instance is locked until
 	// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
 	// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
-	// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
-	// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+	// token. The owner creates a public OAuth client on their own instance
+	// and names its Client ID in `clientId`: no secret, PKCE only, scopes
+	// asked for explicitly (`SetupForgejo.scopes`). A server that has
+	// `FORGEJO_OAUTH_CLIENT_ID` and `FORGEJO_OAUTH_CLIENT_SECRET` set uses
+	// that client when `clientId` is omitted; see
 	// `SettingsResponse.forgejoOAuthConfigured`.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -14309,8 +14586,11 @@ type ClientWithResponsesInterface interface {
 	// instance is already connected: the instance is locked until
 	// `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
 	// refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
-	// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
-	// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+	// token. The owner creates a public OAuth client on their own instance
+	// and names its Client ID in `clientId`: no secret, PKCE only, scopes
+	// asked for explicitly (`SetupForgejo.scopes`). A server that has
+	// `FORGEJO_OAUTH_CLIENT_ID` and `FORGEJO_OAUTH_CLIENT_SECRET` set uses
+	// that client when `clientId` is omitted; see
 	// `SettingsResponse.forgejoOAuthConfigured`.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
@@ -14322,10 +14602,10 @@ type ClientWithResponsesInterface interface {
 	//
 	// Checks `state` (single use, ten minutes), exchanges `code` with the
 	// PKCE verifier, stores the token pair encrypted, and redirects the
-	// browser to `/settings`. A missing, wrong, used or expired `state`
-	// answers 400 and stores nothing. So does a refused code, a bad PKCE
-	// verifier, or an error the forge sent back in the query. Nothing is
-	// stored when the account name can't be read either (502).
+	// browser to `/setup`. Anything that goes wrong stores nothing and
+	// redirects to `/setup?error=<code>` (`SetupErrorCode`): the person is
+	// in a browser tab, and a JSON body would be a dead end. The forge's own
+	// error text is never echoed.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -14363,10 +14643,9 @@ type ClientWithResponsesInterface interface {
 	//
 	// Checks `state` (single use, ten minutes), exchanges `code` with the
 	// PKCE verifier, reads the account's login, stores the token pair
-	// encrypted, and redirects the browser to `/settings`. A missing, wrong,
-	// used or expired `state` answers 400 and stores nothing. So does a
-	// refused code, a bad PKCE verifier, or an error GitHub sent back in the
-	// query. Nothing is stored when the account can't be read either (502).
+	// encrypted, and redirects the browser to `/setup`. Anything that goes
+	// wrong stores nothing and redirects to `/setup?error=<code>`
+	// (`SetupErrorCode`).
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -14380,8 +14659,11 @@ type ClientWithResponsesInterface interface {
 	// `installation_id` and `setup_action`. The redirect is not trusted: the
 	// ID is stored as an installation only when it is in the connected
 	// user's own `GET /user/installations`, read with the linked account's
-	// token. Otherwise nothing is stored (403). Without a linked account
-	// nothing is stored either (409).
+	// token. Otherwise nothing is stored. Redirects to `/setup`, with
+	// `?error=<code>` when nothing was stored. An owner who may not install
+	// the App sends a request to the organisation's owners instead, and
+	// GitHub then sends the browser here with `setup_action=request` and no
+	// `installation_id`: that redirects to `/setup?install=requested`.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -16097,6 +16379,49 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /api/v1/settings/timezone (the `SetTimezone` operationId).
 	SetTimezoneWithResponse(ctx context.Context, body SetTimezoneJSONRequestBody, reqEditors ...RequestEditorFn) (*SetTimezoneResponse, error)
 
+	// GetSetupWithResponse What the first-login setup page needs to draw itself
+	//
+	// Facts only, never a verdict. The page decides which step is current,
+	// which state a forge is in and whether Continue is enabled. Reads no
+	// secret: a Forgejo Client ID is public, tokens are never returned.
+	// `github.installations` is the signed-in GitHub account's own
+	// installations of the App, read live with its token; when GitHub can't
+	// be asked it is empty and `installationsUnavailable` is true.
+	// Repository counts come from the last refresh of the board, and
+	// `refreshed` says whether one has finished since this process started,
+	// so zero before that means "not known yet", not "none".
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/setup (the `GetSetup` operationId).
+	GetSetupWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSetupResponse, error)
+
+	// VerifyForgejoInstanceWithBodyWithResponse Check that an address is a reachable Forgejo
+	//
+	// Asks `<instanceUrl>/api/v1/version`, which a Forgejo answers without a
+	// sign-in, with a short timeout. The same address rules as
+	// `POST /api/v1/connections/forgejo` apply. Stores nothing. Private and
+	// loopback addresses are allowed on purpose: a Forgejo on a home or office
+	// network is the normal case, so the address is not filtered.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/setup/forgejo-instance (the `VerifyForgejoInstance` operationId).
+	VerifyForgejoInstanceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VerifyForgejoInstanceResponse, error)
+
+	// VerifyForgejoInstanceWithResponse Check that an address is a reachable Forgejo
+	//
+	// Asks `<instanceUrl>/api/v1/version`, which a Forgejo answers without a
+	// sign-in, with a short timeout. The same address rules as
+	// `POST /api/v1/connections/forgejo` apply. Stores nothing. Private and
+	// loopback addresses are allowed on purpose: a Forgejo on a home or office
+	// network is the normal case, so the address is not filtered.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/setup/forgejo-instance (the `VerifyForgejoInstance` operationId).
+	VerifyForgejoInstanceWithResponse(ctx context.Context, body VerifyForgejoInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*VerifyForgejoInstanceResponse, error)
+
 	// GetForgeApiStatsWithResponse How many forge API calls the dashboard has spent, and on what
 	//
 	// Counts the forge requests made since the server started, so a change
@@ -17209,27 +17534,13 @@ func (r StartForgejoConnectionResponse) ContentType() string {
 type FinishForgejoConnectionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *Error
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
-	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r FinishForgejoConnectionResponse) GetJSON400() *Error {
-	return r.JSON400
 }
 
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r FinishForgejoConnectionResponse) GetJSON401() *Error {
 	return r.JSON401
-}
-
-// GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r FinishForgejoConnectionResponse) GetJSON502() *Error {
-	return r.JSON502
 }
 
 // GetBody returns the raw response body bytes
@@ -17367,27 +17678,13 @@ func (r StartGitHubConnectionResponse) ContentType() string {
 type FinishGitHubConnectionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *Error
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
-	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r FinishGitHubConnectionResponse) GetJSON400() *Error {
-	return r.JSON400
 }
 
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r FinishGitHubConnectionResponse) GetJSON401() *Error {
 	return r.JSON401
-}
-
-// GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r FinishGitHubConnectionResponse) GetJSON502() *Error {
-	return r.JSON502
 }
 
 // GetBody returns the raw response body bytes
@@ -17422,41 +17719,13 @@ func (r FinishGitHubConnectionResponse) ContentType() string {
 type FinishGitHubInstallationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *Error
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Error
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Error
-	// JSON502 the response for an HTTP 502 `application/json` response
-	JSON502 *Error
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r FinishGitHubInstallationResponse) GetJSON400() *Error {
-	return r.JSON400
 }
 
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r FinishGitHubInstallationResponse) GetJSON401() *Error {
 	return r.JSON401
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r FinishGitHubInstallationResponse) GetJSON403() *Error {
-	return r.JSON403
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r FinishGitHubInstallationResponse) GetJSON409() *Error {
-	return r.JSON409
-}
-
-// GetJSON502 returns the response for an HTTP 502 `application/json` response
-func (r FinishGitHubInstallationResponse) GetJSON502() *Error {
-	return r.JSON502
 }
 
 // GetBody returns the raw response body bytes
@@ -20535,6 +20804,109 @@ func (r SetTimezoneResponse) ContentType() string {
 	return ""
 }
 
+type GetSetupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SetupResponse
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSetupResponse) GetJSON200() *SetupResponse {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetSetupResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSetupResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSetupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSetupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSetupResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type VerifyForgejoInstanceResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ForgejoInstanceCheck
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r VerifyForgejoInstanceResponse) GetJSON200() *ForgejoInstanceCheck {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r VerifyForgejoInstanceResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r VerifyForgejoInstanceResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r VerifyForgejoInstanceResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r VerifyForgejoInstanceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r VerifyForgejoInstanceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r VerifyForgejoInstanceResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetForgeApiStatsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -21366,8 +21738,11 @@ func (c *ClientWithResponses) DisconnectForgejoWithResponse(ctx context.Context,
 // instance is already connected: the instance is locked until
 // `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
 // refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
-// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
-// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+// token. The owner creates a public OAuth client on their own instance
+// and names its Client ID in `clientId`: no secret, PKCE only, scopes
+// asked for explicitly (`SetupForgejo.scopes`). A server that has
+// `FORGEJO_OAUTH_CLIENT_ID` and `FORGEJO_OAUTH_CLIENT_SECRET` set uses
+// that client when `clientId` is omitted; see
 // `SettingsResponse.forgejoOAuthConfigured`.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -21390,8 +21765,11 @@ func (c *ClientWithResponses) StartForgejoConnectionWithBodyWithResponse(ctx con
 // instance is already connected: the instance is locked until
 // `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
 // refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
-// token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
-// `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+// token. The owner creates a public OAuth client on their own instance
+// and names its Client ID in `clientId`: no secret, PKCE only, scopes
+// asked for explicitly (`SetupForgejo.scopes`). A server that has
+// `FORGEJO_OAUTH_CLIENT_ID` and `FORGEJO_OAUTH_CLIENT_SECRET` set uses
+// that client when `clientId` is omitted; see
 // `SettingsResponse.forgejoOAuthConfigured`.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
@@ -21409,10 +21787,10 @@ func (c *ClientWithResponses) StartForgejoConnectionWithResponse(ctx context.Con
 //
 // Checks `state` (single use, ten minutes), exchanges `code` with the
 // PKCE verifier, stores the token pair encrypted, and redirects the
-// browser to `/settings`. A missing, wrong, used or expired `state`
-// answers 400 and stores nothing. So does a refused code, a bad PKCE
-// verifier, or an error the forge sent back in the query. Nothing is
-// stored when the account name can't be read either (502).
+// browser to `/setup`. Anything that goes wrong stores nothing and
+// redirects to `/setup?error=<code>` (`SetupErrorCode`): the person is
+// in a browser tab, and a JSON body would be a dead end. The forge's own
+// error text is never echoed.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -21468,10 +21846,9 @@ func (c *ClientWithResponses) StartGitHubConnectionWithResponse(ctx context.Cont
 //
 // Checks `state` (single use, ten minutes), exchanges `code` with the
 // PKCE verifier, reads the account's login, stores the token pair
-// encrypted, and redirects the browser to `/settings`. A missing, wrong,
-// used or expired `state` answers 400 and stores nothing. So does a
-// refused code, a bad PKCE verifier, or an error GitHub sent back in the
-// query. Nothing is stored when the account can't be read either (502).
+// encrypted, and redirects the browser to `/setup`. Anything that goes
+// wrong stores nothing and redirects to `/setup?error=<code>`
+// (`SetupErrorCode`).
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -21491,8 +21868,11 @@ func (c *ClientWithResponses) FinishGitHubConnectionWithResponse(ctx context.Con
 // `installation_id` and `setup_action`. The redirect is not trusted: the
 // ID is stored as an installation only when it is in the connected
 // user's own `GET /user/installations`, read with the linked account's
-// token. Otherwise nothing is stored (403). Without a linked account
-// nothing is stored either (409).
+// token. Otherwise nothing is stored. Redirects to `/setup`, with
+// `?error=<code>` when nothing was stored. An owner who may not install
+// the App sends a request to the organisation's owners instead, and
+// GitHub then sends the browser here with `setup_action=request` and no
+// `installation_id`: that redirects to `/setup?install=requested`.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -23676,6 +24056,67 @@ func (c *ClientWithResponses) SetTimezoneWithResponse(ctx context.Context, body 
 	return ParseSetTimezoneResponse(rsp)
 }
 
+// GetSetupWithResponse What the first-login setup page needs to draw itself
+//
+// Facts only, never a verdict. The page decides which step is current,
+// which state a forge is in and whether Continue is enabled. Reads no
+// secret: a Forgejo Client ID is public, tokens are never returned.
+// `github.installations` is the signed-in GitHub account's own
+// installations of the App, read live with its token; when GitHub can't
+// be asked it is empty and `installationsUnavailable` is true.
+// Repository counts come from the last refresh of the board, and
+// `refreshed` says whether one has finished since this process started,
+// so zero before that means "not known yet", not "none".
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/setup (the `GetSetup` operationId).
+func (c *ClientWithResponses) GetSetupWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSetupResponse, error) {
+	rsp, err := c.GetSetup(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSetupResponse(rsp)
+}
+
+// VerifyForgejoInstanceWithBodyWithResponse Check that an address is a reachable Forgejo
+//
+// Asks `<instanceUrl>/api/v1/version`, which a Forgejo answers without a
+// sign-in, with a short timeout. The same address rules as
+// `POST /api/v1/connections/forgejo` apply. Stores nothing. Private and
+// loopback addresses are allowed on purpose: a Forgejo on a home or office
+// network is the normal case, so the address is not filtered.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/setup/forgejo-instance (the `VerifyForgejoInstance` operationId).
+func (c *ClientWithResponses) VerifyForgejoInstanceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*VerifyForgejoInstanceResponse, error) {
+	rsp, err := c.VerifyForgejoInstanceWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVerifyForgejoInstanceResponse(rsp)
+}
+
+// VerifyForgejoInstanceWithResponse Check that an address is a reachable Forgejo
+//
+// Asks `<instanceUrl>/api/v1/version`, which a Forgejo answers without a
+// sign-in, with a short timeout. The same address rules as
+// `POST /api/v1/connections/forgejo` apply. Stores nothing. Private and
+// loopback addresses are allowed on purpose: a Forgejo on a home or office
+// network is the normal case, so the address is not filtered.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/setup/forgejo-instance (the `VerifyForgejoInstance` operationId).
+func (c *ClientWithResponses) VerifyForgejoInstanceWithResponse(ctx context.Context, body VerifyForgejoInstanceJSONRequestBody, reqEditors ...RequestEditorFn) (*VerifyForgejoInstanceResponse, error) {
+	rsp, err := c.VerifyForgejoInstance(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVerifyForgejoInstanceResponse(rsp)
+}
+
 // GetForgeApiStatsWithResponse How many forge API calls the dashboard has spent, and on what
 //
 // Counts the forge requests made since the server started, so a change
@@ -24663,26 +25104,12 @@ func ParseFinishForgejoConnectionResponse(rsp *http.Response) (*FinishForgejoCon
 	case rsp.StatusCode == 303:
 		break // No content-type
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON502 = &dest
 
 	}
 
@@ -24782,26 +25209,12 @@ func ParseFinishGitHubConnectionResponse(rsp *http.Response) (*FinishGitHubConne
 	case rsp.StatusCode == 303:
 		break // No content-type
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON502 = &dest
 
 	}
 
@@ -24825,40 +25238,12 @@ func ParseFinishGitHubInstallationResponse(rsp *http.Response) (*FinishGitHubIns
 	case rsp.StatusCode == 303:
 		break // No content-type
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON502 = &dest
 
 	}
 
@@ -27269,6 +27654,79 @@ func ParseSetTimezoneResponse(rsp *http.Response) (*SetTimezoneResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest TimezoneResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSetupResponse parses an HTTP response from a GetSetupWithResponse call
+func ParseGetSetupResponse(rsp *http.Response) (*GetSetupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSetupResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SetupResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseVerifyForgejoInstanceResponse parses an HTTP response from a VerifyForgejoInstanceWithResponse call
+func ParseVerifyForgejoInstanceResponse(rsp *http.Response) (*VerifyForgejoInstanceResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &VerifyForgejoInstanceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ForgejoInstanceCheck
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
