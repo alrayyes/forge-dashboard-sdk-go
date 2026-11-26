@@ -2319,14 +2319,16 @@ type ForgeHealth struct {
 	// Cause Why the rows shown for this forge are not from the latest read,
 	// while the forge is not down. "starting" is the same fact as
 	// the `starting` flag: the rows are the ones the last run saved and no
-	// refresh has asked the forge since the app started. "slow" means
-	// the latest pass gave no answer in time (it hit its deadline, or
-	// was skipped because the last fetch was still running) and the
-	// last good rows are held, with the forge still reachable, until
-	// three passes in a row have missed. A good read clears it. Absent
-	// when the rows are current, and when the forge is shown as down
-	// (see errorKind). A client words it, "slow to answer" or
-	// "starting up", and does not call the rows live.
+	// fetch from the forge has answered in time since the app started.
+	// "slow" means the latest pass gave no answer in time (it hit its
+	// deadline, or was skipped because the last fetch was still running)
+	// and the last good rows are held, with the forge still reachable,
+	// until three passes in a row have missed. Any later pass that does
+	// not miss clears it, including one that holds a 5xx or does not ask
+	// because the rate limit is spent or at its reserve. Absent when the
+	// rows are current, and when the forge is shown as down (see
+	// errorKind). A client words it, "slow to answer" or "starting up",
+	// and does not call the rows live.
 	Cause *ForgeHealthCause `json:"cause,omitempty"`
 
 	// DependabotCommandsBlocked Why a "@dependabot" comment sent through this forge's credential would be refused. Dependabot only honours commands from a user with push access and ignores GitHub App accounts whatever permissions the App holds. Set only for GitHub when the connected credential is an App with no personal access token saved to send commands as. The Dependabot buttons lock with this text, auto-update-branch skips Dependabot pull requests, and the dependabot-action endpoint answers 409 with it. Omitted when commands work.
@@ -2386,10 +2388,12 @@ type ForgeHealth struct {
 	StaleSince *time.Time `json:"staleSince,omitempty"`
 
 	// Starting True while the rows shown for this forge are the ones the last run
-	// saved and no refresh has asked the forge since the app started.
-	// The forge is then neither reachable nor in error (errorKind is
-	// absent); it has not been checked yet. The first refresh that
-	// reaches it replaces this entry. A client says "starting up,
+	// saved and no fetch from the forge has answered in time since the
+	// app started. `reachable` is then false and errorKind is absent: it
+	// is not in error, it has not been heard from. A first fetch that
+	// passes its deadline, and a pass skipped behind it, leave this
+	// entry as it is, and the late answer is dropped. The first fetch
+	// that answers in time replaces it. A client says "starting up,
 	// showing data from 3 minutes ago", and never "unreachable".
 	Starting *bool `json:"starting,omitempty"`
 
@@ -2400,14 +2404,16 @@ type ForgeHealth struct {
 // ForgeHealthCause Why the rows shown for this forge are not from the latest read,
 // while the forge is not down. "starting" is the same fact as
 // the `starting` flag: the rows are the ones the last run saved and no
-// refresh has asked the forge since the app started. "slow" means
-// the latest pass gave no answer in time (it hit its deadline, or
-// was skipped because the last fetch was still running) and the
-// last good rows are held, with the forge still reachable, until
-// three passes in a row have missed. A good read clears it. Absent
-// when the rows are current, and when the forge is shown as down
-// (see errorKind). A client words it, "slow to answer" or
-// "starting up", and does not call the rows live.
+// fetch from the forge has answered in time since the app started.
+// "slow" means the latest pass gave no answer in time (it hit its
+// deadline, or was skipped because the last fetch was still running)
+// and the last good rows are held, with the forge still reachable,
+// until three passes in a row have missed. Any later pass that does
+// not miss clears it, including one that holds a 5xx or does not ask
+// because the rate limit is spent or at its reserve. Absent when the
+// rows are current, and when the forge is shown as down (see
+// errorKind). A client words it, "slow to answer" or "starting up",
+// and does not call the rows live.
 type ForgeHealthCause string
 
 // ForgejoInstanceCheck defines model for ForgejoInstanceCheck.
