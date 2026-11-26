@@ -3483,6 +3483,12 @@ type PullRequest struct {
 	FailingCi bool  `json:"failingCi"`
 	Forge     Forge `json:"forge"`
 
+	// GreenBehindBase True when this is a green dependency pull request that is behind
+	// its base branch with something left to merge, and isn't a draft or
+	// hidden: what the "behind the base branch" chip lists, and what the
+	// Bots menu pill's `behind` number counts. Always present.
+	GreenBehindBase bool `json:"greenBehindBase"`
+
 	// HeadBranch The branch the pull request comes from. Empty when the forge
 	// didn't say.
 	HeadBranch string `json:"headBranch"`
