@@ -437,6 +437,24 @@ func (e ForgeErrorKind) Valid() bool {
 	}
 }
 
+// Defines values for ForgeHealthCause.
+const (
+	Slow     ForgeHealthCause = "slow"
+	Starting ForgeHealthCause = "starting"
+)
+
+// Valid indicates whether the value is a known member of the ForgeHealthCause enum.
+func (e ForgeHealthCause) Valid() bool {
+	switch e {
+	case Slow:
+		return true
+	case Starting:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HealthStatus.
 const (
 	HealthStatusOk HealthStatus = "ok"
@@ -2298,6 +2316,19 @@ type ForgeHealth struct {
 	// Capabilities What one forge can do, as facts a client reads instead of testing the forge's name. A forge this service learns to talk to is one more set of values here, so a client that reads these needs no change for it.
 	Capabilities ForgeCapabilities `json:"capabilities"`
 
+	// Cause Why the rows shown for this forge are not from the latest read,
+	// while the forge is not down. "starting" is the same fact as
+	// the `starting` flag: the rows are the ones the last run saved and no
+	// refresh has asked the forge since the app started. "slow" means
+	// the latest pass gave no answer in time (it hit its deadline, or
+	// was skipped because the last fetch was still running) and the
+	// last good rows are held, with the forge still reachable, until
+	// three passes in a row have missed. A good read clears it. Absent
+	// when the rows are current, and when the forge is shown as down
+	// (see errorKind). A client words it, "slow to answer" or
+	// "starting up", and does not call the rows live.
+	Cause *ForgeHealthCause `json:"cause,omitempty"`
+
 	// DependabotCommandsBlocked Why a "@dependabot" comment sent through this forge's credential would be refused. Dependabot only honours commands from a user with push access and ignores GitHub App accounts whatever permissions the App holds. Set only for GitHub when the connected credential is an App with no personal access token saved to send commands as. The Dependabot buttons lock with this text, auto-update-branch skips Dependabot pull requests, and the dependabot-action endpoint answers 409 with it. Omitted when commands work.
 	DependabotCommandsBlocked *string `json:"dependabotCommandsBlocked,omitempty"`
 
@@ -2365,6 +2396,19 @@ type ForgeHealth struct {
 	// UpstreamStatus The 5xx status the forge answered with, set only when errorKind is upstream_error. The forge is not shown as down until three fetches in a row have failed, whatever the cause, with the latest a 5xx; one failure among healthy ones changes nothing.
 	UpstreamStatus *int `json:"upstreamStatus,omitempty"`
 }
+
+// ForgeHealthCause Why the rows shown for this forge are not from the latest read,
+// while the forge is not down. "starting" is the same fact as
+// the `starting` flag: the rows are the ones the last run saved and no
+// refresh has asked the forge since the app started. "slow" means
+// the latest pass gave no answer in time (it hit its deadline, or
+// was skipped because the last fetch was still running) and the
+// last good rows are held, with the forge still reachable, until
+// three passes in a row have missed. A good read clears it. Absent
+// when the rows are current, and when the forge is shown as down
+// (see errorKind). A client words it, "slow to answer" or
+// "starting up", and does not call the rows live.
+type ForgeHealthCause string
 
 // ForgejoInstanceCheck defines model for ForgejoInstanceCheck.
 type ForgejoInstanceCheck struct {
