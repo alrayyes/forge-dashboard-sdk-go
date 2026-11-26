@@ -959,6 +959,21 @@ func (e UpdateRequestPhase) Valid() bool {
 	}
 }
 
+// Defines values for DisconnectGitHub200JSONResponseBodyRevoked.
+const (
+	False DisconnectGitHub200JSONResponseBodyRevoked = false
+)
+
+// Valid indicates whether the value is a known member of the DisconnectGitHub200JSONResponseBodyRevoked enum.
+func (e DisconnectGitHub200JSONResponseBodyRevoked) Valid() bool {
+	switch e {
+	case False:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetImageParamsForge.
 const (
 	GetImageParamsForgeForgejo GetImageParamsForge = "forgejo"
@@ -4750,6 +4765,9 @@ type FinishForgejoConnectionParams struct {
 	Error *string `form:"error,omitempty" json:"error,omitempty"`
 }
 
+// DisconnectGitHub200JSONResponseBodyRevoked defines parameters for DisconnectGitHub.
+type DisconnectGitHub200JSONResponseBodyRevoked bool
+
 // FinishGitHubConnectionParams defines parameters for FinishGitHubConnection.
 type FinishGitHubConnectionParams struct {
 	Code  *string `form:"code,omitempty" json:"code,omitempty"`
@@ -5386,9 +5404,12 @@ type ClientInterface interface {
 
 	// DisconnectForgejo Unlink the Forgejo account
 	//
-	// Deletes the stored token pair. When a pasted Forgejo token is saved,
-	// the instance URL and account name stay and the dashboard goes back to
-	// that token; otherwise both are cleared. Passkey sign-in is unaffected.
+	// Deletes the stored token pair. Forgejo has no token revocation
+	// endpoint, so the grant stays at the instance until it is removed under
+	// Settings, Applications, Authorized OAuth2 Applications. When a pasted
+	// Forgejo token is saved, the instance URL and account name stay and the
+	// dashboard goes back to that token; otherwise both are cleared. Passkey
+	// sign-in is unaffected.
 	//
 	// Corresponds with DELETE /api/v1/connections/forgejo (the `DisconnectForgejo` operationId).
 	DisconnectForgejo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5449,9 +5470,12 @@ type ClientInterface interface {
 
 	// DisconnectGitHub Unlink the GitHub account
 	//
-	// Deletes the stored token pair. Nothing else changes: a saved personal
-	// access token, the GitHub App installation and the other settings stay.
-	// Passkey sign-in is unaffected.
+	// Asks GitHub to revoke the App's grant for the linked user (the access
+	// and refresh token both stop working), then deletes the stored token
+	// pair. If GitHub is unreachable or refuses, the pair is deleted anyway
+	// and the answer is 200 with `revoked: false`; nothing is retried. Nothing
+	// else changes: a saved personal access token, the GitHub App
+	// installation and the other settings stay. Passkey sign-in is unaffected.
 	//
 	// Corresponds with DELETE /api/v1/connections/github (the `DisconnectGitHub` operationId).
 	DisconnectGitHub(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7832,9 +7856,12 @@ func (c *Client) GetCheckLog(ctx context.Context, params *GetCheckLogParams, req
 
 // DisconnectForgejo Unlink the Forgejo account
 //
-// Deletes the stored token pair. When a pasted Forgejo token is saved,
-// the instance URL and account name stay and the dashboard goes back to
-// that token; otherwise both are cleared. Passkey sign-in is unaffected.
+// Deletes the stored token pair. Forgejo has no token revocation
+// endpoint, so the grant stays at the instance until it is removed under
+// Settings, Applications, Authorized OAuth2 Applications. When a pasted
+// Forgejo token is saved, the instance URL and account name stay and the
+// dashboard goes back to that token; otherwise both are cleared. Passkey
+// sign-in is unaffected.
 //
 // Corresponds with DELETE /api/v1/connections/forgejo (the `DisconnectForgejo` operationId).
 func (c *Client) DisconnectForgejo(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -7935,9 +7962,12 @@ func (c *Client) FinishForgejoConnection(ctx context.Context, params *FinishForg
 
 // DisconnectGitHub Unlink the GitHub account
 //
-// Deletes the stored token pair. Nothing else changes: a saved personal
-// access token, the GitHub App installation and the other settings stay.
-// Passkey sign-in is unaffected.
+// Asks GitHub to revoke the App's grant for the linked user (the access
+// and refresh token both stop working), then deletes the stored token
+// pair. If GitHub is unreachable or refuses, the pair is deleted anyway
+// and the answer is 200 with `revoked: false`; nothing is retried. Nothing
+// else changes: a saved personal access token, the GitHub App
+// installation and the other settings stay. Passkey sign-in is unaffected.
 //
 // Corresponds with DELETE /api/v1/connections/github (the `DisconnectGitHub` operationId).
 func (c *Client) DisconnectGitHub(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -14529,9 +14559,12 @@ type ClientWithResponsesInterface interface {
 
 	// DisconnectForgejoWithResponse Unlink the Forgejo account
 	//
-	// Deletes the stored token pair. When a pasted Forgejo token is saved,
-	// the instance URL and account name stay and the dashboard goes back to
-	// that token; otherwise both are cleared. Passkey sign-in is unaffected.
+	// Deletes the stored token pair. Forgejo has no token revocation
+	// endpoint, so the grant stays at the instance until it is removed under
+	// Settings, Applications, Authorized OAuth2 Applications. When a pasted
+	// Forgejo token is saved, the instance URL and account name stay and the
+	// dashboard goes back to that token; otherwise both are cleared. Passkey
+	// sign-in is unaffected.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -14596,9 +14629,12 @@ type ClientWithResponsesInterface interface {
 
 	// DisconnectGitHubWithResponse Unlink the GitHub account
 	//
-	// Deletes the stored token pair. Nothing else changes: a saved personal
-	// access token, the GitHub App installation and the other settings stay.
-	// Passkey sign-in is unaffected.
+	// Asks GitHub to revoke the App's grant for the linked user (the access
+	// and refresh token both stop working), then deletes the stored token
+	// pair. If GitHub is unreachable or refuses, the pair is deleted anyway
+	// and the answer is 200 with `revoked: false`; nothing is retried. Nothing
+	// else changes: a saved personal access token, the GitHub App
+	// installation and the other settings stay. Passkey sign-in is unaffected.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -17554,8 +17590,25 @@ func (r FinishForgejoConnectionResponse) ContentType() string {
 type DisconnectGitHubResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		// Message Optional hint text on where to revoke the grant by hand.
+		// A client may show it or use its own wording.
+		Message *string                                    `json:"message,omitempty"`
+		Revoked DisconnectGitHub200JSONResponseBodyRevoked `json:"revoked"`
+	}
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DisconnectGitHubResponse) GetJSON200() *struct {
+	// Message Optional hint text on where to revoke the grant by hand.
+	// A client may show it or use its own wording.
+	Message *string                                    `json:"message,omitempty"`
+	Revoked DisconnectGitHub200JSONResponseBodyRevoked `json:"revoked"`
+} {
+	return r.JSON200
 }
 
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
@@ -21693,9 +21746,12 @@ func (c *ClientWithResponses) GetCheckLogWithResponse(ctx context.Context, param
 
 // DisconnectForgejoWithResponse Unlink the Forgejo account
 //
-// Deletes the stored token pair. When a pasted Forgejo token is saved,
-// the instance URL and account name stay and the dashboard goes back to
-// that token; otherwise both are cleared. Passkey sign-in is unaffected.
+// Deletes the stored token pair. Forgejo has no token revocation
+// endpoint, so the grant stays at the instance until it is removed under
+// Settings, Applications, Authorized OAuth2 Applications. When a pasted
+// Forgejo token is saved, the instance URL and account name stay and the
+// dashboard goes back to that token; otherwise both are cleared. Passkey
+// sign-in is unaffected.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -21784,9 +21840,12 @@ func (c *ClientWithResponses) FinishForgejoConnectionWithResponse(ctx context.Co
 
 // DisconnectGitHubWithResponse Unlink the GitHub account
 //
-// Deletes the stored token pair. Nothing else changes: a saved personal
-// access token, the GitHub App installation and the other settings stay.
-// Passkey sign-in is unaffected.
+// Asks GitHub to revoke the App's grant for the linked user (the access
+// and refresh token both stop working), then deletes the stored token
+// pair. If GitHub is unreachable or refuses, the pair is deleted anyway
+// and the answer is 200 with `revoked: false`; nothing is retried. Nothing
+// else changes: a saved personal access token, the GitHub App
+// installation and the other settings stay. Passkey sign-in is unaffected.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -25106,6 +25165,18 @@ func ParseDisconnectGitHubResponse(rsp *http.Response) (*DisconnectGitHubRespons
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			// Message Optional hint text on where to revoke the grant by hand.
+			// A client may show it or use its own wording.
+			Message *string                                    `json:"message,omitempty"`
+			Revoked DisconnectGitHub200JSONResponseBodyRevoked `json:"revoked"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case rsp.StatusCode == 204:
 		break // No content-type
 
