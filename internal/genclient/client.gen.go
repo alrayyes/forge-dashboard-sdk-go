@@ -3637,6 +3637,13 @@ type PullRequest struct {
 	NeedsReview bool `json:"needsReview"`
 	Number      int  `json:"number"`
 
+	// OutOfDate True when this pull request is behind its base branch with
+	// something left to merge, at any CI state, drafts and hidden ones
+	// included: what the row's Out of date badge shows and what the Out of
+	// date quick filter lists. An empty pull request has nothing to
+	// update, so it is false. Always present.
+	OutOfDate bool `json:"outOfDate"`
+
 	// PendingChecks The checks the pull request waits on that no job in its pipeline
 	// shows, by name: a pending commit status from an external CI, or a
 	// check the base branch requires that nothing has reported yet. A
