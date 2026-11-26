@@ -4326,9 +4326,9 @@ type SettingsRequest struct {
 // SettingsResponse The signed-in user's own GitHub/Forgejo configuration. Never
 // includes a forge token's value — only whether one is currently
 // saved, so the UI can show a "Configured" badge without the secret
-// ever reaching the browser. webhookToken/webhookSecret are the
-// exception: they're ours to hand back in the clear, since the user
-// has to paste them into the forge's own webhook setup.
+// ever reaching the browser. The webhook token and secret stay on the
+// server too: the receivers read them from the store, and the browser
+// never needs them.
 type SettingsResponse struct {
 	// ForgejoOAuthConfigured Whether this server has a Forgejo OAuth client (`FORGEJO_OAUTH_CLIENT_ID`
 	// and `FORGEJO_OAUTH_CLIENT_SECRET`), so `POST /api/v1/connections/forgejo`
@@ -4447,17 +4447,6 @@ type SettingsResponse struct {
 	// from Settings (PUT /api/v1/settings/timezone); every other page reads
 	// it via GET /api/v1/settings/timezone.
 	Timezone *string `json:"timezone,omitempty"`
-
-	// WebhookSecret Pasted into the forge's own webhook "Secret" field, used to
-	// verify the signature header on incoming webhook deliveries
-	// (`X-Hub-Signature-256` on GitHub, `X-Forgejo-Signature` on
-	// Forgejo). Never appears in the webhook URL itself.
-	WebhookSecret string `json:"webhookSecret"`
-
-	// WebhookToken Identifies this user in a webhook URL
-	// (`/api/webhooks/{provider}/{webhookToken}`). Generated on
-	// first visit to Settings and stable after that.
-	WebhookToken string `json:"webhookToken"`
 }
 
 // SettingsResponseTheme The signed-in user's own theme preference. Empty
@@ -4469,8 +4458,7 @@ type SettingsResponseTheme string
 
 // SettingsSummary The signed-in user's settings as `GET /api/v1/settings/summary` and the
 // `get_settings` MCP tool return them: every field of
-// SettingsResponse except `webhookToken` and `webhookSecret`, which are
-// never part of it, plus `webhookConfigured`. No forge token appears,
+// SettingsResponse, plus `webhookConfigured`. No forge token appears,
 // only whether one is set. Field meanings are those of the same-named
 // SettingsResponse properties.
 type SettingsSummary struct {
@@ -6994,11 +6982,9 @@ type ClientInterface interface {
 
 	// GetSettings The signed-in user's own forge configuration
 	//
-	// Forge tokens are never returned, only whether one is set. The
-	// webhook token and secret are returned, since the user pastes them
-	// into the forge's webhook setup, and a first read creates them. For
-	// a read that creates nothing and omits both, see
-	// `GET /api/v1/settings/summary`.
+	// Forge tokens are never returned, only whether one is set. Nor are the
+	// webhook token and secret, though a first read still creates them. For
+	// a read that creates nothing, see `GET /api/v1/settings/summary`.
 	//
 	// Corresponds with GET /api/v1/settings (the `GetSettings` operationId).
 	GetSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -7098,11 +7084,10 @@ type ClientInterface interface {
 
 	// GetSettingsSummary The signed-in user's settings, read without side effects
 	//
-	// The same data as `GET /api/v1/settings`, minus the webhook token and
-	// secret, plus `webhookConfigured`. It never provisions webhook
-	// credentials: for a user who has none yet it answers
-	// `webhookConfigured: false` and creates nothing. Forge tokens are
-	// never returned, only whether one is set. It returns exactly what
+	// The same data as `GET /api/v1/settings`, plus `webhookConfigured`. It
+	// never provisions webhook credentials: for a user who has none yet it
+	// answers `webhookConfigured: false` and creates nothing. Forge tokens
+	// are never returned, only whether one is set. It returns exactly what
 	// the `get_settings` MCP tool returns.
 	//
 	// Corresponds with GET /api/v1/settings/summary (the `GetSettingsSummary` operationId).
@@ -10163,11 +10148,9 @@ func (c *Client) UnignoreRepo(ctx context.Context, body UnignoreRepoJSONRequestB
 
 // GetSettings The signed-in user's own forge configuration
 //
-// Forge tokens are never returned, only whether one is set. The
-// webhook token and secret are returned, since the user pastes them
-// into the forge's webhook setup, and a first read creates them. For
-// a read that creates nothing and omits both, see
-// `GET /api/v1/settings/summary`.
+// Forge tokens are never returned, only whether one is set. Nor are the
+// webhook token and secret, though a first read still creates them. For
+// a read that creates nothing, see `GET /api/v1/settings/summary`.
 //
 // Corresponds with GET /api/v1/settings (the `GetSettings` operationId).
 func (c *Client) GetSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -10327,11 +10310,10 @@ func (c *Client) SetFilterState(ctx context.Context, body SetFilterStateJSONRequ
 
 // GetSettingsSummary The signed-in user's settings, read without side effects
 //
-// The same data as `GET /api/v1/settings`, minus the webhook token and
-// secret, plus `webhookConfigured`. It never provisions webhook
-// credentials: for a user who has none yet it answers
-// `webhookConfigured: false` and creates nothing. Forge tokens are
-// never returned, only whether one is set. It returns exactly what
+// The same data as `GET /api/v1/settings`, plus `webhookConfigured`. It
+// never provisions webhook credentials: for a user who has none yet it
+// answers `webhookConfigured: false` and creates nothing. Forge tokens
+// are never returned, only whether one is set. It returns exactly what
 // the `get_settings` MCP tool returns.
 //
 // Corresponds with GET /api/v1/settings/summary (the `GetSettingsSummary` operationId).
@@ -16179,11 +16161,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetSettingsWithResponse The signed-in user's own forge configuration
 	//
-	// Forge tokens are never returned, only whether one is set. The
-	// webhook token and secret are returned, since the user pastes them
-	// into the forge's webhook setup, and a first read creates them. For
-	// a read that creates nothing and omits both, see
-	// `GET /api/v1/settings/summary`.
+	// Forge tokens are never returned, only whether one is set. Nor are the
+	// webhook token and secret, though a first read still creates them. For
+	// a read that creates nothing, see `GET /api/v1/settings/summary`.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -16287,11 +16267,10 @@ type ClientWithResponsesInterface interface {
 
 	// GetSettingsSummaryWithResponse The signed-in user's settings, read without side effects
 	//
-	// The same data as `GET /api/v1/settings`, minus the webhook token and
-	// secret, plus `webhookConfigured`. It never provisions webhook
-	// credentials: for a user who has none yet it answers
-	// `webhookConfigured: false` and creates nothing. Forge tokens are
-	// never returned, only whether one is set. It returns exactly what
+	// The same data as `GET /api/v1/settings`, plus `webhookConfigured`. It
+	// never provisions webhook credentials: for a user who has none yet it
+	// answers `webhookConfigured: false` and creates nothing. Forge tokens
+	// are never returned, only whether one is set. It returns exactly what
 	// the `get_settings` MCP tool returns.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -23778,11 +23757,9 @@ func (c *ClientWithResponses) UnignoreRepoWithResponse(ctx context.Context, body
 
 // GetSettingsWithResponse The signed-in user's own forge configuration
 //
-// Forge tokens are never returned, only whether one is set. The
-// webhook token and secret are returned, since the user pastes them
-// into the forge's webhook setup, and a first read creates them. For
-// a read that creates nothing and omits both, see
-// `GET /api/v1/settings/summary`.
+// Forge tokens are never returned, only whether one is set. Nor are the
+// webhook token and secret, though a first read still creates them. For
+// a read that creates nothing, see `GET /api/v1/settings/summary`.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -23922,11 +23899,10 @@ func (c *ClientWithResponses) SetFilterStateWithResponse(ctx context.Context, bo
 
 // GetSettingsSummaryWithResponse The signed-in user's settings, read without side effects
 //
-// The same data as `GET /api/v1/settings`, minus the webhook token and
-// secret, plus `webhookConfigured`. It never provisions webhook
-// credentials: for a user who has none yet it answers
-// `webhookConfigured: false` and creates nothing. Forge tokens are
-// never returned, only whether one is set. It returns exactly what
+// The same data as `GET /api/v1/settings`, plus `webhookConfigured`. It
+// never provisions webhook credentials: for a user who has none yet it
+// answers `webhookConfigured: false` and creates nothing. Forge tokens
+// are never returned, only whether one is set. It returns exactly what
 // the `get_settings` MCP tool returns.
 //
 // Returns a wrapper object for the known response body format(s).
