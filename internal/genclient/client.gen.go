@@ -2318,8 +2318,9 @@ type ForgeHealth struct {
 
 	// Cause Why the rows shown for this forge are not from the latest read,
 	// while the forge is not down. "starting" is the same fact as
-	// the `starting` flag: the rows are the ones the last run saved and no
-	// fetch from the forge has answered in time since the app started.
+	// the `starting` flag, and goes when that flag does: the rows are the
+	// ones the last run saved and no fetch from the forge has answered in
+	// time since the app started.
 	// "slow" means the latest pass gave no answer in time (it hit its
 	// deadline, or was skipped because the last fetch was still running)
 	// and the last good rows are held, with the forge still reachable,
@@ -2393,8 +2394,12 @@ type ForgeHealth struct {
 	// is not in error, it has not been heard from. A first fetch that
 	// passes its deadline, and a pass skipped behind it, leave this
 	// entry as it is, and the late answer is dropped. The first fetch
-	// that answers in time replaces it. A client says "starting up,
-	// showing data from 3 minutes ago", and never "unreachable".
+	// that answers in time replaces it. When three passes in a row have
+	// gone unanswered, counting deadline and skipped passes together,
+	// the flag and the "starting" cause go, and errorKind is
+	// "unreachable", with the saved rows and staleSince kept. While it is
+	// true a client says "starting up, showing data from 3 minutes ago",
+	// and never "unreachable".
 	Starting *bool `json:"starting,omitempty"`
 
 	// UpstreamStatus The 5xx status the forge answered with, set only when errorKind is upstream_error. The forge is not shown as down until three fetches in a row have failed, whatever the cause, with the latest a 5xx; one failure among healthy ones changes nothing.
@@ -2403,8 +2408,9 @@ type ForgeHealth struct {
 
 // ForgeHealthCause Why the rows shown for this forge are not from the latest read,
 // while the forge is not down. "starting" is the same fact as
-// the `starting` flag: the rows are the ones the last run saved and no
-// fetch from the forge has answered in time since the app started.
+// the `starting` flag, and goes when that flag does: the rows are the
+// ones the last run saved and no fetch from the forge has answered in
+// time since the app started.
 // "slow" means the latest pass gave no answer in time (it hit its
 // deadline, or was skipped because the last fetch was still running)
 // and the last good rows are held, with the forge still reachable,
