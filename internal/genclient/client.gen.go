@@ -4067,6 +4067,19 @@ type RateLimit struct {
 	ResetsAt time.Time `json:"resetsAt"`
 }
 
+// RateLimitedError A read the forge rate-limited.
+type RateLimitedError struct {
+	Error string `json:"error"`
+
+	// Field Present when the rejection is about one field of the request
+	// body (a settings save, for instance), named as it appears there,
+	// so a client can mark that input without parsing `error`.
+	Field *string `json:"field,omitempty"`
+
+	// ResetsAt When the exhausted budget comes back. Absent when the forge didn't say, and when it limited the request with budget still left (GitHub's secondary limit), since no reset time is known then. On Forgejo it comes from the `Retry-After` header.
+	ResetsAt *time.Time `json:"resetsAt,omitempty"`
+}
+
 // Reaction defines model for Reaction.
 type Reaction struct {
 	// Count How many people gave this reaction.
@@ -18439,7 +18452,7 @@ type GetIssueDetailsResponse struct {
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *Error
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
+	JSON429 *RateLimitedError
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *Error
 }
@@ -18470,7 +18483,7 @@ func (r GetIssueDetailsResponse) GetJSON404() *Error {
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r GetIssueDetailsResponse) GetJSON429() *Error {
+func (r GetIssueDetailsResponse) GetJSON429() *RateLimitedError {
 	return r.JSON429
 }
 
@@ -19226,7 +19239,7 @@ type GetPullRequestDetailsResponse struct {
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *Error
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
+	JSON429 *RateLimitedError
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *Error
 }
@@ -19257,7 +19270,7 @@ func (r GetPullRequestDetailsResponse) GetJSON404() *Error {
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r GetPullRequestDetailsResponse) GetJSON429() *Error {
+func (r GetPullRequestDetailsResponse) GetJSON429() *RateLimitedError {
 	return r.JSON429
 }
 
@@ -20173,7 +20186,7 @@ type GetReleaseDetailsResponse struct {
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *Error
 	// JSON429 the response for an HTTP 429 `application/json` response
-	JSON429 *Error
+	JSON429 *RateLimitedError
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *Error
 }
@@ -20204,7 +20217,7 @@ func (r GetReleaseDetailsResponse) GetJSON404() *Error {
 }
 
 // GetJSON429 returns the response for an HTTP 429 `application/json` response
-func (r GetReleaseDetailsResponse) GetJSON429() *Error {
+func (r GetReleaseDetailsResponse) GetJSON429() *RateLimitedError {
 	return r.JSON429
 }
 
@@ -25914,7 +25927,7 @@ func ParseGetIssueDetailsResponse(rsp *http.Response) (*GetIssueDetailsResponse,
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
+		var dest RateLimitedError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -26557,7 +26570,7 @@ func ParseGetPullRequestDetailsResponse(rsp *http.Response) (*GetPullRequestDeta
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
+		var dest RateLimitedError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -27335,7 +27348,7 @@ func ParseGetReleaseDetailsResponse(rsp *http.Response) (*GetReleaseDetailsRespo
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest Error
+		var dest RateLimitedError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
