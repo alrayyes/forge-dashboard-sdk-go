@@ -1810,6 +1810,10 @@ type CheckConclusion = string
 // have counts of their own, `cancelled` and `held`, and are never in
 // `failed`: a push or a concurrency group superseded a cancelled run, and
 // the overall state does not read it as a failure while others still run.
+// On a GitHub pull request, a cancelled run is in no count and not in the
+// pipeline's list when a later run of the same workflow, started by the
+// same event, has a check of the same name that passed, failed or is not
+// finished.
 // A held run is also said by `awaitingWorkflowApproval`. Every check the
 // pipeline lists is in exactly one count, so the counts add up to the
 // jobs the pipeline lists, on a pull request and a default branch alike.
@@ -2759,6 +2763,10 @@ type LinkedPullRequest struct {
 	// have counts of their own, `cancelled` and `held`, and are never in
 	// `failed`: a push or a concurrency group superseded a cancelled run, and
 	// the overall state does not read it as a failure while others still run.
+	// On a GitHub pull request, a cancelled run is in no count and not in the
+	// pipeline's list when a later run of the same workflow, started by the
+	// same event, has a check of the same name that passed, failed or is not
+	// finished.
 	// A held run is also said by `awaitingWorkflowApproval`. Every check the
 	// pipeline lists is in exactly one count, so the counts add up to the
 	// jobs the pipeline lists, on a pull request and a default branch alike.
@@ -2885,6 +2893,10 @@ type MainBranch struct {
 	// have counts of their own, `cancelled` and `held`, and are never in
 	// `failed`: a push or a concurrency group superseded a cancelled run, and
 	// the overall state does not read it as a failure while others still run.
+	// On a GitHub pull request, a cancelled run is in no count and not in the
+	// pipeline's list when a later run of the same workflow, started by the
+	// same event, has a check of the same name that passed, failed or is not
+	// finished.
 	// A held run is also said by `awaitingWorkflowApproval`. Every check the
 	// pipeline lists is in exactly one count, so the counts add up to the
 	// jobs the pipeline lists, on a pull request and a default branch alike.
@@ -3433,6 +3445,10 @@ type PullRequest struct {
 	// have counts of their own, `cancelled` and `held`, and are never in
 	// `failed`: a push or a concurrency group superseded a cancelled run, and
 	// the overall state does not read it as a failure while others still run.
+	// On a GitHub pull request, a cancelled run is in no count and not in the
+	// pipeline's list when a later run of the same workflow, started by the
+	// same event, has a check of the same name that passed, failed or is not
+	// finished.
 	// A held run is also said by `awaitingWorkflowApproval`. Every check the
 	// pipeline lists is in exactly one count, so the counts add up to the
 	// jobs the pipeline lists, on a pull request and a default branch alike.
