@@ -4017,9 +4017,11 @@ type QueuedAction struct {
 	// Status `queued`: waiting for the reset. `done`: the action ran.
 	// `skipped`: the server re-read the pull request at the reset and
 	// it no longer needed the action, so nothing was done; `code` and
-	// `message` say why ("Already merged"). `failed`: the action ran
-	// and the forge refused, with the structured `code` and `message`
-	// an immediate action would have answered.
+	// `message` say why ("Already merged"). `failed`: either the action
+	// ran and the forge refused, with the structured `code` and
+	// `message` an immediate action would have answered, or it never
+	// ran because the forge still didn't answer an hour after the
+	// action first came due, with `code` `unknown`.
 	Status QueuedActionStatus `json:"status"`
 }
 
@@ -4029,9 +4031,11 @@ type QueuedActionAction string
 // QueuedActionStatus `queued`: waiting for the reset. `done`: the action ran.
 // `skipped`: the server re-read the pull request at the reset and
 // it no longer needed the action, so nothing was done; `code` and
-// `message` say why ("Already merged"). `failed`: the action ran
-// and the forge refused, with the structured `code` and `message`
-// an immediate action would have answered.
+// `message` say why ("Already merged"). `failed`: either the action
+// ran and the forge refused, with the structured `code` and
+// `message` an immediate action would have answered, or it never
+// ran because the forge still didn't answer an hour after the
+// action first came due, with `code` `unknown`.
 type QueuedActionStatus string
 
 // QueuedActionRequest Which safe action to queue, on which pull request.
